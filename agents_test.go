@@ -128,8 +128,8 @@ func TestGetDetectionFactsOfflineAtEnrichNone(t *testing.T) {
 	if d.Detection.Config.Local != filepath.Join(wd, ".alpha") {
 		t.Errorf("Config.Local = %q, want %s/.alpha", d.Detection.Config.Local, wd)
 	}
-	if d.Enrichment != EnrichNotRequested {
-		t.Errorf("Enrichment = %v, want EnrichNotRequested", d.Enrichment)
+	if d.Enrichment != EnrichmentNotRequested {
+		t.Errorf("Enrichment = %v, want EnrichmentNotRequested", d.Enrichment)
 	}
 	if len(d.Providers) != 0 {
 		t.Errorf("Providers = %v, want none at EnrichNone", d.Providers)
@@ -152,8 +152,8 @@ func TestGetHomeProviderEnrichProvidersOffline(t *testing.T) {
 	if len(d.Providers) != 1 || d.Providers[0] != "anthropic" {
 		t.Errorf("Providers = %v, want [anthropic]", d.Providers)
 	}
-	if d.Enrichment != EnrichApplied {
-		t.Errorf("Enrichment = %v, want EnrichApplied", d.Enrichment)
+	if d.Enrichment != EnrichmentApplied {
+		t.Errorf("Enrichment = %v, want EnrichmentApplied", d.Enrichment)
 	}
 	if d.Coverage.Status != CoverageNotProbed {
 		t.Errorf("Coverage.Status = %v, want CoverageNotProbed", d.Coverage.Status)
@@ -189,8 +189,8 @@ func TestGetAgnosticNoProvidersNotApplicable(t *testing.T) {
 		if err != nil {
 			t.Fatalf("level %v: Get: %v", lvl, err)
 		}
-		if d.Enrichment != EnrichNotApplicable {
-			t.Errorf("level %v: Enrichment = %v, want EnrichNotApplicable", lvl, d.Enrichment)
+		if d.Enrichment != EnrichmentNotApplicable {
+			t.Errorf("level %v: Enrichment = %v, want EnrichmentNotApplicable", lvl, d.Enrichment)
 		}
 		if msg, ok := warningMsg(d.Warnings, WarnProvidersRequired); !ok || msg != `"delta-agent" is provider-agnostic` {
 			t.Errorf("level %v: providers-required warning = %q (present=%v)", lvl, msg, ok)
@@ -216,14 +216,115 @@ func TestGetAgnosticValidatesCallerProviders(t *testing.T) {
 	if len(d.Providers) != 1 || d.Providers[0] != "google" {
 		t.Errorf("Providers = %v, want [google]", d.Providers)
 	}
-	if d.Enrichment != EnrichApplied || d.ModelCount != 1 {
-		t.Errorf("Enrichment=%v ModelCount=%d, want EnrichApplied 1", d.Enrichment, d.ModelCount)
+	if d.Enrichment != EnrichmentApplied || d.ModelCount != 1 {
+		t.Errorf("Enrichment=%v ModelCount=%d, want EnrichmentApplied 1", d.Enrichment, d.ModelCount)
 	}
 	// Unknown provider is rejected.
 	_, err = idx.Agents.Get(context.Background(), "delta-agent", AgentGetQuery{Enrich: EnrichProviders, Providers: []string{"bogus"}})
 	if !errors.Is(err, ErrUnknownProvider) {
 		t.Errorf("unknown provider err = %v, want ErrUnknownProvider", err)
 	}
+}
+
+// TestEnrichProvidersDegradeStatesFault pins the rule that a degraded verdict never
+// travels alone (see EnrichmentState godoc). EnrichProviders probes no coverage, so
+// a warning is the only channel that can carry the fault on either surface; without
+// one the caller sees EnrichmentDegraded with a nil error and no way to learn why.
+func TestEnrichProvidersDegradeStatesFault(t *testing.T) {
+	q := AgentGetQuery{Enrich: EnrichProviders, Providers: []string{"google"}}
+	lq := AgentQuery{Enrich: EnrichProviders, Providers: []string{"google"}}
+
+	t.Run("schema drift", func(t *testing.T) {
+		srv := modelsdevtest.Server(t, []string{"google"}, "google") // present but malformed
+		idx := openAgents(t, testCatalog,
+			WithSearchDirs(binDir(t, "delta")),
+			WithEnvLookup(envFn(t.TempDir())),
+			WithModelsURL(srv.URL),
+		)
+		d, err := idx.Agents.Get(context.Background(), "delta-agent", q)
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		if d.Enrichment != EnrichmentDegraded {
+			t.Errorf("Enrichment = %v, want EnrichmentDegraded", d.Enrichment)
+		}
+		// The ids are still reported; only their validation was lost.
+		if len(d.Providers) != 1 || d.Providers[0] != "google" {
+			t.Errorf("Providers = %v, want [google] reported despite the drift", d.Providers)
+		}
+		msg, ok := warningMsg(d.Warnings, WarnModelsSchemaDrift)
+		if !ok || msg != `provider ids unvalidated: provider "google" model "google-model" malformed: models.dev schema unrecognised` {
+			t.Errorf("get drift warning = %q (present=%v)", msg, ok)
+		}
+
+		res, lerr := idx.Agents.List(context.Background(), lq)
+		if lerr != nil {
+			t.Fatalf("List: %v", lerr)
+		}
+		if d := byID(res.Items)["delta-agent"]; d.Enrichment != EnrichmentDegraded {
+			t.Errorf("delta Enrichment = %v, want EnrichmentDegraded", d.Enrichment)
+		}
+		if msg, ok := warningMsg(res.Warnings, WarnModelsSchemaDrift); !ok || msg != `provider ids unvalidated: provider "google" model "google-model" malformed: models.dev schema unrecognised` {
+			t.Errorf("list drift warning = %q (present=%v)", msg, ok)
+		}
+	})
+
+	t.Run("unreachable", func(t *testing.T) {
+		idx := openAgents(t, testCatalog,
+			WithSearchDirs(binDir(t, "delta")),
+			WithEnvLookup(envFn(t.TempDir())),
+			WithModelsURL(modelsdevtest.Closed(t)),
+		)
+		d, err := idx.Agents.Get(context.Background(), "delta-agent", q)
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		if d.Enrichment != EnrichmentDegraded {
+			t.Errorf("Enrichment = %v, want EnrichmentDegraded", d.Enrichment)
+		}
+		// The wording names the ids, not the model data this level never requested.
+		msg, ok := warningMsg(d.Warnings, WarnModelsUnreachable)
+		if !ok || msg != "provider ids unvalidated: models.dev is unreachable and not cached" {
+			t.Errorf("get unreachable warning = %q (present=%v)", msg, ok)
+		}
+
+		res, lerr := idx.Agents.List(context.Background(), lq)
+		if lerr != nil {
+			t.Fatalf("List: %v", lerr)
+		}
+		if d := byID(res.Items)["delta-agent"]; d.Enrichment != EnrichmentDegraded {
+			t.Errorf("delta Enrichment = %v, want EnrichmentDegraded", d.Enrichment)
+		}
+		if msg, ok := warningMsg(res.Warnings, WarnModelsUnreachable); !ok || msg != "provider ids unvalidated: models.dev is unreachable and not cached" {
+			t.Errorf("list unreachable warning = %q (present=%v)", msg, ok)
+		}
+	})
+
+	t.Run("clean validation stays silent", func(t *testing.T) {
+		srv := modelsdevtest.Server(t, []string{"google"})
+		idx := openAgents(t, testCatalog,
+			WithSearchDirs(binDir(t, "delta")),
+			WithEnvLookup(envFn(t.TempDir())),
+			WithModelsURL(srv.URL),
+		)
+		d, err := idx.Agents.Get(context.Background(), "delta-agent", q)
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		if d.Enrichment != EnrichmentApplied {
+			t.Errorf("Enrichment = %v, want EnrichmentApplied", d.Enrichment)
+		}
+		if hasWarning(d.Warnings, WarnModelsSchemaDrift) || hasWarning(d.Warnings, WarnModelsUnreachable) {
+			t.Error("a clean validation must raise no models.dev warning")
+		}
+		res, lerr := idx.Agents.List(context.Background(), lq)
+		if lerr != nil {
+			t.Fatalf("List: %v", lerr)
+		}
+		if hasWarning(res.Warnings, WarnModelsSchemaDrift) || hasWarning(res.Warnings, WarnModelsUnreachable) {
+			t.Error("a clean listing validation must raise no models.dev warning")
+		}
+	})
 }
 
 func TestGetCoverageVerdicts(t *testing.T) {
@@ -241,8 +342,8 @@ func TestGetCoverageVerdicts(t *testing.T) {
 		if d.Coverage.Status != CoverageAllPresent {
 			t.Errorf("Status = %v, want CoverageAllPresent", d.Coverage.Status)
 		}
-		if d.Enrichment != EnrichApplied || d.ModelCount != 2 {
-			t.Errorf("Enrichment=%v ModelCount=%d, want EnrichApplied 2", d.Enrichment, d.ModelCount)
+		if d.Enrichment != EnrichmentApplied || d.ModelCount != 2 {
+			t.Errorf("Enrichment=%v ModelCount=%d, want EnrichmentApplied 2", d.Enrichment, d.ModelCount)
 		}
 		if d.ProviderEnv["GOOGLE_API_KEY"] != true || d.ProviderEnv["OPENAI_API_KEY"] != false {
 			t.Errorf("ProviderEnv = %v, want GOOGLE present, OPENAI absent", d.ProviderEnv)
@@ -295,8 +396,8 @@ func TestGetCoverageVerdicts(t *testing.T) {
 		if len(d.Coverage.Absent) != 1 || d.Coverage.Absent[0] != "anthropic" {
 			t.Errorf("Absent = %v, want [anthropic]", d.Coverage.Absent)
 		}
-		if d.Enrichment != EnrichApplied {
-			t.Errorf("Enrichment = %v, want EnrichApplied (a true zero)", d.Enrichment)
+		if d.Enrichment != EnrichmentApplied {
+			t.Errorf("Enrichment = %v, want EnrichmentApplied (a true zero)", d.Enrichment)
 		}
 	})
 
@@ -317,8 +418,8 @@ func TestGetCoverageVerdicts(t *testing.T) {
 		if !errors.Is(d.Coverage.Err, modelsdev.ErrModelsSchema) {
 			t.Errorf("Coverage.Err = %v, want to wrap ErrModelsSchema", d.Coverage.Err)
 		}
-		if d.Enrichment != EnrichDegraded {
-			t.Errorf("Enrichment = %v, want EnrichDegraded", d.Enrichment)
+		if d.Enrichment != EnrichmentDegraded {
+			t.Errorf("Enrichment = %v, want EnrichmentDegraded", d.Enrichment)
 		}
 		if hasWarning(d.Warnings, WarnModelsUnreachable) {
 			t.Error("schema drift on Get must not raise the unreachable warning")
@@ -338,8 +439,8 @@ func TestGetCoverageVerdicts(t *testing.T) {
 		if d.Coverage.Status != CoverageUnreachable {
 			t.Errorf("Status = %v, want CoverageUnreachable", d.Coverage.Status)
 		}
-		if d.Enrichment != EnrichDegraded {
-			t.Errorf("Enrichment = %v, want EnrichDegraded", d.Enrichment)
+		if d.Enrichment != EnrichmentDegraded {
+			t.Errorf("Enrichment = %v, want EnrichmentDegraded", d.Enrichment)
 		}
 		if msg, ok := warningMsg(d.Warnings, WarnModelsUnreachable); !ok || msg != "models.dev is unreachable and not cached: model enrichment and provider-env omitted" {
 			t.Errorf("unreachable warning = %q (present=%v)", msg, ok)
@@ -370,8 +471,8 @@ func TestGetNotInstalledEnrichesLikeInstalled(t *testing.T) {
 	}
 	// Enrichment does not depend on installation (R4): coverage, provider-env, and
 	// models are all filled for the absent binary.
-	if d.Coverage.Status != CoverageAllPresent || d.Enrichment != EnrichApplied {
-		t.Errorf("Status=%v Enrichment=%v, want CoverageAllPresent EnrichApplied", d.Coverage.Status, d.Enrichment)
+	if d.Coverage.Status != CoverageAllPresent || d.Enrichment != EnrichmentApplied {
+		t.Errorf("Status=%v Enrichment=%v, want CoverageAllPresent EnrichmentApplied", d.Coverage.Status, d.Enrichment)
 	}
 	if d.ModelCount != 1 || len(d.Models) != 1 {
 		t.Errorf("ModelCount=%d Models=%v, want 1 model filled", d.ModelCount, modelIDs(d.Models))
@@ -464,14 +565,14 @@ func TestListEnrichFullPerAgent(t *testing.T) {
 		t.Fatalf("List: %v", err)
 	}
 	by := byID(res.Items)
-	if a := by["alpha-cli"]; a.Enrichment != EnrichApplied || a.ModelCount != 1 {
+	if a := by["alpha-cli"]; a.Enrichment != EnrichmentApplied || a.ModelCount != 1 {
 		t.Errorf("alpha: Enrichment=%v ModelCount=%d", a.Enrichment, a.ModelCount)
 	}
-	if g := by["gamma-agent"]; g.Enrichment != EnrichApplied || g.ModelCount != 2 {
+	if g := by["gamma-agent"]; g.Enrichment != EnrichmentApplied || g.ModelCount != 2 {
 		t.Errorf("gamma: Enrichment=%v ModelCount=%d", g.Enrichment, g.ModelCount)
 	}
 	// Agnostic row without a provider set is not-applicable and silent (R8).
-	if d := by["delta-agent"]; d.Enrichment != EnrichNotApplicable || len(d.Models) != 0 {
+	if d := by["delta-agent"]; d.Enrichment != EnrichmentNotApplicable || len(d.Models) != 0 {
 		t.Errorf("delta: Enrichment=%v Models=%v, want not-applicable and empty", d.Enrichment, modelIDs(d.Models))
 	}
 	if hasWarning(res.Warnings, WarnProvidersRequired) {
@@ -497,8 +598,8 @@ func TestListDegradeWarnings(t *testing.T) {
 		if msg, ok := warningMsg(res.Warnings, WarnModelsUnreachable); !ok || msg != "model counts unavailable: models.dev is unreachable and not cached" {
 			t.Errorf("list unreachable warning = %q (present=%v)", msg, ok)
 		}
-		if a := byID(res.Items)["alpha-cli"]; a.Enrichment != EnrichDegraded {
-			t.Errorf("alpha Enrichment = %v, want EnrichDegraded", a.Enrichment)
+		if a := byID(res.Items)["alpha-cli"]; a.Enrichment != EnrichmentDegraded {
+			t.Errorf("alpha Enrichment = %v, want EnrichmentDegraded", a.Enrichment)
 		}
 	})
 

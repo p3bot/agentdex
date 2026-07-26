@@ -1,6 +1,10 @@
 package agentdex
 
-import "github.com/start-cli/agentdex/modelsdev"
+import (
+	"fmt"
+
+	"github.com/start-cli/agentdex/modelsdev"
+)
 
 // Result is the symmetric return of every List operation: the ordered items and
 // any warnings the operation raised. Warnings are valid on the error return too,
@@ -95,7 +99,7 @@ type Agent struct {
 	Providers   []string        // resolved provider ids the operation used; empty below EnrichProviders and when agnostic and unresolved
 	ProviderEnv map[string]bool // API-key env var -> present; nil when models.dev was not consulted
 	Enrichment  EnrichmentState
-	ModelCount  int               // meaningful when Enrichment == EnrichApplied
+	ModelCount  int               // meaningful when Enrichment == EnrichmentApplied
 	Models      []modelsdev.Model // populated when Enrich == EnrichFull; newest release first
 }
 
@@ -131,6 +135,20 @@ const (
 	TargetModels
 	TargetAll
 )
+
+// String returns the constant identifier, e.g. "TargetCatalog".
+func (t Target) String() string {
+	switch t {
+	case TargetCatalog:
+		return "TargetCatalog"
+	case TargetModels:
+		return "TargetModels"
+	case TargetAll:
+		return "TargetAll"
+	default:
+		return fmt.Sprintf("Target(%d)", int(t))
+	}
+}
 
 // Refreshed reports which targets a Refresh actually re-resolved or refetched.
 type Refreshed struct {

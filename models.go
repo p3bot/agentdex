@@ -158,9 +158,11 @@ func (c *core) validateModelProviders(ctx context.Context, mc *modelsdev.Client,
 	switch kind, err := c.validateProviders(ctx, mc, ids); kind {
 	case provUnknown, provSchema:
 		return err
-	default:
-		return nil
+	case provOK, provUnreachable:
+		// An outage is not a rejection: the ids stand and the listing fetch reports
+		// the outage instead (R8).
 	}
+	return nil
 }
 
 // canonicalID reports the composite when it names a key in the agnostic model map,

@@ -84,7 +84,7 @@ func (a *app) newAgentsListCmd() *cobra.Command {
 			for i := range res.Items {
 				ag := &res.Items[i]
 				r := agentRecord(ag)
-				if ag.Enrichment == agentdex.EnrichNotApplicable {
+				if ag.Enrichment == agentdex.EnrichmentNotApplicable {
 					// Not applicable: JSON null / text "-", not the degrade [] / 0 shape.
 					withModelsNA(r)
 				} else {
@@ -187,7 +187,7 @@ func (a *app) newAgentsGetCmd() *cobra.Command {
 			// unfiltered detail is a browse: emit the guidance warning and exit 0. A
 			// --fields or --models selection that names one of the unfillable fields is
 			// an explicit request the CLI cannot honour, so it is the usage fault (R15).
-			if detail.Enrichment == agentdex.EnrichNotApplicable {
+			if detail.Enrichment == agentdex.EnrichmentNotApplicable {
 				if namedProviderField(models, fields) {
 					uerr := fmt.Errorf("%w: %q is provider-agnostic; supply --provider with models.dev provider ids", agentdex.ErrProvidersRequired, id)
 					return a.fail(cmd, codeUsage, uerr, warnings...)
@@ -205,6 +205,11 @@ func (a *app) newAgentsGetCmd() *cobra.Command {
 				return a.reportAgentError(cmd, &detail.Agent, fields, codeConfig, cerr, warnings)
 			case agentdex.CoverageSchemaDrift:
 				return a.reportAgentError(cmd, &detail.Agent, fields, codeConfig, detail.Coverage.Err, warnings)
+			case agentdex.CoverageNotProbed, agentdex.CoverageAllPresent,
+				agentdex.CoverageSomePresent, agentdex.CoverageUnreachable:
+				// Not data faults: not-probed means the level reached no models.dev,
+				// some-absent rides on the coverage data, and an outage is a warning.
+				// A new fault verdict must be classified here rather than exiting 0.
 			}
 			return a.reportAgent(cmd, &detail.Agent, fields, warnings)
 		},

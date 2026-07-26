@@ -7,6 +7,7 @@ import "errors"
 // requested provider carries a malformed model (per-model, in Provider and
 // Models). models.dev is unversioned community JSON, so validation is the only
 // signal of drift; this error makes that drift loud rather than degrading
-// enrichment to silent blanks. The model-resolution sentinels (ErrModelAmbiguous,
-// ErrModelNotFound) belong to the root package and are not defined here.
+// enrichment to silent blanks. Model-resolution failures — a malformed composite
+// id, or an unknown provider or model — are the consuming layer's concern, not
+// this package's, and are not defined here.
 var ErrModelsSchema = errors.New("models.dev schema unrecognised")

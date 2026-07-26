@@ -2,7 +2,19 @@ version: "2"
 
 linters:
   default: standard
+  enable:
+    - exhaustive
   settings:
+    exhaustive:
+      # Blanket rather than opt-in: every switch over an enum must name every
+      # constant, so adding a constant fails at each switch that would have
+      # absorbed it. Opt-in (//exhaustive:enforce per switch) was measured and
+      # rejected: a switch written without the directive is unchecked, which is
+      # the silent gap the explicit cases in this codebase exist to close.
+      # A default is not exhaustive, so the Stringers still name every constant.
+      # A switch over a third-party enum where the default is genuinely right
+      # carries //exhaustive:ignore on its own line directly above the switch.
+      explicit-exhaustive-switch: false
     errcheck:
       exclude-functions:
         - fmt.Fprint

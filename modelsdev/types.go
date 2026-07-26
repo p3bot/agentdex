@@ -9,8 +9,8 @@ package modelsdev
 
 // Catalog is the merged result of fetching models.dev catalog.json: the
 // provider-agnostic model map plus the per-provider map, mirroring the upstream
-// { models, providers } shape. It is distinct from agentdex.Catalog (the set of
-// known agents); package qualification keeps the two unambiguous.
+// { models, providers } shape. It is the models.dev catalog, distinct from
+// agentdex's separate index of known coding agents.
 type Catalog struct {
 	Models    map[string]Model    `json:"models"`    // provider-agnostic, keyed by path-style model id
 	Providers map[string]Provider `json:"providers"` // keyed by provider id

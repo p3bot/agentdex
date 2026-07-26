@@ -1,5 +1,7 @@
 package agentdex
 
+import "fmt"
+
 // Enrich selects how much provider and models.dev data an agent operation
 // attaches. It is the single demand axis: each level is a superset of the one
 // below, and what the operation resolves, reports, and validates against
@@ -23,24 +25,56 @@ const (
 	EnrichFull
 )
 
+// String returns the constant identifier, e.g. "EnrichFull".
+func (e Enrich) String() string {
+	switch e {
+	case EnrichNone:
+		return "EnrichNone"
+	case EnrichProviders:
+		return "EnrichProviders"
+	case EnrichCount:
+		return "EnrichCount"
+	case EnrichFull:
+		return "EnrichFull"
+	default:
+		return fmt.Sprintf("Enrich(%d)", int(e))
+	}
+}
+
 // EnrichmentState records the outcome of enrichment on a returned Agent, replacing
 // the nil/empty/null encodings a caller would otherwise decode by hand.
 type EnrichmentState int
 
 const (
-	// EnrichNotRequested means Enrich was EnrichNone.
-	EnrichNotRequested EnrichmentState = iota
-	// EnrichApplied means the requested level was satisfied in full.
-	EnrichApplied
-	// EnrichNotApplicable means an agnostic agent was resolved with no providers
+	// EnrichmentNotRequested means Enrich was EnrichNone.
+	EnrichmentNotRequested EnrichmentState = iota
+	// EnrichmentApplied means the requested level was satisfied in full.
+	EnrichmentApplied
+	// EnrichmentNotApplicable means an agnostic agent was resolved with no providers
 	// supplied: outside facts only, distinct from a real empty result.
-	EnrichNotApplicable
-	// EnrichDegraded means models.dev could not fill the level — unreachable and
+	EnrichmentNotApplicable
+	// EnrichmentDegraded means models.dev could not fill the level — unreachable and
 	// uncached, or serving data agentdex cannot parse — so ModelCount is not a true
 	// zero. The fault is said alongside, as a warning kind on List and as the
 	// coverage verdict on Get.
-	EnrichDegraded
+	EnrichmentDegraded
 )
+
+// String returns the constant identifier, e.g. "EnrichmentApplied".
+func (s EnrichmentState) String() string {
+	switch s {
+	case EnrichmentNotRequested:
+		return "EnrichmentNotRequested"
+	case EnrichmentApplied:
+		return "EnrichmentApplied"
+	case EnrichmentNotApplicable:
+		return "EnrichmentNotApplicable"
+	case EnrichmentDegraded:
+		return "EnrichmentDegraded"
+	default:
+		return fmt.Sprintf("EnrichmentState(%d)", int(s))
+	}
+}
 
 // CoverageStatus is the verdict of probing a single agent's catalog provider set
 // against models.dev. The zero value is CoverageNotProbed, so every other status
@@ -56,6 +90,26 @@ const (
 	CoverageUnreachable
 	CoverageSchemaDrift
 )
+
+// String returns the constant identifier, e.g. "CoverageAllPresent".
+func (s CoverageStatus) String() string {
+	switch s {
+	case CoverageNotProbed:
+		return "CoverageNotProbed"
+	case CoverageAllPresent:
+		return "CoverageAllPresent"
+	case CoverageSomePresent:
+		return "CoverageSomePresent"
+	case CoverageNonePresent:
+		return "CoverageNonePresent"
+	case CoverageUnreachable:
+		return "CoverageUnreachable"
+	case CoverageSchemaDrift:
+		return "CoverageSchemaDrift"
+	default:
+		return fmt.Sprintf("CoverageStatus(%d)", int(s))
+	}
+}
 
 // ProviderCoverage is the per-provider models.dev coverage of one agent's catalog
 // provider set, reported as data by Agents.Get. The caller maps verdicts to policy.
@@ -83,6 +137,26 @@ const (
 	// without a provider set.
 	WarnProvidersRequired
 )
+
+// String returns the constant identifier, e.g. "WarnStaleCatalog".
+func (k WarningKind) String() string {
+	switch k {
+	case WarnStaleCatalog:
+		return "WarnStaleCatalog"
+	case WarnModelsUnreachable:
+		return "WarnModelsUnreachable"
+	case WarnModelsSchemaDrift:
+		return "WarnModelsSchemaDrift"
+	case WarnSomeProvidersAbsent:
+		return "WarnSomeProvidersAbsent"
+	case WarnNotInstalled:
+		return "WarnNotInstalled"
+	case WarnProvidersRequired:
+		return "WarnProvidersRequired"
+	default:
+		return fmt.Sprintf("WarningKind(%d)", int(k))
+	}
+}
 
 // Warning is a structured, self-describing note: the kind a caller branches on and
 // the human-readable message it emits verbatim (adding a remedy clause only where
