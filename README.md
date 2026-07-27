@@ -25,13 +25,13 @@ type Index struct {
 }
 ```
 
-Each service has exactly two operations: a browse `List`, returning a `Result[T]` of items and warnings, and an exact `Get`. Detection is a property of an agent, reported on `Agent.Detection`, not a top-level verb. The `Index` also carries the cache-level operations `Refresh` and `CatalogStale`.
+Each service has exactly two operations: a browse `List`, returning a `Result[T]` of items and warnings, and an exact `Get`. Detection is a property of an agent, reported on `Agent.Detection`, not a top-level verb. The `Index` also carries the cache-level operations `Refresh`, `CatalogInfo`, and `CatalogStale`.
 
 `Open` performs no network I/O. The agent catalog and the models.dev catalog are resolved lazily on the first operation that needs each, once, behind a guard, so the `Index` is safe for concurrent use. Options configure the catalog source (`WithCatalogModule`, `WithCatalogDir`, `WithCatalogTTL`), the caches (`WithCacheDir`, `WithModelsURL`, `WithModelsTTL`), detection (`WithSearchDirs`, `WithBinPaths`), the boundary inputs (`WithEnvLookup`, `WithWorkingDir`, `WithHTTPClient`), and structured debug logging (`WithLogger`, silent by default).
 
 An agent operation takes an `Enrich` level, the single demand axis, each level a superset of the one below: `EnrichNone` (catalog and detection facts only, silent and offline), `EnrichProviders` (adds the resolved provider set), `EnrichCount` (adds provider-env presence, a model count, and coverage on `Agents.Get`), and `EnrichFull` (adds the full models list). Installation status gates none of it, so a caller can ask what an agent offers before installing it. Each returned `Agent` records the outcome in `EnrichmentState` — applied, not-requested, not-applicable (an agnostic agent with no providers), or degraded (models.dev could not fill it).
 
-Warnings are structured: each carries a `Kind` a caller can branch on and a `Msg` it emits verbatim, and they ride on both the success and the error return. Errors are sentinels matched with `errors.Is` — `ErrCatalogUnavailable`, `ErrCatalogInvalid`, `ErrModelsUnavailable`, `ErrAgentUnknown`, `ErrUnknownProvider`, `ErrProvidersRequired`, `ErrProvidersNotAllowed`, `ErrMalformedModelID`, and `ErrNotFound` — with recognisable models.dev schema drift wrapping `modelsdev.ErrModelsSchema` wherever it surfaces.
+Warnings are structured: each carries a `Kind` a caller can branch on and a `Msg` it emits verbatim, and they ride on both the success and the error return. Errors are sentinels matched with `errors.Is` — `ErrCatalogUnavailable`, `ErrCatalogInvalid`, `ErrModelsUnavailable`, `ErrModelsSchema`, `ErrAgentUnknown`, `ErrUnknownProvider`, `ErrProvidersRequired`, `ErrProvidersNotAllowed`, `ErrMalformedModelID`, and `ErrNotFound`. `ErrModelsSchema` is an alias of `modelsdev.ErrModelsSchema` (same value; either name matches).
 
 A worked example, from `Open` through a query to a result:
 
@@ -50,7 +50,7 @@ import (
 func main() {
 	ctx := context.Background()
 
-	idx, err := agentdex.Open(ctx)
+	idx, err := agentdex.Open()
 	if err != nil {
 		log.Fatal(err)
 	}

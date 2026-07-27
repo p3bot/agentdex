@@ -21,12 +21,12 @@ import (
 // (R6).
 func (s AgentService) Get(ctx context.Context, id string, q AgentGetQuery) (AgentDetail, error) {
 	c := s.core
-	cat, stale, err := c.resolveCatalog(ctx)
+	cat, info, err := c.resolveCatalog(ctx)
 	if err != nil {
 		return AgentDetail{}, err
 	}
 	var warnings []Warning
-	if stale {
+	if info.Stale {
 		warnings = append(warnings, staleWarning())
 	}
 
@@ -64,11 +64,14 @@ func (s AgentService) Get(ctx context.Context, id string, q AgentGetQuery) (Agen
 		return detail, nil
 	}
 
-	providers := ka.Provider
+	// Public slices only — never the memoised catalog's Provider array.
+	var providers []string
 	if ka.Agnostic {
 		providers = caller
+	} else {
+		providers = append([]string(nil), detail.CatalogProviders...)
 	}
-	detail.Providers = providers
+	detail.ResolvedProviders = providers
 
 	mc := c.modelsClient()
 
@@ -85,24 +88,15 @@ func (s AgentService) Get(ctx context.Context, id string, q AgentGetQuery) (Agen
 	}
 
 	if q.Enrich == EnrichProviders {
-		// The ids are reported either way; a degrade here means they went unchecked,
-		// so every degraded outcome says its own fault alongside the verdict (R6).
 		switch validation {
 		case provUnreachable:
 			detail.Enrichment = EnrichmentDegraded
-			warnings = append(warnings, providersUnvalidatedWarning(degradeUnreachable, validationErr))
+			warnings = append(warnings, modelsUnreachableGetWarning())
 		case provSchema:
 			detail.Enrichment = EnrichmentDegraded
-			warnings = append(warnings, providersUnvalidatedWarning(degradeSchema, validationErr))
-		case provOK:
+			warnings = append(warnings, modelsSchemaDriftGetWarning(validationErr))
+		default:
 			detail.Enrichment = EnrichmentApplied
-		case provUnknown:
-			// Unreachable: an unknown id returned above. Stated as its own case rather
-			// than grouped with provOK so the one outcome meaning "these ids could not
-			// be trusted" cannot claim "satisfied in full" if that early return is ever
-			// narrowed. It mirrors that return rather than degrading with no fault.
-			detail.Warnings = warnings
-			return detail, validationErr
 		}
 		detail.Warnings = warnings
 		return detail, nil
@@ -110,23 +104,25 @@ func (s AgentService) Get(ctx context.Context, id string, q AgentGetQuery) (Agen
 
 	// EnrichCount and EnrichFull: probe coverage and enrich from the present
 	// providers. Coverage is the verdict on this agent's provider set as data (R5).
-	wantModels := q.Enrich == EnrichFull
-	cov := c.probeCoverage(ctx, mc, providers, wantModels)
+	cov := c.probeCoverage(ctx, mc, providers)
 	detail.Coverage = cov.cov
 	detail.Enrichment = cov.state
 	if cov.state == EnrichmentDegraded {
-		// Unreachable is a warning; recognisable drift is carried by the coverage
-		// verdict and Coverage.Err, which the caller maps to a failure (R6).
-		if cov.cov.Status == CoverageUnreachable {
+		// Unreachable and schema drift both raise a warning; Coverage.Err still
+		// carries the models.dev fault so errors.Is resolves the drift (R6).
+		switch cov.cov.Status {
+		case CoverageUnreachable:
 			warnings = append(warnings, modelsUnreachableGetWarning())
+		case CoverageSchemaDrift:
+			warnings = append(warnings, modelsSchemaDriftGetWarning(cov.cov.Err))
 		}
 		detail.Warnings = warnings
 		return detail, nil
 	}
 	detail.ProviderEnv = cov.providerEnv
 	detail.ModelCount = len(cov.models)
-	if wantModels {
-		sortModelsNewest(cov.models)
+	if q.Enrich == EnrichFull {
+		sortModels(cov.models)
 		detail.Models = cov.models
 	}
 	if cov.cov.Status == CoverageSomePresent {
@@ -144,12 +140,12 @@ func (s AgentService) Get(ctx context.Context, id string, q AgentGetQuery) (Agen
 // boundary at every level; an unknown id fails the whole listing (R8).
 func (s AgentService) List(ctx context.Context, q AgentQuery) (Result[Agent], error) {
 	c := s.core
-	cat, stale, err := c.resolveCatalog(ctx)
+	cat, info, err := c.resolveCatalog(ctx)
 	if err != nil {
 		return Result[Agent]{}, err
 	}
 	var warnings []Warning
-	if stale {
+	if info.Stale {
 		warnings = append(warnings, staleWarning())
 	}
 
@@ -175,8 +171,6 @@ func (s AgentService) List(ctx context.Context, q AgentQuery) (Result[Agent], er
 			degrade, degradeErr = degradeSchema, verr
 		case provUnreachable:
 			degrade, degradeErr = degradeUnreachable, verr
-		case provOK:
-			// Validation passed: the listing enriches undegraded.
 		}
 	}
 
@@ -196,30 +190,21 @@ func (s AgentService) List(ctx context.Context, q AgentQuery) (Result[Agent], er
 		agents = keepInstalled(agents)
 	}
 
-	// Switch on Enrich so exhaustive names every demand level; a new level cannot
-	// be absorbed into the model path without failing the build (R4).
-	switch q.Enrich {
-	case EnrichNone:
+	switch {
+	case q.Enrich == EnrichNone:
 		for i := range agents {
 			agents[i].Enrichment = EnrichmentNotRequested
 		}
-	case EnrichProviders:
+	case q.Enrich == EnrichProviders:
 		for i := range agents {
 			c.resolveListProviders(&agents[i], providers, degrade)
 		}
-		// resolveListProviders degrades the agnostic rows on a failed validation; the
-		// fault itself is listing-wide, so it is said once here (R6).
-		if degrade != degradeNone {
-			warnings = append(warnings, providersUnvalidatedWarning(degrade, degradeErr))
+	case degrade != degradeNone:
+		for i := range agents {
+			c.degradeListAgent(&agents[i], providers)
 		}
-	case EnrichCount, EnrichFull:
-		if degrade != degradeNone {
-			for i := range agents {
-				c.degradeListAgent(&agents[i], providers)
-			}
-			warnings = append(warnings, listDegradeWarning(degrade, degradeErr))
-			break
-		}
+		warnings = append(warnings, listDegradeWarning(degrade, degradeErr))
+	default:
 		wantModels := q.Enrich == EnrichFull
 		for i := range agents {
 			if serr := c.enrichListAgent(ctx, mc, &agents[i], providers, wantModels); serr != nil && degrade == degradeNone {
@@ -288,17 +273,17 @@ func (c *core) validateProviders(ctx context.Context, mc *modelsdev.Client, ids 
 type covResult struct {
 	cov         ProviderCoverage
 	providerEnv map[string]bool
-	models      []modelsdev.Model
+	models      []Model
 	state       EnrichmentState
 }
 
 // probeCoverage probes each provider once, composing the coverage verdict and, on
 // a reachable and parseable models.dev, the provider-env presence and the present
-// providers' models. A drift or an outage short-circuits to the fault verdict with
-// EnrichmentDegraded; otherwise the verdict is a positive one and the enrichment is
-// applied. There is no empty-set case: a home-provider set is non-empty by schema
-// and an agnostic empty set never reaches here (R5).
-func (c *core) probeCoverage(ctx context.Context, mc *modelsdev.Client, providers []string, wantModels bool) covResult {
+// providers' attributed models. A drift or an outage short-circuits to the fault
+// verdict with EnrichmentDegraded; otherwise the verdict is a positive one and the
+// enrichment is applied. There is no empty-set case: a home-provider set is
+// non-empty by schema and an agnostic empty set never reaches here (R5).
+func (c *core) probeCoverage(ctx context.Context, mc *modelsdev.Client, providers []string) covResult {
 	var present, absent []string
 	var providerEnv map[string]bool
 	for _, pid := range providers {
@@ -322,9 +307,9 @@ func (c *core) probeCoverage(ctx context.Context, mc *modelsdev.Client, provider
 		}
 	}
 
-	var models []modelsdev.Model
+	var models []Model
 	if len(present) > 0 {
-		m, merr := mc.Models(ctx, present...)
+		m, merr := c.modelsForProviders(ctx, mc, present)
 		if merr != nil {
 			// present providers passed the per-provider check above, so a fault here
 			// is genuine rather than an absent provider being skipped.
@@ -397,7 +382,7 @@ func (c *core) resolveListProviders(a *Agent, listProviders []string, degrade de
 		return
 	}
 	if a.Agnostic {
-		a.Providers = append([]string(nil), listProviders...)
+		a.ResolvedProviders = append([]string(nil), listProviders...)
 		if degrade == degradeNone {
 			a.Enrichment = EnrichmentApplied
 		} else {
@@ -405,7 +390,7 @@ func (c *core) resolveListProviders(a *Agent, listProviders []string, degrade de
 		}
 		return
 	}
-	a.Providers = append([]string(nil), a.Provider...)
+	a.ResolvedProviders = append([]string(nil), a.CatalogProviders...)
 	a.Enrichment = EnrichmentApplied
 }
 
@@ -423,9 +408,9 @@ func (c *core) enrichListAgent(ctx context.Context, mc *modelsdev.Client, a *Age
 	if a.Agnostic {
 		set = append([]string(nil), listProviders...)
 	} else {
-		set = append([]string(nil), a.Provider...)
+		set = append([]string(nil), a.CatalogProviders...)
 	}
-	a.Providers = set
+	a.ResolvedProviders = set
 
 	var providerEnv map[string]bool
 	for _, pid := range set {
@@ -444,14 +429,14 @@ func (c *core) enrichListAgent(ctx context.Context, mc *modelsdev.Client, a *Age
 			providerEnv[env] = ok
 		}
 	}
-	models, err := mc.Models(ctx, set...)
+	models, err := c.modelsForProviders(ctx, mc, set)
 	if err != nil {
 		return err
 	}
-	sortModelsNewest(models)
 	a.ProviderEnv = providerEnv
 	a.ModelCount = len(models)
 	if wantModels {
+		sortModels(models)
 		a.Models = models
 	}
 	a.Enrichment = EnrichmentApplied
@@ -467,9 +452,9 @@ func (c *core) degradeListAgent(a *Agent, listProviders []string) {
 		return
 	}
 	if a.Agnostic {
-		a.Providers = append([]string(nil), listProviders...)
+		a.ResolvedProviders = append([]string(nil), listProviders...)
 	} else {
-		a.Providers = append([]string(nil), a.Provider...)
+		a.ResolvedProviders = append([]string(nil), a.CatalogProviders...)
 	}
 	a.Enrichment = EnrichmentDegraded
 	a.ModelCount = 0
@@ -520,23 +505,20 @@ func modelsUnreachableGetWarning() Warning {
 	return Warning{Kind: WarnModelsUnreachable, Msg: "models.dev is unreachable and not cached: model enrichment and provider-env omitted"}
 }
 
+// modelsSchemaDriftGetWarning is Get's schema-drift note: enrichment (not "counts")
+// was omitted, naming the models.dev fault so Msg stays accurate at EnrichProviders
+// as well as EnrichCount/Full (R6).
+func modelsSchemaDriftGetWarning(cause error) Warning {
+	return Warning{Kind: WarnModelsSchemaDrift, Msg: fmt.Sprintf("models.dev schema unrecognised: model enrichment omitted: %v", cause)}
+}
+
 func someProvidersAbsentWarning(absent []string) Warning {
 	return Warning{Kind: WarnSomeProvidersAbsent, Msg: fmt.Sprintf("some providers are absent from models.dev: %s", strings.Join(absent, ", "))}
 }
 
-// providersUnvalidatedWarning is the single wording both surfaces emit when a
-// models.dev shortfall leaves a resolved provider set unchecked at EnrichProviders.
-// That level attaches no model data, so the shortfall is the unvalidated ids rather
-// than the omitted counts listDegradeWarning names; the ids are still reported (R6).
-func providersUnvalidatedWarning(mode degradeMode, cause error) Warning {
-	if mode == degradeSchema {
-		return Warning{Kind: WarnModelsSchemaDrift, Msg: fmt.Sprintf("provider ids unvalidated: %v", cause)}
-	}
-	return Warning{Kind: WarnModelsUnreachable, Msg: "provider ids unvalidated: models.dev is unreachable and not cached"}
-}
-
-// listDegradeWarning selects the list-level wording for a models.dev shortfall:
-// the unreachable count-omission or the schema-drift omission naming the fault (R6).
+// listDegradeWarning is List-only wording for a models.dev shortfall: count-focused,
+// because the listing surface reports ModelCount rather than a full enrichment
+// payload (R6). Get uses modelsUnreachableGetWarning / modelsSchemaDriftGetWarning.
 func listDegradeWarning(mode degradeMode, cause error) Warning {
 	if mode == degradeSchema {
 		return Warning{Kind: WarnModelsSchemaDrift, Msg: fmt.Sprintf("model counts omitted: %v", cause)}

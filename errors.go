@@ -3,12 +3,18 @@ package agentdex
 import (
 	"errors"
 	"fmt"
+
+	"github.com/start-cli/agentdex/modelsdev"
 )
 
 // The exported sentinels an agentdex caller matches with errors.Is. Each names a
 // distinct condition; the human-readable detail (the id or composite involved)
 // rides on the wrapping error's message, which the library owns and the CLI emits
 // verbatim, adding only a remedy clause that names one of its own flags (R7).
+//
+// ErrModelsSchema is an alias of modelsdev.ErrModelsSchema so a root-package
+// caller can match schema drift without importing the leaf package; both names
+// resolve the same value.
 var (
 	// ErrCatalogUnavailable is the cold-offline first call: the registry was
 	// unreachable and no previously resolved catalog version remained to fall back
@@ -24,6 +30,10 @@ var (
 	// and uncached) on a Providers or Models operation. Agent operations degrade
 	// instead of returning it.
 	ErrModelsUnavailable = errors.New("models.dev unavailable")
+
+	// ErrModelsSchema is recognisable models.dev schema drift. It is the same
+	// value as modelsdev.ErrModelsSchema; errors.Is accepts either name.
+	ErrModelsSchema = modelsdev.ErrModelsSchema
 
 	// ErrAgentUnknown is an agent id absent from the catalog.
 	ErrAgentUnknown = errors.New("unknown agent id")

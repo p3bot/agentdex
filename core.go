@@ -15,13 +15,18 @@ import (
 )
 
 // Open constructs an *Index over the configured catalog source and models.dev
-// client. It performs no network I/O: the agent catalog and the models.dev
-// catalog are resolved lazily, once, on the first operation that needs each
-// (R12). The returned Index is safe for concurrent use.
-func Open(_ context.Context, opts ...Option) (*Index, error) {
+// client. It performs no network I/O and takes no context: the agent catalog and
+// the models.dev catalog are resolved lazily, once, on the first operation that
+// needs each, under that operation's context (R12). The returned Index is safe
+// for concurrent use. WithCatalogDir and WithCatalogModule are mutually exclusive;
+// setting both returns an error.
+func Open(opts ...Option) (*Index, error) {
 	o := &options{}
 	for _, opt := range opts {
 		opt(o)
+	}
+	if o.catalogDir != "" && o.catalogModule != "" {
+		return nil, errors.New("agentdex: WithCatalogDir and WithCatalogModule are mutually exclusive")
 	}
 	c := newCore(o)
 	return &Index{
@@ -55,9 +60,9 @@ type core struct {
 	modelsTTLSet bool
 	httpClient   *http.Client
 
-	catMu    sync.Mutex
-	cat      *catalog.Catalog
-	catStale bool
+	catMu   sync.Mutex
+	cat     *catalog.Catalog
+	catInfo CatalogInfo
 
 	mdMu sync.Mutex
 	md   *modelsdev.Client
@@ -115,23 +120,31 @@ func resolveHome(lookup func(string) (string, bool)) string {
 	return ""
 }
 
-// resolveCatalog returns the loaded catalog and its stale flag, loading it once
+// resolveCatalog returns the loaded catalog and its identity, loading it once
 // under the guard and publishing the result to every later reader. A failed load
 // is not memoised: the next operation retries, so a caller recovers from a
 // transient outage without reopening the Index (R12).
-func (c *core) resolveCatalog(ctx context.Context) (*catalog.Catalog, bool, error) {
+func (c *core) resolveCatalog(ctx context.Context) (*catalog.Catalog, CatalogInfo, error) {
 	c.catMu.Lock()
 	defer c.catMu.Unlock()
 	if c.cat != nil {
-		return c.cat, c.catStale, nil
+		return c.cat, c.catInfo, nil
 	}
-	cat, stale, err := c.loadCatalog(ctx, false)
+	cat, info, err := c.loadCatalog(ctx, false)
 	if err != nil {
-		return nil, false, err
+		return nil, CatalogInfo{}, err
 	}
 	c.cat = cat
-	c.catStale = stale
-	return cat, stale, nil
+	c.catInfo = info
+	return cat, info, nil
+}
+
+// catalogModulePath is the major-line module coordinate the registry loader uses.
+func (c *core) catalogModulePath() string {
+	if c.catalogModule != "" {
+		return c.catalogModule
+	}
+	return catalog.DefaultModulePath
 }
 
 // loadCatalog loads the catalog from whichever source is configured. A directory
@@ -139,21 +152,23 @@ func (c *core) resolveCatalog(ctx context.Context) (*catalog.Catalog, bool, erro
 // so it is never stale; otherwise the registry loader resolves a version and may
 // report the last resolved version as stale. Loader faults are mapped to the
 // public sentinels (R7).
-func (c *core) loadCatalog(ctx context.Context, force bool) (*catalog.Catalog, bool, error) {
+func (c *core) loadCatalog(ctx context.Context, force bool) (*catalog.Catalog, CatalogInfo, error) {
 	if c.catalogDir != "" {
 		cat, err := catalog.LoadDir(c.catalogDir)
 		if err != nil {
-			return nil, false, mapCatalogErr(err)
+			return nil, CatalogInfo{}, mapCatalogErr(err)
 		}
+		info := CatalogInfo{Source: CatalogSourceDir, Dir: c.catalogDir}
 		c.logger.LogAttrs(ctx, slog.LevelDebug, "catalog resolved",
 			slog.String("source", "dir"), slog.String("dir", c.catalogDir))
-		return cat, false, nil
+		return cat, info, nil
 	}
 
 	reg, err := catalog.NewRegistry()
 	if err != nil {
-		return nil, false, err
+		return nil, CatalogInfo{}, err
 	}
+	module := c.catalogModulePath()
 	var lopts []catalog.Option
 	if c.catalogModule != "" {
 		lopts = append(lopts, catalog.WithModulePath(c.catalogModule))
@@ -171,13 +186,20 @@ func (c *core) loadCatalog(ctx context.Context, force bool) (*catalog.Catalog, b
 	}
 	res, err := catalog.New(reg, lopts...).Load(ctx)
 	if err != nil {
-		return nil, false, mapCatalogErr(err)
+		return nil, CatalogInfo{}, mapCatalogErr(err)
+	}
+	info := CatalogInfo{
+		Source:  CatalogSourceRegistry,
+		Module:  module,
+		Version: res.Version,
+		Stale:   res.Stale,
 	}
 	c.logger.LogAttrs(ctx, slog.LevelDebug, "catalog resolved",
 		slog.String("source", "registry"),
+		slog.String("module", module),
 		slog.String("version", res.Version),
 		slog.Bool("stale", res.Stale))
-	return res.Catalog, res.Stale, nil
+	return res.Catalog, info, nil
 }
 
 // mapCatalogErr translates the loader's internal sentinels into the public ones:
@@ -261,18 +283,19 @@ func (c *core) refreshCatalog(ctx context.Context) (bool, error) {
 			slog.String("reason", "directory source is always current"), slog.String("dir", c.catalogDir))
 		return false, nil
 	}
-	cat, stale, err := c.loadCatalog(ctx, true)
+	cat, info, err := c.loadCatalog(ctx, true)
 	if err != nil {
 		return false, err
 	}
-	if stale {
+	if info.Stale {
 		return false, errf(ErrCatalogUnavailable,
 			"agentdex catalog refresh failed: could not re-resolve the latest version, the cached version is unchanged")
 	}
 	c.catMu.Lock()
-	c.cat, c.catStale = cat, false
+	c.cat, c.catInfo = cat, info
 	c.catMu.Unlock()
-	c.logger.LogAttrs(ctx, slog.LevelDebug, "catalog refreshed")
+	c.logger.LogAttrs(ctx, slog.LevelDebug, "catalog refreshed",
+		slog.String("version", info.Version))
 	return true, nil
 }
 

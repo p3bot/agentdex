@@ -42,18 +42,29 @@ func (x *Index) Refresh(ctx context.Context, t Target) (Refreshed, error) {
 	return refreshed, nil
 }
 
+// CatalogInfo returns the identity of the loaded agent catalog: source, module
+// path and version when registry-backed, directory when dir-backed, and whether
+// the resolution is a stale fallback. It resolves the catalog lazily like any
+// catalog-touching operation, so a cold-offline first call returns
+// ErrCatalogUnavailable rather than an empty identity (R2, R12).
+func (x *Index) CatalogInfo(ctx context.Context) (CatalogInfo, error) {
+	_, info, err := x.core.resolveCatalog(ctx)
+	if err != nil {
+		return CatalogInfo{}, err
+	}
+	return info, nil
+}
+
 // CatalogStale reports whether the loaded agent catalog is a stale fallback: a
 // re-resolution that failed after the TTL expired and reused the last resolved
-// version. It resolves the catalog lazily like any catalog-touching operation, so it
-// takes a context and returns ErrCatalogUnavailable on a cold-offline first call
-// rather than a misleading false (R2, R12). A catalog supplied by WithCatalogDir is
-// never stale.
+// version. It is equivalent to CatalogInfo(ctx).Stale and shares its lazy-load
+// and error behaviour. A catalog supplied by WithCatalogDir is never stale.
 func (x *Index) CatalogStale(ctx context.Context) (bool, error) {
-	_, stale, err := x.core.resolveCatalog(ctx)
+	info, err := x.CatalogInfo(ctx)
 	if err != nil {
 		return false, err
 	}
-	return stale, nil
+	return info.Stale, nil
 }
 
 // AgentService browses and fetches agents joined with detection and enrichment.

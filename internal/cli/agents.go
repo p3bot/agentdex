@@ -88,7 +88,7 @@ func (a *app) newAgentsListCmd() *cobra.Command {
 					// Not applicable: JSON null / text "-", not the degrade [] / 0 shape.
 					withModelsNA(r)
 				} else {
-					withModels(r, ag.Models)
+					withAgentModels(r, ag.Models)
 				}
 				recs[i] = r
 			}
@@ -201,7 +201,7 @@ func (a *app) newAgentsGetCmd() *cobra.Command {
 			// models.dev decode failure carried in Coverage.Err.
 			switch detail.Coverage.Status {
 			case agentdex.CoverageNonePresent:
-				cerr := fmt.Errorf("catalog data error: no provider of %q is present in models.dev (providers: %s)", id, strings.Join(detail.Providers, ", "))
+				cerr := fmt.Errorf("catalog data error: no provider of %q is present in models.dev (providers: %s)", id, strings.Join(detail.ResolvedProviders, ", "))
 				return a.reportAgentError(cmd, &detail.Agent, fields, codeConfig, cerr, warnings)
 			case agentdex.CoverageSchemaDrift:
 				return a.reportAgentError(cmd, &detail.Agent, fields, codeConfig, detail.Coverage.Err, warnings)
@@ -311,7 +311,7 @@ func agentReportRecord(agent *agentdex.Agent) *record {
 	r := agentRecord(agent)
 	withProviderEnv(r, agent.ProviderEnv)
 	if agent.Models != nil {
-		withModels(r, agent.Models)
+		withAgentModels(r, agent.Models)
 	}
 	return r
 }
@@ -399,7 +399,7 @@ func renderAgentDetail(w io.Writer, agent *agentdex.Agent, verbose bool) {
 		fmt.Fprintln(w, tui.Header.Sprint("Models"))
 		recs := make([]*record, len(agent.Models))
 		for i, m := range agent.Models {
-			recs[i] = modelRecord(m, "", "")
+			recs[i] = modelRecord(m.Model, m.Provider, m.CanonicalID)
 		}
 		_, headers, rows, _ := tabulate(recs, nil, modelFieldSet.defaults, modelFieldSet)
 		renderTable(w, headers, rows, "  (none)")

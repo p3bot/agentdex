@@ -64,7 +64,7 @@ func buildAgentRecord(a *agentdex.Agent, includeProviders bool) *record {
 		r.add("skills_dir", d.Skills.Global, d.Skills.Global)
 	}
 	if includeProviders {
-		r.add("providers", a.Providers, strings.Join(a.Providers, ", "))
+		r.add("providers", a.ResolvedProviders, strings.Join(a.ResolvedProviders, ", "))
 	}
 	r.add("homepage", a.Homepage, orDash(a.Homepage))
 	return r
@@ -85,14 +85,23 @@ func withProviderEnv(r *record, env map[string]bool) {
 	r.add("provider_env", env, formatProviderEnv(env))
 }
 
-// withModels adds the enriched models field: the typed list for JSON and a count
-// for the table cell. The detailed model listing in get's text view is rendered
-// separately from this summary. A nil list (list's degraded-enrichment case) is
-// normalised to an empty slice so the JSON carries [] to match the "0" count cell,
-// rather than a null that disagrees with the text and breaks `jq '.models|length'`.
+// withModels adds a bare models.dev model list as the models field (provider
+// detail): typed list for JSON and a count for the table cell. A nil list is
+// normalised to an empty slice so the JSON carries [] to match the "0" count
+// cell, rather than a null that disagrees with the text and breaks
+// `jq '.models|length'`.
 func withModels(r *record, models []modelsdev.Model) {
 	if models == nil {
 		models = []modelsdev.Model{}
+	}
+	r.add("models", models, fmt.Sprintf("%d", len(models)))
+}
+
+// withAgentModels adds an attributed agent model list (provider + canonical id
+// on each row) for agents list/get JSON and the models count cell.
+func withAgentModels(r *record, models []agentdex.Model) {
+	if models == nil {
+		models = []agentdex.Model{}
 	}
 	r.add("models", models, fmt.Sprintf("%d", len(models)))
 }

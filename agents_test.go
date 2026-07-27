@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/start-cli/agentdex/internal/catalogtest"
@@ -43,7 +44,7 @@ func openAgents(t *testing.T, body string, opts ...Option) *Index {
 	t.Helper()
 	dir := catalogtest.WriteModule(t, body)
 	base := []Option{WithCatalogDir(dir), WithCacheDir(t.TempDir())}
-	idx, err := Open(context.Background(), append(base, opts...)...)
+	idx, err := Open(append(base, opts...)...)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -131,8 +132,8 @@ func TestGetDetectionFactsOfflineAtEnrichNone(t *testing.T) {
 	if d.Enrichment != EnrichmentNotRequested {
 		t.Errorf("Enrichment = %v, want EnrichmentNotRequested", d.Enrichment)
 	}
-	if len(d.Providers) != 0 {
-		t.Errorf("Providers = %v, want none at EnrichNone", d.Providers)
+	if len(d.ResolvedProviders) != 0 {
+		t.Errorf("ResolvedProviders = %v, want none at EnrichNone", d.ResolvedProviders)
 	}
 	if d.Coverage.Status != CoverageNotProbed {
 		t.Errorf("Coverage.Status = %v, want CoverageNotProbed", d.Coverage.Status)
@@ -149,14 +150,67 @@ func TestGetHomeProviderEnrichProvidersOffline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if len(d.Providers) != 1 || d.Providers[0] != "anthropic" {
-		t.Errorf("Providers = %v, want [anthropic]", d.Providers)
+	if len(d.ResolvedProviders) != 1 || d.ResolvedProviders[0] != "anthropic" {
+		t.Errorf("ResolvedProviders = %v, want [anthropic]", d.ResolvedProviders)
+	}
+	if len(d.CatalogProviders) != 1 || d.CatalogProviders[0] != "anthropic" {
+		t.Errorf("CatalogProviders = %v, want [anthropic]", d.CatalogProviders)
 	}
 	if d.Enrichment != EnrichmentApplied {
 		t.Errorf("Enrichment = %v, want EnrichmentApplied", d.Enrichment)
 	}
 	if d.Coverage.Status != CoverageNotProbed {
 		t.Errorf("Coverage.Status = %v, want CoverageNotProbed", d.Coverage.Status)
+	}
+}
+
+// Returned provider slices must not alias the memoised catalog: a caller who
+// mutates them must not change later Get/List results on the same Index.
+func TestProviderSlicesDoNotAliasCatalog(t *testing.T) {
+	idx := openAgents(t, testCatalog,
+		WithSearchDirs(binDir(t, "alpha")),
+		WithEnvLookup(envFn(t.TempDir())),
+		WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+	ctx := context.Background()
+
+	d, err := idx.Agents.Get(ctx, "alpha-cli", AgentGetQuery{Enrich: EnrichProviders})
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	d.CatalogProviders[0] = "evil"
+	d.ResolvedProviders[0] = "evil"
+
+	again, err := idx.Agents.Get(ctx, "alpha-cli", AgentGetQuery{Enrich: EnrichProviders})
+	if err != nil {
+		t.Fatalf("second Get: %v", err)
+	}
+	if again.CatalogProviders[0] != "anthropic" || again.ResolvedProviders[0] != "anthropic" {
+		t.Errorf("after mutation Get CatalogProviders=%v ResolvedProviders=%v, want anthropic",
+			again.CatalogProviders, again.ResolvedProviders)
+	}
+
+	res, err := idx.Agents.List(ctx, AgentQuery{Enrich: EnrichProviders})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	for _, a := range res.Items {
+		if a.ID != "alpha-cli" {
+			continue
+		}
+		if a.CatalogProviders[0] != "anthropic" || a.ResolvedProviders[0] != "anthropic" {
+			t.Errorf("after mutation List CatalogProviders=%v ResolvedProviders=%v, want anthropic",
+				a.CatalogProviders, a.ResolvedProviders)
+		}
+		a.CatalogProviders[0] = "evil-list"
+		break
+	}
+	third, err := idx.Agents.Get(ctx, "alpha-cli", AgentGetQuery{Enrich: EnrichNone})
+	if err != nil {
+		t.Fatalf("third Get: %v", err)
+	}
+	if third.CatalogProviders[0] != "anthropic" {
+		t.Errorf("after List mutation CatalogProviders=%v, want [anthropic]", third.CatalogProviders)
 	}
 }
 
@@ -213,8 +267,11 @@ func TestGetAgnosticValidatesCallerProviders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get google: %v", err)
 	}
-	if len(d.Providers) != 1 || d.Providers[0] != "google" {
-		t.Errorf("Providers = %v, want [google]", d.Providers)
+	if len(d.ResolvedProviders) != 1 || d.ResolvedProviders[0] != "google" {
+		t.Errorf("ResolvedProviders = %v, want [google]", d.ResolvedProviders)
+	}
+	if len(d.CatalogProviders) != 0 {
+		t.Errorf("CatalogProviders = %v, want empty on agnostic agent", d.CatalogProviders)
 	}
 	if d.Enrichment != EnrichmentApplied || d.ModelCount != 1 {
 		t.Errorf("Enrichment=%v ModelCount=%d, want EnrichmentApplied 1", d.Enrichment, d.ModelCount)
@@ -224,107 +281,6 @@ func TestGetAgnosticValidatesCallerProviders(t *testing.T) {
 	if !errors.Is(err, ErrUnknownProvider) {
 		t.Errorf("unknown provider err = %v, want ErrUnknownProvider", err)
 	}
-}
-
-// TestEnrichProvidersDegradeStatesFault pins the rule that a degraded verdict never
-// travels alone (see EnrichmentState godoc). EnrichProviders probes no coverage, so
-// a warning is the only channel that can carry the fault on either surface; without
-// one the caller sees EnrichmentDegraded with a nil error and no way to learn why.
-func TestEnrichProvidersDegradeStatesFault(t *testing.T) {
-	q := AgentGetQuery{Enrich: EnrichProviders, Providers: []string{"google"}}
-	lq := AgentQuery{Enrich: EnrichProviders, Providers: []string{"google"}}
-
-	t.Run("schema drift", func(t *testing.T) {
-		srv := modelsdevtest.Server(t, []string{"google"}, "google") // present but malformed
-		idx := openAgents(t, testCatalog,
-			WithSearchDirs(binDir(t, "delta")),
-			WithEnvLookup(envFn(t.TempDir())),
-			WithModelsURL(srv.URL),
-		)
-		d, err := idx.Agents.Get(context.Background(), "delta-agent", q)
-		if err != nil {
-			t.Fatalf("Get: %v", err)
-		}
-		if d.Enrichment != EnrichmentDegraded {
-			t.Errorf("Enrichment = %v, want EnrichmentDegraded", d.Enrichment)
-		}
-		// The ids are still reported; only their validation was lost.
-		if len(d.Providers) != 1 || d.Providers[0] != "google" {
-			t.Errorf("Providers = %v, want [google] reported despite the drift", d.Providers)
-		}
-		msg, ok := warningMsg(d.Warnings, WarnModelsSchemaDrift)
-		if !ok || msg != `provider ids unvalidated: provider "google" model "google-model" malformed: models.dev schema unrecognised` {
-			t.Errorf("get drift warning = %q (present=%v)", msg, ok)
-		}
-
-		res, lerr := idx.Agents.List(context.Background(), lq)
-		if lerr != nil {
-			t.Fatalf("List: %v", lerr)
-		}
-		if d := byID(res.Items)["delta-agent"]; d.Enrichment != EnrichmentDegraded {
-			t.Errorf("delta Enrichment = %v, want EnrichmentDegraded", d.Enrichment)
-		}
-		if msg, ok := warningMsg(res.Warnings, WarnModelsSchemaDrift); !ok || msg != `provider ids unvalidated: provider "google" model "google-model" malformed: models.dev schema unrecognised` {
-			t.Errorf("list drift warning = %q (present=%v)", msg, ok)
-		}
-	})
-
-	t.Run("unreachable", func(t *testing.T) {
-		idx := openAgents(t, testCatalog,
-			WithSearchDirs(binDir(t, "delta")),
-			WithEnvLookup(envFn(t.TempDir())),
-			WithModelsURL(modelsdevtest.Closed(t)),
-		)
-		d, err := idx.Agents.Get(context.Background(), "delta-agent", q)
-		if err != nil {
-			t.Fatalf("Get: %v", err)
-		}
-		if d.Enrichment != EnrichmentDegraded {
-			t.Errorf("Enrichment = %v, want EnrichmentDegraded", d.Enrichment)
-		}
-		// The wording names the ids, not the model data this level never requested.
-		msg, ok := warningMsg(d.Warnings, WarnModelsUnreachable)
-		if !ok || msg != "provider ids unvalidated: models.dev is unreachable and not cached" {
-			t.Errorf("get unreachable warning = %q (present=%v)", msg, ok)
-		}
-
-		res, lerr := idx.Agents.List(context.Background(), lq)
-		if lerr != nil {
-			t.Fatalf("List: %v", lerr)
-		}
-		if d := byID(res.Items)["delta-agent"]; d.Enrichment != EnrichmentDegraded {
-			t.Errorf("delta Enrichment = %v, want EnrichmentDegraded", d.Enrichment)
-		}
-		if msg, ok := warningMsg(res.Warnings, WarnModelsUnreachable); !ok || msg != "provider ids unvalidated: models.dev is unreachable and not cached" {
-			t.Errorf("list unreachable warning = %q (present=%v)", msg, ok)
-		}
-	})
-
-	t.Run("clean validation stays silent", func(t *testing.T) {
-		srv := modelsdevtest.Server(t, []string{"google"})
-		idx := openAgents(t, testCatalog,
-			WithSearchDirs(binDir(t, "delta")),
-			WithEnvLookup(envFn(t.TempDir())),
-			WithModelsURL(srv.URL),
-		)
-		d, err := idx.Agents.Get(context.Background(), "delta-agent", q)
-		if err != nil {
-			t.Fatalf("Get: %v", err)
-		}
-		if d.Enrichment != EnrichmentApplied {
-			t.Errorf("Enrichment = %v, want EnrichmentApplied", d.Enrichment)
-		}
-		if hasWarning(d.Warnings, WarnModelsSchemaDrift) || hasWarning(d.Warnings, WarnModelsUnreachable) {
-			t.Error("a clean validation must raise no models.dev warning")
-		}
-		res, lerr := idx.Agents.List(context.Background(), lq)
-		if lerr != nil {
-			t.Fatalf("List: %v", lerr)
-		}
-		if hasWarning(res.Warnings, WarnModelsSchemaDrift) || hasWarning(res.Warnings, WarnModelsUnreachable) {
-			t.Error("a clean listing validation must raise no models.dev warning")
-		}
-	})
 }
 
 func TestGetCoverageVerdicts(t *testing.T) {
@@ -352,6 +308,14 @@ func TestGetCoverageVerdicts(t *testing.T) {
 		if len(d.Models) != 2 || d.Models[0].ID != "openai-model" {
 			t.Errorf("Models order = %v, want openai-model first", modelIDs(d.Models))
 		}
+		if d.Models[0].Provider != "openai" || d.Models[1].Provider != "google" {
+			t.Errorf("Models providers = %s/%s, want openai then google", d.Models[0].Provider, d.Models[1].Provider)
+		}
+		// Fixture agnostic map only has anthropic/claude-sonnet; multi-provider
+		// agent models must still carry empty CanonicalID on the agent path.
+		if d.Models[0].CanonicalID != "" || d.Models[1].CanonicalID != "" {
+			t.Errorf("gamma CanonicalIDs = %q/%q, want empty (not in agnostic map)", d.Models[0].CanonicalID, d.Models[1].CanonicalID)
+		}
 	})
 
 	t.Run("some present", func(t *testing.T) {
@@ -374,8 +338,8 @@ func TestGetCoverageVerdicts(t *testing.T) {
 		if msg, ok := warningMsg(d.Warnings, WarnSomeProvidersAbsent); !ok || msg != "some providers are absent from models.dev: openai" {
 			t.Errorf("some-absent warning = %q (present=%v)", msg, ok)
 		}
-		if len(d.Models) != 1 || d.Models[0].ID != "google-model" {
-			t.Errorf("Models = %v, want the present provider's model", modelIDs(d.Models))
+		if len(d.Models) != 1 || d.Models[0].ID != "google-model" || d.Models[0].Provider != "google" {
+			t.Errorf("Models = %v (provider %q), want google/google-model", modelIDs(d.Models), d.Models[0].Provider)
 		}
 	})
 
@@ -418,11 +382,49 @@ func TestGetCoverageVerdicts(t *testing.T) {
 		if !errors.Is(d.Coverage.Err, modelsdev.ErrModelsSchema) {
 			t.Errorf("Coverage.Err = %v, want to wrap ErrModelsSchema", d.Coverage.Err)
 		}
+		if !errors.Is(d.Coverage.Err, ErrModelsSchema) {
+			t.Errorf("Coverage.Err = %v, want to wrap root ErrModelsSchema alias", d.Coverage.Err)
+		}
 		if d.Enrichment != EnrichmentDegraded {
 			t.Errorf("Enrichment = %v, want EnrichmentDegraded", d.Enrichment)
 		}
 		if hasWarning(d.Warnings, WarnModelsUnreachable) {
 			t.Error("schema drift on Get must not raise the unreachable warning")
+		}
+		msg, ok := warningMsg(d.Warnings, WarnModelsSchemaDrift)
+		if !ok || !strings.Contains(msg, "model enrichment omitted:") {
+			t.Errorf("schema-drift warning = %q (present=%v), want Get enrichment wording", msg, ok)
+		}
+		if strings.Contains(msg, "model counts omitted") {
+			t.Errorf("Get must not use list count wording: %q", msg)
+		}
+	})
+
+	t.Run("schema drift at EnrichProviders", func(t *testing.T) {
+		// Agnostic agent needs models.dev validation at EnrichProviders; drift
+		// must warn without claiming counts were omitted.
+		srv := modelsdevtest.Server(t, nil, "google")
+		idx := openAgents(t, testCatalog,
+			WithSearchDirs(binDir(t, "delta")),
+			WithEnvLookup(envFn(t.TempDir())),
+			WithModelsURL(srv.URL),
+		)
+		d, err := idx.Agents.Get(context.Background(), "delta-agent", AgentGetQuery{
+			Enrich:    EnrichProviders,
+			Providers: []string{"google"},
+		})
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		if d.Enrichment != EnrichmentDegraded {
+			t.Errorf("Enrichment = %v, want EnrichmentDegraded", d.Enrichment)
+		}
+		msg, ok := warningMsg(d.Warnings, WarnModelsSchemaDrift)
+		if !ok || !strings.Contains(msg, "model enrichment omitted:") {
+			t.Errorf("EnrichProviders schema-drift warning = %q (present=%v)", msg, ok)
+		}
+		if strings.Contains(msg, "model counts omitted") {
+			t.Errorf("EnrichProviders must not use list count wording: %q", msg)
 		}
 	})
 
@@ -476,6 +478,10 @@ func TestGetNotInstalledEnrichesLikeInstalled(t *testing.T) {
 	}
 	if d.ModelCount != 1 || len(d.Models) != 1 {
 		t.Errorf("ModelCount=%d Models=%v, want 1 model filled", d.ModelCount, modelIDs(d.Models))
+	}
+	if d.Models[0].Provider != "anthropic" || d.Models[0].CanonicalID != "anthropic/claude-sonnet" {
+		t.Errorf("Models[0] = %s/%s canonical %q, want anthropic/claude-sonnet with canonical id",
+			d.Models[0].Provider, d.Models[0].ID, d.Models[0].CanonicalID)
 	}
 	if _, ok := d.ProviderEnv["ANTHROPIC_API_KEY"]; !ok {
 		t.Errorf("ProviderEnv = %v, want ANTHROPIC_API_KEY reported", d.ProviderEnv)
@@ -568,6 +574,9 @@ func TestListEnrichFullPerAgent(t *testing.T) {
 	if a := by["alpha-cli"]; a.Enrichment != EnrichmentApplied || a.ModelCount != 1 {
 		t.Errorf("alpha: Enrichment=%v ModelCount=%d", a.Enrichment, a.ModelCount)
 	}
+	if a := by["alpha-cli"]; len(a.Models) != 1 || a.Models[0].CanonicalID != "anthropic/claude-sonnet" {
+		t.Errorf("alpha CanonicalID = %v, want anthropic/claude-sonnet on agent List path", a.Models)
+	}
 	if g := by["gamma-agent"]; g.Enrichment != EnrichmentApplied || g.ModelCount != 2 {
 		t.Errorf("gamma: Enrichment=%v ModelCount=%d", g.Enrichment, g.ModelCount)
 	}
@@ -578,9 +587,12 @@ func TestListEnrichFullPerAgent(t *testing.T) {
 	if hasWarning(res.Warnings, WarnProvidersRequired) {
 		t.Error("a listing must not raise the agnostic guidance warning")
 	}
-	// The agnostic row carries the newest-first model order for gamma.
-	if g := by["gamma-agent"]; g.Models[0].ID != "openai-model" {
-		t.Errorf("gamma Models order = %v, want openai-model first", modelIDs(g.Models))
+	// Multi-provider row: newest-first order and provider attribution.
+	if g := by["gamma-agent"]; g.Models[0].ID != "openai-model" || g.Models[0].Provider != "openai" {
+		t.Errorf("gamma Models[0] = %s/%s, want openai/openai-model", g.Models[0].Provider, g.Models[0].ID)
+	}
+	if g := by["gamma-agent"]; g.Models[0].CanonicalID != "" {
+		t.Errorf("gamma Models[0].CanonicalID = %q, want empty on agent List path", g.Models[0].CanonicalID)
 	}
 }
 
@@ -725,7 +737,7 @@ func byID(agents []Agent) map[string]Agent {
 	return m
 }
 
-func modelIDs(models []modelsdev.Model) []string {
+func modelIDs(models []Model) []string {
 	out := make([]string, len(models))
 	for i, m := range models {
 		out[i] = m.ID

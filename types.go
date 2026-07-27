@@ -56,16 +56,16 @@ type ModelScope struct {
 
 // KnownAgent is one catalog entry slimmed to identity and capability: the static
 // facts an agent is known by, with no resolved path or version. ID is the catalog
-// map key, the single source of identity. Provider is the home-provider list,
-// empty for an agnostic agent.
+// map key, the single source of identity. CatalogProviders is the models.dev
+// provider ids the catalog pins to this agent; empty when Agnostic is true.
 type KnownAgent struct {
-	ID          string
-	Name        string
-	Bin         string
-	Description string
-	Homepage    string
-	Provider    []string
-	Agnostic    bool
+	ID               string
+	Name             string
+	Bin              string
+	Description      string
+	Homepage         string
+	CatalogProviders []string
+	Agnostic         bool
 }
 
 // ResolvedPaths is a catalog directory pair after tilde, environment, and
@@ -93,14 +93,17 @@ type Detection struct {
 
 // Agent is the catalog's static facts joined with what detection found and, from
 // EnrichProviders upward, the resolved provider set and models.dev data.
+// ResolvedProviders is the provider id set this operation used for enrichment
+// (catalog list for a non-agnostic agent, or the caller's set for an agnostic
+// one). It is empty below EnrichProviders and when an agnostic agent has no set.
 type Agent struct {
 	KnownAgent
-	Detection   Detection
-	Providers   []string        // resolved provider ids the operation used; empty below EnrichProviders and when agnostic and unresolved
-	ProviderEnv map[string]bool // API-key env var -> present; nil when models.dev was not consulted
-	Enrichment  EnrichmentState
-	ModelCount  int               // meaningful when Enrichment == EnrichmentApplied
-	Models      []modelsdev.Model // populated when Enrich == EnrichFull; newest release first
+	Detection         Detection
+	ResolvedProviders []string
+	ProviderEnv       map[string]bool // API-key env var -> present; nil when models.dev was not consulted
+	Enrichment        EnrichmentState
+	ModelCount        int     // meaningful when Enrichment == EnrichmentApplied
+	Models            []Model // populated when Enrich == EnrichFull; newest release first
 }
 
 // AgentDetail is the exact-fetch result: an Agent with the per-provider coverage
@@ -120,11 +123,12 @@ type Provider struct {
 }
 
 // Model is a models.dev model with the provider it was resolved within and its
-// agnostic-catalog key when it has one, else "".
+// agnostic-catalog key when it has one, else "". Every library surface that
+// returns models uses this type so a short id is never detached from its provider.
 type Model struct {
 	modelsdev.Model
-	Provider    string
-	CanonicalID string
+	Provider    string `json:"provider"`
+	CanonicalID string `json:"canonical_id,omitempty"`
 }
 
 // Target selects which caches a Refresh forces.
@@ -136,7 +140,7 @@ const (
 	TargetAll
 )
 
-// String returns the constant identifier, e.g. "TargetCatalog".
+// String returns the constant name for known targets, or Target(n) for others.
 func (t Target) String() string {
 	switch t {
 	case TargetCatalog:
@@ -154,4 +158,37 @@ func (t Target) String() string {
 type Refreshed struct {
 	Catalog bool
 	Models  bool
+}
+
+// CatalogSource identifies where the agent catalog was loaded from.
+type CatalogSource int
+
+const (
+	// CatalogSourceRegistry is the CUE Central Registry (or CUE_REGISTRY).
+	CatalogSourceRegistry CatalogSource = iota
+	// CatalogSourceDir is a local CUE module directory from WithCatalogDir.
+	CatalogSourceDir
+)
+
+// String returns the constant name for known sources, or CatalogSource(n) for others.
+func (s CatalogSource) String() string {
+	switch s {
+	case CatalogSourceRegistry:
+		return "CatalogSourceRegistry"
+	case CatalogSourceDir:
+		return "CatalogSourceDir"
+	default:
+		return fmt.Sprintf("CatalogSource(%d)", int(s))
+	}
+}
+
+// CatalogInfo is the identity of the loaded agent catalog: where it came from,
+// which module and version when registry-backed, and whether the resolution is a
+// stale fallback. A directory source has no version and is never stale.
+type CatalogInfo struct {
+	Source  CatalogSource
+	Dir     string // absolute or as configured; set when Source is CatalogSourceDir
+	Module  string // major-line module path when Source is CatalogSourceRegistry
+	Version string // resolved module version when Source is CatalogSourceRegistry
+	Stale   bool
 }

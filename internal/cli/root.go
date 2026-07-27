@@ -193,7 +193,7 @@ func (a *app) index(cmd *cobra.Command) (*agentdex.Index, error) {
 		return nil, a.usage(cmd, err)
 	}
 	opts := append(cfg.Options(flags), agentdex.WithLogger(a.log))
-	idx, err := agentdex.Open(cmd.Context(), opts...)
+	idx, err := agentdex.Open(opts...)
 	if err != nil {
 		return nil, a.fail(cmd, codeFor(err), err)
 	}

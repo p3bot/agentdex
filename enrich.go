@@ -25,7 +25,7 @@ const (
 	EnrichFull
 )
 
-// String returns the constant identifier, e.g. "EnrichFull".
+// String returns the constant name for known levels, or Enrich(n) for others.
 func (e Enrich) String() string {
 	switch e {
 	case EnrichNone:
@@ -60,7 +60,7 @@ const (
 	EnrichmentDegraded
 )
 
-// String returns the constant identifier, e.g. "EnrichmentApplied".
+// String returns the constant name for known states, or EnrichmentState(n) for others.
 func (s EnrichmentState) String() string {
 	switch s {
 	case EnrichmentNotRequested:
@@ -91,7 +91,7 @@ const (
 	CoverageSchemaDrift
 )
 
-// String returns the constant identifier, e.g. "CoverageAllPresent".
+// String returns the constant name for known statuses, or CoverageStatus(n) for others.
 func (s CoverageStatus) String() string {
 	switch s {
 	case CoverageNotProbed:
@@ -138,7 +138,7 @@ const (
 	WarnProvidersRequired
 )
 
-// String returns the constant identifier, e.g. "WarnStaleCatalog".
+// String returns the constant name for known kinds, or WarningKind(n) for others.
 func (k WarningKind) String() string {
 	switch k {
 	case WarnStaleCatalog:

@@ -12,7 +12,7 @@ import (
 type Option func(*options)
 
 // options is the resolved settings Open reads. The two catalog sources are
-// mutually exclusive at resolution time: catalogDir wins over catalogModule.
+// mutually exclusive: Open rejects both catalogDir and catalogModule set.
 type options struct {
 	catalogModule string
 	catalogDir    string
@@ -32,13 +32,15 @@ type options struct {
 }
 
 // WithCatalogModule overrides the catalog module path resolved from the registry.
+// It is mutually exclusive with WithCatalogDir; Open rejects both.
 func WithCatalogModule(path string) Option {
 	return func(o *options) { o.catalogModule = path }
 }
 
 // WithCatalogDir loads the catalog by evaluating a local CUE module directory,
-// bypassing the registry entirely. It is never stale, needs no network, and wins
-// over WithCatalogModule; an entry the schema rejects fails with ErrCatalogInvalid.
+// bypassing the registry entirely. It is never stale and needs no network. It is
+// mutually exclusive with WithCatalogModule; Open rejects both. An entry the
+// schema rejects fails with ErrCatalogInvalid.
 func WithCatalogDir(dir string) Option {
 	return func(o *options) { o.catalogDir = dir }
 }

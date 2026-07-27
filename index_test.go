@@ -22,7 +22,7 @@ func openRegistry(t *testing.T, resCache string, opts ...Option) (*Index, func()
 	t.Helper()
 	_, closeReg := catalogtest.StartRegistry(t)
 	base := []Option{WithCacheDir(resCache), WithModelsURL(modelsdevtest.MustNotFetch(t))}
-	idx, err := Open(context.Background(), append(base, opts...)...)
+	idx, err := Open(append(base, opts...)...)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -72,6 +72,22 @@ func mutableModelsServer(t *testing.T) (url string, set func(present ...string))
 	return srv.URL, set
 }
 
+func TestOpenRejectsDirAndModuleTogether(t *testing.T) {
+	dir := catalogtest.WriteModule(t, testCatalog)
+	_, err := Open(
+		WithCatalogDir(dir),
+		WithCatalogModule("github.com/start-cli/agentdex/catalog@v1"),
+		WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+	if err == nil {
+		t.Fatal("Open with both catalog sources: want error, got nil")
+	}
+	const want = "agentdex: WithCatalogDir and WithCatalogModule are mutually exclusive"
+	if err.Error() != want {
+		t.Errorf("Open error = %q, want %q", err.Error(), want)
+	}
+}
+
 func TestCatalogStaleColdOfflineIsErrCatalogUnavailable(t *testing.T) {
 	// Registry up only long enough to point CUE at it, then offline with no prior
 	// resolution: the first catalog-touching call must fail clearly (R2, R12).
@@ -81,6 +97,135 @@ func TestCatalogStaleColdOfflineIsErrCatalogUnavailable(t *testing.T) {
 	_, err := idx.CatalogStale(context.Background())
 	if !errors.Is(err, ErrCatalogUnavailable) {
 		t.Fatalf("CatalogStale cold-offline error = %v, want ErrCatalogUnavailable", err)
+	}
+	_, err = idx.CatalogInfo(context.Background())
+	if !errors.Is(err, ErrCatalogUnavailable) {
+		t.Fatalf("CatalogInfo cold-offline error = %v, want ErrCatalogUnavailable", err)
+	}
+}
+
+func TestCatalogInfoDirectorySource(t *testing.T) {
+	ctx := context.Background()
+	dir := catalogtest.WriteModule(t, testCatalog)
+	idx, err := Open(WithCatalogDir(dir),
+		WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	info, err := idx.CatalogInfo(ctx)
+	if err != nil {
+		t.Fatalf("CatalogInfo: %v", err)
+	}
+	if info.Source != CatalogSourceDir {
+		t.Errorf("Source = %v, want CatalogSourceDir", info.Source)
+	}
+	if info.Dir != dir {
+		t.Errorf("Dir = %q, want %q", info.Dir, dir)
+	}
+	if info.Module != "" || info.Version != "" || info.Stale {
+		t.Errorf("dir source should have empty module/version and Stale=false: %+v", info)
+	}
+	stale, err := idx.CatalogStale(ctx)
+	if err != nil || stale {
+		t.Errorf("CatalogStale on dir source = (%v, %v), want (false, nil)", stale, err)
+	}
+}
+
+func TestCatalogInfoDirectoryInvalidIsErrCatalogInvalid(t *testing.T) {
+	dir := catalogtest.FixtureDir(t, "catalog-invalid")
+	idx, err := Open(WithCatalogDir(dir),
+		WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	info, err := idx.CatalogInfo(context.Background())
+	if !errors.Is(err, ErrCatalogInvalid) {
+		t.Fatalf("CatalogInfo error = %v, want ErrCatalogInvalid", err)
+	}
+	if info != (CatalogInfo{}) {
+		t.Errorf("failed CatalogInfo returned non-zero identity: %+v", info)
+	}
+}
+
+func TestCatalogInfoRegistrySource(t *testing.T) {
+	ctx := context.Background()
+	idx, closeReg := openRegistry(t, t.TempDir())
+	t.Cleanup(closeReg)
+
+	info, err := idx.CatalogInfo(ctx)
+	if err != nil {
+		t.Fatalf("CatalogInfo: %v", err)
+	}
+	if info.Source != CatalogSourceRegistry {
+		t.Errorf("Source = %v, want CatalogSourceRegistry", info.Source)
+	}
+	if info.Module != "github.com/start-cli/agentdex/catalog@v1" {
+		t.Errorf("Module = %q, want default major-line path", info.Module)
+	}
+	if info.Version == "" {
+		t.Error("Version empty on a successful registry load")
+	}
+	if info.Dir != "" || info.Stale {
+		t.Errorf("fresh registry info: Dir=%q Stale=%v", info.Dir, info.Stale)
+	}
+	stale, err := idx.CatalogStale(ctx)
+	if err != nil || stale {
+		t.Errorf("CatalogStale = (%v, %v), want (false, nil)", stale, err)
+	}
+}
+
+func TestCatalogInfoHonoursModuleOverride(t *testing.T) {
+	ctx := context.Background()
+	const module = "github.com/start-cli/agentdex/catalog@v1"
+
+	// Explicit override of the published path: identity must report that path, not
+	// an empty module, proving WithCatalogModule feeds CatalogInfo.Module.
+	idx, closeReg := openRegistry(t, t.TempDir(), WithCatalogModule(module))
+	t.Cleanup(closeReg)
+	info, err := idx.CatalogInfo(ctx)
+	if err != nil {
+		t.Fatalf("CatalogInfo: %v", err)
+	}
+	if info.Module != module {
+		t.Errorf("Module = %q, want override %q", info.Module, module)
+	}
+	if info.Source != CatalogSourceRegistry || info.Version == "" {
+		t.Errorf("override load incomplete: %+v", info)
+	}
+
+	// A module the registry does not publish fails the load; the override is what
+	// was contacted (default path would succeed against the same registry).
+	bad, closeBad := openRegistry(t, t.TempDir(), WithCatalogModule("example.com/not/a/catalog@v1"))
+	t.Cleanup(closeBad)
+	info, err = bad.CatalogInfo(ctx)
+	if !errors.Is(err, ErrCatalogUnavailable) {
+		t.Fatalf("unknown module CatalogInfo error = %v, want ErrCatalogUnavailable", err)
+	}
+	if info != (CatalogInfo{}) {
+		t.Errorf("failed CatalogInfo returned non-zero identity: %+v", info)
+	}
+}
+
+func TestCatalogInfoMemoisedAfterLoad(t *testing.T) {
+	ctx := context.Background()
+	idx, closeReg := openRegistry(t, t.TempDir())
+	t.Cleanup(closeReg)
+
+	first, err := idx.CatalogInfo(ctx)
+	if err != nil {
+		t.Fatalf("first CatalogInfo: %v", err)
+	}
+	// A second call must return the same published identity without re-resolving
+	// (and without requiring the network after the first success).
+	closeReg()
+	second, err := idx.CatalogInfo(ctx)
+	if err != nil {
+		t.Fatalf("second CatalogInfo after registry close: %v", err)
+	}
+	if first != second {
+		t.Errorf("memoised CatalogInfo diverged: first=%+v second=%+v", first, second)
 	}
 }
 
@@ -110,8 +255,7 @@ func TestCatalogStaleFreshThenStaleWithWarningInjection(t *testing.T) {
 	// the same resolution cache: re-resolution fails, the last resolved version is
 	// reused, and the catalog is stale.
 	closeReg()
-	idx, err := Open(ctx,
-		WithCacheDir(resCache),
+	idx, err := Open(WithCacheDir(resCache),
 		WithCatalogTTL(0),
 		WithModelsURL(modelsdevtest.MustNotFetch(t)),
 	)
@@ -133,6 +277,13 @@ func TestCatalogStaleFreshThenStaleWithWarningInjection(t *testing.T) {
 	}
 	if s, err := idx.CatalogStale(ctx); err != nil || !s {
 		t.Errorf("CatalogStale = (%v, %v), want (true, nil)", s, err)
+	}
+	info, err := idx.CatalogInfo(ctx)
+	if err != nil {
+		t.Fatalf("CatalogInfo under stale: %v", err)
+	}
+	if !info.Stale || info.Source != CatalogSourceRegistry || info.Version == "" {
+		t.Errorf("stale CatalogInfo = %+v, want Stale registry with a version", info)
 	}
 
 	// The warning rides the error return too: an unknown agent id under a stale
@@ -157,7 +308,13 @@ func TestCatalogStaleFreshThenStaleWithWarningInjection(t *testing.T) {
 
 func TestRefreshCatalogSuccess(t *testing.T) {
 	ctx := context.Background()
-	idx, _ := openRegistry(t, t.TempDir())
+	idx, closeReg := openRegistry(t, t.TempDir())
+	t.Cleanup(closeReg)
+
+	before, err := idx.CatalogInfo(ctx)
+	if err != nil {
+		t.Fatalf("CatalogInfo before refresh: %v", err)
+	}
 
 	refreshed, err := idx.Refresh(ctx, TargetCatalog)
 	if err != nil {
@@ -172,6 +329,21 @@ func TestRefreshCatalogSuccess(t *testing.T) {
 	if s, err := idx.CatalogStale(ctx); err != nil || s {
 		t.Errorf("CatalogStale after a successful refresh = (%v, %v), want (false, nil)", s, err)
 	}
+
+	after, err := idx.CatalogInfo(ctx)
+	if err != nil {
+		t.Fatalf("CatalogInfo after refresh: %v", err)
+	}
+	if after.Source != CatalogSourceRegistry || after.Module != before.Module {
+		t.Errorf("refresh changed source identity: before=%+v after=%+v", before, after)
+	}
+	if after.Version == "" || after.Stale || after.Dir != "" {
+		t.Errorf("post-refresh CatalogInfo = %+v, want non-stale registry version", after)
+	}
+	// Same registry content: version should still be the resolved coordinate.
+	if after.Version != before.Version {
+		t.Errorf("Version after refresh = %q, want %q", after.Version, before.Version)
+	}
 }
 
 func TestRefreshCatalogStaleFallbackIsErrorAndKeepsState(t *testing.T) {
@@ -183,6 +355,13 @@ func TestRefreshCatalogStaleFallbackIsErrorAndKeepsState(t *testing.T) {
 	before, err := idx.Agents.List(ctx, AgentQuery{Enrich: EnrichNone})
 	if err != nil {
 		t.Fatalf("warm List: %v", err)
+	}
+	infoBefore, err := idx.CatalogInfo(ctx)
+	if err != nil {
+		t.Fatalf("CatalogInfo before failed refresh: %v", err)
+	}
+	if infoBefore.Stale {
+		t.Fatal("warm CatalogInfo reported stale")
 	}
 
 	closeReg()
@@ -206,6 +385,14 @@ func TestRefreshCatalogStaleFallbackIsErrorAndKeepsState(t *testing.T) {
 	if hasWarning(after.Warnings, WarnStaleCatalog) {
 		t.Error("a failed refresh left the index reporting stale")
 	}
+
+	infoAfter, err := idx.CatalogInfo(ctx)
+	if err != nil {
+		t.Fatalf("CatalogInfo after failed refresh: %v", err)
+	}
+	if infoAfter != infoBefore {
+		t.Errorf("failed refresh changed CatalogInfo: before=%+v after=%+v", infoBefore, infoAfter)
+	}
 }
 
 func TestRefreshModelsServesFreshDataThroughSameIndex(t *testing.T) {
@@ -214,7 +401,7 @@ func TestRefreshModelsServesFreshDataThroughSameIndex(t *testing.T) {
 	set("anthropic")
 
 	dir := catalogtest.WriteModule(t, testCatalog)
-	idx, err := Open(ctx, WithCatalogDir(dir), WithCacheDir(t.TempDir()), WithModelsURL(url))
+	idx, err := Open(WithCatalogDir(dir), WithCacheDir(t.TempDir()), WithModelsURL(url))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -258,7 +445,7 @@ func TestRefreshModelsServesFreshDataThroughSameIndex(t *testing.T) {
 func TestRefreshModelsUnreachableIsError(t *testing.T) {
 	ctx := context.Background()
 	dir := catalogtest.WriteModule(t, testCatalog)
-	idx, err := Open(ctx, WithCatalogDir(dir), WithCacheDir(t.TempDir()), WithModelsURL(modelsdevtest.Closed(t)))
+	idx, err := Open(WithCatalogDir(dir), WithCacheDir(t.TempDir()), WithModelsURL(modelsdevtest.Closed(t)))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -277,7 +464,7 @@ func TestRefreshModelsSchemaDriftIsError(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	dir := catalogtest.WriteModule(t, testCatalog)
-	idx, err := Open(ctx, WithCatalogDir(dir), WithCacheDir(t.TempDir()), WithModelsURL(srv.URL))
+	idx, err := Open(WithCatalogDir(dir), WithCacheDir(t.TempDir()), WithModelsURL(srv.URL))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -292,7 +479,7 @@ func TestRefreshDirectoryCatalogNotRefreshed(t *testing.T) {
 	set("anthropic")
 
 	dir := catalogtest.WriteModule(t, testCatalog)
-	idx, err := Open(ctx, WithCatalogDir(dir), WithCacheDir(t.TempDir()), WithModelsURL(url))
+	idx, err := Open(WithCatalogDir(dir), WithCacheDir(t.TempDir()), WithModelsURL(url))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

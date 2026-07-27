@@ -23,13 +23,8 @@ func newerModel(a, b modelsdev.Model) bool {
 	return a.ID < b.ID
 }
 
-// sortModelsNewest orders models newest release first, in place.
-func sortModelsNewest(models []modelsdev.Model) {
-	sort.SliceStable(models, func(i, j int) bool { return newerModel(models[i], models[j]) })
-}
-
-// sortModels orders the wrapped Model list newest release first, in place, by the
-// same comparator agent Models use so one order reaches every model surface (R14).
+// sortModels orders attributed models newest release first, in place. One
+// comparator covers Models.List and agent EnrichFull (R14).
 func sortModels(models []Model) {
 	sort.SliceStable(models, func(i, j int) bool { return newerModel(models[i].Model, models[j].Model) })
 }

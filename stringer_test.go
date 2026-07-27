@@ -59,6 +59,13 @@ func TestStringers(t *testing.T) {
 			"TargetAll",
 		}, func(v int) string { return Target(v).String() })
 	})
+
+	t.Run("CatalogSource", func(t *testing.T) {
+		assertNames(t, "CatalogSource", []string{
+			"CatalogSourceRegistry",
+			"CatalogSourceDir",
+		}, func(v int) string { return CatalogSource(v).String() })
+	})
 }
 
 // assertNames checks that each constant from zero upward stringifies to the

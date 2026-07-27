@@ -14,8 +14,7 @@ import (
 // env vars the injected lookup reports as set.
 func openProviders(t *testing.T, url string, presentEnv ...string) *Index {
 	t.Helper()
-	idx, err := Open(context.Background(),
-		WithModelsURL(url),
+	idx, err := Open(WithModelsURL(url),
 		WithCacheDir(t.TempDir()),
 		WithEnvLookup(envFn(t.TempDir(), presentEnv...)),
 	)
@@ -113,6 +112,12 @@ func TestProvidersListSchemaDriftPropagates(t *testing.T) {
 	_, err := idx.Providers.List(context.Background(), ProviderQuery{})
 	if !errors.Is(err, modelsdev.ErrModelsSchema) {
 		t.Fatalf("List against gross drift err = %v, want wrapping modelsdev.ErrModelsSchema", err)
+	}
+	if !errors.Is(err, ErrModelsSchema) {
+		t.Fatalf("List against gross drift err = %v, want wrapping root ErrModelsSchema alias", err)
+	}
+	if ErrModelsSchema != modelsdev.ErrModelsSchema {
+		t.Fatal("ErrModelsSchema must alias modelsdev.ErrModelsSchema")
 	}
 	if errors.Is(err, ErrModelsUnavailable) {
 		t.Errorf("schema drift must not resolve as ErrModelsUnavailable: %v", err)

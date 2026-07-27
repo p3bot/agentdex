@@ -15,8 +15,7 @@ import (
 func openModels(t *testing.T, body, url string, presentEnv ...string) *Index {
 	t.Helper()
 	dir := catalogtest.WriteModule(t, body)
-	idx, err := Open(context.Background(),
-		WithCatalogDir(dir),
+	idx, err := Open(WithCatalogDir(dir),
 		WithCacheDir(t.TempDir()),
 		WithModelsURL(url),
 		WithEnvLookup(envFn(t.TempDir(), presentEnv...)),

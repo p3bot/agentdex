@@ -26,30 +26,18 @@ func (s ModelService) List(ctx context.Context, q ModelQuery) (Result[Model], er
 		return Result[Model]{Warnings: warnings}, err
 	}
 
-	agnostic, err := mc.Catalog(ctx)
+	items, err := c.modelsForProviders(ctx, mc, providers)
 	if err != nil {
 		return Result[Model]{Warnings: warnings}, mapModelsErr(err)
 	}
-
-	needle := strings.ToLower(q.Filter)
-	var items []Model
-	for _, pid := range providers {
-		p, found, perr := mc.Provider(ctx, pid)
-		if perr != nil {
-			return Result[Model]{Warnings: warnings}, mapModelsErr(perr)
-		}
-		if !found {
-			c.logger.LogAttrs(ctx, slog.LevelDebug, "model provider absent from models.dev", slog.String("provider", pid))
-			continue
-		}
-		for _, key := range sortedKeys(p.Models) {
-			m := p.Models[key]
-			if needle != "" && !matchesFilter(m.ID, m.Name, needle) {
-				continue
+	if needle := strings.ToLower(q.Filter); needle != "" {
+		filtered := make([]Model, 0, len(items))
+		for _, m := range items {
+			if matchesFilter(m.ID, m.Name, needle) {
+				filtered = append(filtered, m)
 			}
-			composite := pid + "/" + key
-			items = append(items, Model{Model: m, Provider: pid, CanonicalID: canonicalID(agnostic, composite)})
 		}
+		items = filtered
 	}
 	sortModels(items)
 	return Result[Model]{Items: items, Warnings: warnings}, nil
@@ -102,12 +90,12 @@ func (c *core) resolveModelScope(ctx context.Context, mc *modelsdev.Client, scop
 	caller := dedupeIDs(scope.Providers)
 
 	if scope.Agent != "" {
-		cat, stale, err := c.resolveCatalog(ctx)
+		cat, info, err := c.resolveCatalog(ctx)
 		if err != nil {
 			return nil, nil, err
 		}
 		var warnings []Warning
-		if stale {
+		if info.Stale {
 			warnings = append(warnings, staleWarning())
 		}
 		ka, ok := cat.Agents[scope.Agent]
@@ -163,6 +151,38 @@ func (c *core) validateModelProviders(ctx context.Context, mc *modelsdev.Client,
 		// the outage instead (R8).
 	}
 	return nil
+}
+
+// modelsForProviders builds attributed models for the named providers, skipping
+// ids models.dev does not know. The same construction feeds Models.List and agent
+// EnrichFull so a short model id is never returned without its provider (R9).
+// The slice is unsorted; callers apply the library's newest-first order.
+func (c *core) modelsForProviders(ctx context.Context, mc *modelsdev.Client, providers []string) ([]Model, error) {
+	cat, err := mc.Catalog(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var out []Model
+	for _, pid := range providers {
+		p, found, err := mc.Provider(ctx, pid)
+		if err != nil {
+			return nil, err
+		}
+		if !found {
+			c.logger.LogAttrs(ctx, slog.LevelDebug, "model provider absent from models.dev", slog.String("provider", pid))
+			continue
+		}
+		for _, key := range sortedKeys(p.Models) {
+			m := p.Models[key]
+			composite := pid + "/" + key
+			out = append(out, Model{
+				Model:       m,
+				Provider:    pid,
+				CanonicalID: canonicalID(cat, composite),
+			})
+		}
+	}
+	return out, nil
 }
 
 // canonicalID reports the composite when it names a key in the agnostic model map,

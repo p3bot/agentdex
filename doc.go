@@ -14,7 +14,7 @@
 // contact), the caches, detection, and the boundary inputs (environment lookup and
 // working directory); WithLogger opts the library into structured debug logging.
 //
-//	idx, err := agentdex.Open(ctx)
+//	idx, err := agentdex.Open()
 //	if err != nil { return err }
 //	res, err := idx.Agents.List(ctx, agentdex.AgentQuery{Enrich: agentdex.EnrichCount})
 //
@@ -24,7 +24,7 @@
 // each with exactly two operations: a browse List returning a Result[T] of items
 // and warnings, and an exact Get. Detection is a property of an agent, reported on
 // Agent.Detection, not a top-level verb. The Index also carries the cache-level
-// operations Refresh and CatalogStale.
+// operations Refresh, CatalogInfo, and CatalogStale.
 //
 // # Enrichment levels
 //
@@ -52,9 +52,9 @@
 // return as well as the success return, so a warning raised before a failure still
 // reaches the caller. Errors are the sentinels in this package, matched with
 // errors.Is: ErrCatalogUnavailable, ErrCatalogInvalid, ErrModelsUnavailable,
-// ErrAgentUnknown, ErrUnknownProvider, ErrProvidersRequired, ErrProvidersNotAllowed,
-// ErrMalformedModelID, and ErrNotFound. Recognisable models.dev schema drift wraps
-// modelsdev.ErrModelsSchema wherever it surfaces.
+// ErrModelsSchema, ErrAgentUnknown, ErrUnknownProvider, ErrProvidersRequired,
+// ErrProvidersNotAllowed, ErrMalformedModelID, and ErrNotFound. ErrModelsSchema is
+// an alias of modelsdev.ErrModelsSchema (same value; either name matches).
 //
 // The detection engine is data-driven: one generic path walks the agent catalog
 // and applies the same steps to every entry, so adding an agent is a catalog edit,

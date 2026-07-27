@@ -6,6 +6,10 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/start-cli/agentdex"
+	"github.com/start-cli/agentdex/internal/catalogtest"
+	"github.com/start-cli/agentdex/internal/modelsdevtest"
 )
 
 func writeConfig(t *testing.T, body string) string {
@@ -15,6 +19,27 @@ func writeConfig(t *testing.T, body string) string {
 		t.Fatalf("write config: %v", err)
 	}
 	return path
+}
+
+func TestOptionsCatalogDirOmitsModule(t *testing.T) {
+	// catalog.dir is set while CatalogModule still carries the default path (as
+	// Load always does). Options must not pass both, or Open rejects the pair.
+	dir := catalogtest.WriteModule(t, `agents: "alpha-cli": {
+	name: "Alpha CLI"
+	bin:  "alpha"
+	config: {global: "~/.alpha"}
+	provider: ["anthropic"]
+}`)
+	c := &Config{
+		CatalogModule: "github.com/start-cli/agentdex/catalog@v1",
+		CatalogDir:    dir,
+		CatalogTTL:    DefaultTTL,
+		ModelsTTL:     DefaultTTL,
+	}
+	opts := append(c.Options(Flags{}), agentdex.WithModelsURL(modelsdevtest.MustNotFetch(t)))
+	if _, err := agentdex.Open(opts...); err != nil {
+		t.Fatalf("Open via Options with catalog.dir: %v", err)
+	}
 }
 
 func TestLoadMissingFileIsEmptyDefaults(t *testing.T) {

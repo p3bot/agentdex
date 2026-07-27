@@ -24,13 +24,13 @@ const maxConcurrentDetections = 16
 func (c *core) detect(ctx context.Context, ka catalog.KnownAgent) Agent {
 	a := Agent{
 		KnownAgent: KnownAgent{
-			ID:          ka.ID,
-			Name:        ka.Name,
-			Bin:         ka.Bin,
-			Description: ka.Description,
-			Homepage:    ka.Homepage,
-			Provider:    ka.Provider,
-			Agnostic:    ka.Agnostic,
+			ID:               ka.ID,
+			Name:             ka.Name,
+			Bin:              ka.Bin,
+			Description:      ka.Description,
+			Homepage:         ka.Homepage,
+			CatalogProviders: append([]string(nil), ka.Provider...),
+			Agnostic:         ka.Agnostic,
 		},
 	}
 	a.Detection.BinaryPath, a.Detection.Found = c.locateBinary(ka.ID, ka.Bin)

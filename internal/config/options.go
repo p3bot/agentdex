@@ -17,16 +17,17 @@ type Flags struct {
 // the global flags. The models.dev client is constructed inside the library, so
 // this maps the catalog source, cache, and models.dev settings into Open options
 // rather than building a client; force-refresh is owned by Index.Refresh. When
-// catalog.dir is set it is passed alongside catalog.module and wins in the
-// library, so a working-tree catalog is loaded without a registry (R11).
+// catalog.dir is set it is the sole catalog source (module is omitted); otherwise
+// catalog.module is used. The two are mutually exclusive in the library (R11).
 func (c *Config) Options(f Flags) []agentdex.Option {
 	opts := []agentdex.Option{
-		agentdex.WithCatalogModule(c.CatalogModule),
 		agentdex.WithCatalogTTL(c.CatalogTTL),
 		agentdex.WithModelsTTL(c.ModelsTTL),
 	}
 	if c.CatalogDir != "" {
 		opts = append(opts, agentdex.WithCatalogDir(c.CatalogDir))
+	} else if c.CatalogModule != "" {
+		opts = append(opts, agentdex.WithCatalogModule(c.CatalogModule))
 	}
 	if c.ModelsURL != "" {
 		opts = append(opts, agentdex.WithModelsURL(c.ModelsURL))
