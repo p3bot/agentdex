@@ -283,6 +283,107 @@ func TestGetAgnosticValidatesCallerProviders(t *testing.T) {
 	}
 }
 
+// TestEnrichProvidersDegradeStatesFault pins the rule that a degraded verdict never
+// travels alone (see EnrichmentState godoc). EnrichProviders probes no coverage, so
+// a warning is the only channel that can carry the fault on either surface; without
+// one the caller sees EnrichmentDegraded with a nil error and no way to learn why.
+func TestEnrichProvidersDegradeStatesFault(t *testing.T) {
+	q := AgentGetQuery{Enrich: EnrichProviders, Providers: []string{"google"}}
+	lq := AgentQuery{Enrich: EnrichProviders, Providers: []string{"google"}}
+
+	t.Run("schema drift", func(t *testing.T) {
+		srv := modelsdevtest.Server(t, []string{"google"}, "google") // present but malformed
+		idx := openAgents(t, testCatalog,
+			WithSearchDirs(binDir(t, "delta")),
+			WithEnvLookup(envFn(t.TempDir())),
+			WithModelsURL(srv.URL),
+		)
+		d, err := idx.Agents.Get(context.Background(), "delta-agent", q)
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		if d.Enrichment != EnrichmentDegraded {
+			t.Errorf("Enrichment = %v, want EnrichmentDegraded", d.Enrichment)
+		}
+		// The ids are still reported; only their validation was lost.
+		if len(d.ResolvedProviders) != 1 || d.ResolvedProviders[0] != "google" {
+			t.Errorf("ResolvedProviders = %v, want [google] reported despite the drift", d.ResolvedProviders)
+		}
+		msg, ok := warningMsg(d.Warnings, WarnModelsSchemaDrift)
+		if !ok || msg != `provider ids unvalidated: provider "google" model "google-model" malformed: models.dev schema unrecognised` {
+			t.Errorf("get drift warning = %q (present=%v)", msg, ok)
+		}
+
+		res, lerr := idx.Agents.List(context.Background(), lq)
+		if lerr != nil {
+			t.Fatalf("List: %v", lerr)
+		}
+		if d := byID(res.Items)["delta-agent"]; d.Enrichment != EnrichmentDegraded {
+			t.Errorf("delta Enrichment = %v, want EnrichmentDegraded", d.Enrichment)
+		}
+		if msg, ok := warningMsg(res.Warnings, WarnModelsSchemaDrift); !ok || msg != `provider ids unvalidated: provider "google" model "google-model" malformed: models.dev schema unrecognised` {
+			t.Errorf("list drift warning = %q (present=%v)", msg, ok)
+		}
+	})
+
+	t.Run("unreachable", func(t *testing.T) {
+		idx := openAgents(t, testCatalog,
+			WithSearchDirs(binDir(t, "delta")),
+			WithEnvLookup(envFn(t.TempDir())),
+			WithModelsURL(modelsdevtest.Closed(t)),
+		)
+		d, err := idx.Agents.Get(context.Background(), "delta-agent", q)
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		if d.Enrichment != EnrichmentDegraded {
+			t.Errorf("Enrichment = %v, want EnrichmentDegraded", d.Enrichment)
+		}
+		// The wording names the ids, not the model data this level never requested.
+		msg, ok := warningMsg(d.Warnings, WarnModelsUnreachable)
+		if !ok || msg != "provider ids unvalidated: models.dev is unreachable and not cached" {
+			t.Errorf("get unreachable warning = %q (present=%v)", msg, ok)
+		}
+
+		res, lerr := idx.Agents.List(context.Background(), lq)
+		if lerr != nil {
+			t.Fatalf("List: %v", lerr)
+		}
+		if d := byID(res.Items)["delta-agent"]; d.Enrichment != EnrichmentDegraded {
+			t.Errorf("delta Enrichment = %v, want EnrichmentDegraded", d.Enrichment)
+		}
+		if msg, ok := warningMsg(res.Warnings, WarnModelsUnreachable); !ok || msg != "provider ids unvalidated: models.dev is unreachable and not cached" {
+			t.Errorf("list unreachable warning = %q (present=%v)", msg, ok)
+		}
+	})
+
+	t.Run("clean validation stays silent", func(t *testing.T) {
+		srv := modelsdevtest.Server(t, []string{"google"})
+		idx := openAgents(t, testCatalog,
+			WithSearchDirs(binDir(t, "delta")),
+			WithEnvLookup(envFn(t.TempDir())),
+			WithModelsURL(srv.URL),
+		)
+		d, err := idx.Agents.Get(context.Background(), "delta-agent", q)
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		if d.Enrichment != EnrichmentApplied {
+			t.Errorf("Enrichment = %v, want EnrichmentApplied", d.Enrichment)
+		}
+		if hasWarning(d.Warnings, WarnModelsSchemaDrift) || hasWarning(d.Warnings, WarnModelsUnreachable) {
+			t.Error("a clean validation must raise no models.dev warning")
+		}
+		res, lerr := idx.Agents.List(context.Background(), lq)
+		if lerr != nil {
+			t.Fatalf("List: %v", lerr)
+		}
+		if hasWarning(res.Warnings, WarnModelsSchemaDrift) || hasWarning(res.Warnings, WarnModelsUnreachable) {
+			t.Error("a clean listing validation must raise no models.dev warning")
+		}
+	})
+}
+
 func TestGetCoverageVerdicts(t *testing.T) {
 	t.Run("all present", func(t *testing.T) {
 		srv := modelsdevtest.Server(t, []string{"google", "openai"})
@@ -402,7 +503,7 @@ func TestGetCoverageVerdicts(t *testing.T) {
 
 	t.Run("schema drift at EnrichProviders", func(t *testing.T) {
 		// Agnostic agent needs models.dev validation at EnrichProviders; drift
-		// must warn without claiming counts were omitted.
+		// must warn that ids went unvalidated, not that model data was omitted.
 		srv := modelsdevtest.Server(t, nil, "google")
 		idx := openAgents(t, testCatalog,
 			WithSearchDirs(binDir(t, "delta")),
@@ -420,11 +521,11 @@ func TestGetCoverageVerdicts(t *testing.T) {
 			t.Errorf("Enrichment = %v, want EnrichmentDegraded", d.Enrichment)
 		}
 		msg, ok := warningMsg(d.Warnings, WarnModelsSchemaDrift)
-		if !ok || !strings.Contains(msg, "model enrichment omitted:") {
+		if !ok || !strings.Contains(msg, "provider ids unvalidated:") {
 			t.Errorf("EnrichProviders schema-drift warning = %q (present=%v)", msg, ok)
 		}
-		if strings.Contains(msg, "model counts omitted") {
-			t.Errorf("EnrichProviders must not use list count wording: %q", msg)
+		if strings.Contains(msg, "model counts omitted") || strings.Contains(msg, "model enrichment omitted") {
+			t.Errorf("EnrichProviders must not use model-omission wording: %q", msg)
 		}
 	})
 
