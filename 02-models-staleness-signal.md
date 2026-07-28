@@ -19,6 +19,8 @@ In scope:
   channel.
 - A new `Index.ModelsStale` query mirroring the existing `Index.CatalogStale`,
   so operations with no warnings channel still have a way to ask.
+- CLI presentation of those warnings on `providers list`, which today discards
+  the library warnings channel; agents and models already forward it.
 
 Out of scope:
 
@@ -28,6 +30,7 @@ Out of scope:
 - Any change to the agent-catalog staleness path. It is the model to copy, not
   to modify.
 - Retry, background refresh, or configurable staleness policy.
+- CLI changes beyond forwarding library warnings from `providers list`.
 
 ## Current State
 
@@ -75,6 +78,14 @@ How models.dev is served, where staleness is known but not exposed:
 Consequence: `core` has no bit to read and emits no warning, so a stale
 models.dev serve is invisible to every caller.
 
+CLI presentation today:
+
+- `agents list` / `agents get` and `models list` already pass library warnings
+  into the envelope via `libWarnings`.
+- `providers list` (`internal/cli/providers.go`) calls `a.ok` with a nil warnings
+  slice and documents that a provider listing raises no warnings. Once
+  `Providers.List` emits `WarnModelsStale`, that path would still hide it.
+
 ## Requirements
 
 1. The `modelsdev.Client` exposes whether its memoised catalog was served from
@@ -108,6 +119,11 @@ models.dev serve is invisible to every caller.
    corrected where requirement 3 adds one. In particular, `Providers.List`
    documents that it now raises `WarnModelsStale` on a stale models.dev serve,
    while still raising no agent-catalog warning.
+
+7. The CLI `providers list` command forwards library warnings into the JSON
+   envelope and text stderr the same way agents and models list do
+   (`libWarnings(res.Warnings)` into `a.ok` / `a.fail`). Its comment that a
+   provider listing raises no warnings is corrected.
 
 ## Constraints
 
@@ -151,6 +167,10 @@ models.dev serve is invisible to every caller.
 
 7. Correct the affected doc comments (requirement 6).
 
+8. In `internal/cli/providers.go`, forward `libWarnings(res.Warnings)` from
+   `Providers.List` into `a.ok` (and `a.fail` on the error path if warnings are
+   present), matching agents and models list. Update the providersList comment.
+
 ## Implementation Guidance
 
 - The cold-offline contract for `Index.ModelsStale` should fall out of the
@@ -158,11 +178,21 @@ models.dev serve is invisible to every caller.
   failure to `ErrModelsUnavailable` the way other models.dev operations do
   through `mapModelsErr`, and report the bit otherwise. Do not invent a separate
   error path.
-- Gate the warning on real consultation. `Agents.List` and `Agents.Get` reach
-  models.dev only from the count level upward and only for agents whose provider
-  set resolved; a lower level or a home-provider agent that stayed offline must
-  not emit `WarnModelsStale`. Tie the warning to whether the fetch actually ran,
-  not to the requested level alone.
+- Gate the warning on real consultation by this operation, not on the requested
+  enrichment level or on whether the network fetch was the first load. The
+  models.dev client loads once and memoises; every later operation that invokes
+  it reuses that memoised serve, and a stale fallback must still warn. Concrete
+  cases that consult: `Providers.List` and `Models.List` whenever they call the
+  client; `Agents.Get` at `EnrichProviders` for an agnostic agent with a provider
+  set (id validation), and at `EnrichCount`/`EnrichFull` once a provider set is
+  resolved; `Agents.List` whenever a non-empty provider filter is validated
+  against models.dev (any enrichment level), and at `EnrichCount`/`EnrichFull`
+  for the listing-wide Catalog reachability probe and per-agent enrichment.
+  Paths that never invoke the client — `EnrichNone` with no provider filter, a
+  home-provider agent at `EnrichProviders`, an agnostic agent with no provider
+  set — must not emit `WarnModelsStale`. When the operation does consult and the
+  serve is stale, append the warning once at the operation level (including on
+  the error path when a usable serve already happened), not per agent row.
 - Tests favour real behaviour. `internal/modelsdevtest/server.go` provides a
   models.dev test server; drive staleness by serving once to populate the cache,
   then failing the next fetch so the client falls back, and assert both the
@@ -184,3 +214,6 @@ models.dev serve is invisible to every caller.
 4. `Providers.Get` and `Models.Get` signatures are unchanged.
 5. The stale-fallback data returned by every operation is byte-for-byte what it
    returns today; only the accompanying signal is new.
+6. `agentdex providers list` surfaces a library `WarnModelsStale` warning in the
+   JSON envelope and on text stderr when `Providers.List` returns one; agents
+   and models list continue to forward warnings unchanged.
