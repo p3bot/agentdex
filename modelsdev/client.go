@@ -44,6 +44,7 @@ type Client struct {
 
 	mu       sync.Mutex
 	catalog  *Catalog   // memoised once a usable result is obtained
+	stale    bool       // true when the memoised catalog came from the post-failure cache re-decode
 	inflight *fetchCall // the single in-flight fetch, nil when none
 }
 
@@ -119,6 +120,17 @@ func New(opts ...ClientOption) *Client {
 // be treated as read-only.
 func (c *Client) Catalog(ctx context.Context) (*Catalog, error) {
 	return c.load(ctx)
+}
+
+// Stale reports whether the memoised catalog was served from the stale-fallback
+// path: a network fetch failed and a previously cached copy was re-decoded. It is
+// meaningful only after a successful load; before any load, and after a failed
+// load with no cache, it returns false. A within-TTL cache hit and a fresh fetch
+// both report false.
+func (c *Client) Stale() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.stale
 }
 
 // Provider returns one provider by id, whether it was found, and any error. The
@@ -222,12 +234,13 @@ func (c *Client) runFetch(leaderCtx context.Context, call *fetchCall) {
 		defer cancel()
 	}
 
-	cat, err := c.fetchMerge(ctx)
+	cat, stale, err := c.fetchMerge(ctx)
 
 	c.mu.Lock()
 	call.catalog, call.err = cat, err
 	if err == nil {
 		c.catalog = cat
+		c.stale = stale
 	}
 	c.inflight = nil
 	close(call.done)
@@ -247,16 +260,17 @@ func (c *Client) afterInflight(call *fetchCall) (*Catalog, error) {
 }
 
 // fetchMerge produces a usable catalog: a within-TTL cache hit, a fresh fetch, or
-// a stale copy served when the fetch fails. It returns an error only on a fetch
-// failure with no cache to fall back on. Under forceRefresh it skips both the
-// within-TTL cache hit and the stale fallback, so the caller learns honestly
-// whether fresh bytes were fetched. The returned catalog is merged in place.
-func (c *Client) fetchMerge(ctx context.Context) (*Catalog, error) {
+// a stale copy served when the fetch fails. The bool is true only for the
+// post-failure cache re-decode. It returns an error only on a fetch failure with
+// no cache to fall back on. Under forceRefresh it skips both the within-TTL
+// cache hit and the stale fallback, so the caller learns honestly whether fresh
+// bytes were fetched. The returned catalog is merged in place.
+func (c *Client) fetchMerge(ctx context.Context) (*Catalog, bool, error) {
 	cachedData, modTime, cached := c.cache.read()
 	if !c.forceRefresh && cached && c.now().Sub(modTime) < c.ttl {
 		if cat, err := decodeValidate(cachedData); err == nil {
 			merge(cat)
-			return cat, nil
+			return cat, false, nil
 		}
 		// A corrupt within-TTL cache is unusable as either fresh or stale: fall
 		// through to the network and do not serve it below.
@@ -269,7 +283,7 @@ func (c *Client) fetchMerge(ctx context.Context) (*Catalog, error) {
 		if decErr == nil {
 			_ = c.cache.write(data) // best-effort: a usable result is returned regardless
 			merge(cat)
-			return cat, nil
+			return cat, false, nil
 		}
 		fetchErr = decErr
 	}
@@ -277,10 +291,10 @@ func (c *Client) fetchMerge(ctx context.Context) (*Catalog, error) {
 	if !c.forceRefresh && cached {
 		if cat, err := decodeValidate(cachedData); err == nil {
 			merge(cat)
-			return cat, nil
+			return cat, true, nil
 		}
 	}
-	return nil, fetchErr
+	return nil, false, fetchErr
 }
 
 // get performs the HTTPS GET and returns the response body bytes.

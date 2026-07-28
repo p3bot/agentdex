@@ -74,6 +74,9 @@ func (s AgentService) Get(ctx context.Context, id string, q AgentGetQuery) (Agen
 	detail.ResolvedProviders = providers
 
 	mc := c.modelsClient()
+	// Consultation is gated on real calls into mc, not on obtaining the client:
+	// a home-provider agent at EnrichProviders never touches models.dev.
+	modelsConsulted := false
 
 	// Agnostic caller ids are validated against models.dev before they are reported;
 	// an unknown id is rejected, a drift or outage degrades rather than rejects (R8).
@@ -81,8 +84,9 @@ func (s AgentService) Get(ctx context.Context, id string, q AgentGetQuery) (Agen
 	var validationErr error
 	if ka.Agnostic {
 		validation, validationErr = c.validateProviders(ctx, mc, providers)
+		modelsConsulted = true
 		if validation == provUnknown {
-			detail.Warnings = warnings
+			detail.Warnings = appendModelsStale(warnings, mc, modelsConsulted)
 			return detail, validationErr
 		}
 	}
@@ -104,16 +108,17 @@ func (s AgentService) Get(ctx context.Context, id string, q AgentGetQuery) (Agen
 			// than grouped with provOK so the one outcome meaning "these ids could not
 			// be trusted" cannot claim "satisfied in full" if that early return is ever
 			// narrowed. It mirrors that return rather than degrading with no fault.
-			detail.Warnings = warnings
+			detail.Warnings = appendModelsStale(warnings, mc, modelsConsulted)
 			return detail, validationErr
 		}
-		detail.Warnings = warnings
+		detail.Warnings = appendModelsStale(warnings, mc, modelsConsulted)
 		return detail, nil
 	}
 
 	// EnrichCount and EnrichFull: probe coverage and enrich from the present
 	// providers. Coverage is the verdict on this agent's provider set as data (R5).
 	cov := c.probeCoverage(ctx, mc, providers)
+	modelsConsulted = true
 	detail.Coverage = cov.cov
 	detail.Enrichment = cov.state
 	if cov.state == EnrichmentDegraded {
@@ -127,7 +132,7 @@ func (s AgentService) Get(ctx context.Context, id string, q AgentGetQuery) (Agen
 			warnings = append(warnings, modelsSchemaDriftGetWarning(cov.cov.Err))
 		case CoverageNotProbed, CoverageAllPresent, CoverageSomePresent, CoverageNonePresent:
 		}
-		detail.Warnings = warnings
+		detail.Warnings = appendModelsStale(warnings, mc, modelsConsulted)
 		return detail, nil
 	}
 	detail.ProviderEnv = cov.providerEnv
@@ -139,7 +144,7 @@ func (s AgentService) Get(ctx context.Context, id string, q AgentGetQuery) (Agen
 	if cov.cov.Status == CoverageSomePresent {
 		warnings = append(warnings, someProvidersAbsentWarning(cov.cov.Absent))
 	}
-	detail.Warnings = warnings
+	detail.Warnings = appendModelsStale(warnings, mc, modelsConsulted)
 	return detail, nil
 }
 
@@ -167,6 +172,9 @@ func (s AgentService) List(ctx context.Context, q AgentQuery) (Result[Agent], er
 	if needModels || len(providers) > 0 {
 		mc = c.modelsClient()
 	}
+	// True only after a real call into mc on this listing — not merely because the
+	// client was obtained or a prior Index operation loaded models.dev.
+	modelsConsulted := false
 
 	degrade := degradeNone
 	var degradeErr error
@@ -175,9 +183,10 @@ func (s AgentService) List(ctx context.Context, q AgentQuery) (Result[Agent], er
 	// regardless of which agents the query returns; a drift or outage degrades (R8).
 	if len(providers) > 0 {
 		kind, verr := c.validateProviders(ctx, mc, providers)
+		modelsConsulted = true
 		switch kind {
 		case provUnknown:
-			return Result[Agent]{Warnings: warnings}, verr
+			return Result[Agent]{Warnings: appendModelsStale(warnings, mc, modelsConsulted)}, verr
 		case provSchema:
 			degrade, degradeErr = degradeSchema, verr
 		case provUnreachable:
@@ -193,11 +202,12 @@ func (s AgentService) List(ctx context.Context, q AgentQuery) (Result[Agent], er
 		if _, cerr := mc.Catalog(ctx); cerr != nil && !errors.Is(cerr, modelsdev.ErrModelsSchema) {
 			degrade, degradeErr = degradeUnreachable, cerr
 		}
+		modelsConsulted = true
 	}
 
 	agents, err := c.detectAll(ctx, cat)
 	if err != nil {
-		return Result[Agent]{Warnings: warnings}, err
+		return Result[Agent]{Warnings: appendModelsStale(warnings, mc, modelsConsulted)}, err
 	}
 	if q.Installed {
 		agents = keepInstalled(agents)
@@ -249,7 +259,7 @@ func (s AgentService) List(ctx context.Context, q AgentQuery) (Result[Agent], er
 		agents = filterAgents(agents, q.Filter)
 	}
 	sort.Slice(agents, func(i, j int) bool { return agents[i].ID < agents[j].ID })
-	return Result[Agent]{Items: agents, Warnings: warnings}, nil
+	return Result[Agent]{Items: agents, Warnings: appendModelsStale(warnings, mc, modelsConsulted)}, nil
 }
 
 // degradeMode records why a listing could not attach model data: a models.dev
@@ -513,6 +523,24 @@ func filterAgents(agents []Agent, filter string) []Agent {
 // surfaces (R6).
 func staleWarning() Warning {
 	return Warning{Kind: WarnStaleCatalog, Msg: "agentdex catalog is stale: re-resolution failed, using the last resolved version"}
+}
+
+// modelsStaleWarning is the single wording every models.dev-consulting operation
+// emits when the served catalog is a stale fallback, shared so it never drifts
+// between surfaces (R6).
+func modelsStaleWarning() Warning {
+	return Warning{Kind: WarnModelsStale, Msg: "models.dev catalog is stale: refetch failed, using the cached copy"}
+}
+
+// appendModelsStale appends WarnModelsStale when this operation consulted
+// models.dev and the memoised serve is a stale fallback. consulted must be true
+// only for a real call into the client on this operation; a shared client's prior
+// load must not raise the warning for a path that never reached models.dev.
+func appendModelsStale(ws []Warning, mc *modelsdev.Client, consulted bool) []Warning {
+	if !consulted || mc == nil || !mc.Stale() {
+		return ws
+	}
+	return append(ws, modelsStaleWarning())
 }
 
 func notInstalledWarning(id string) Warning {

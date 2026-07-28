@@ -22,6 +22,7 @@ func TestTableAlignsColumns(t *testing.T) {
 }
 
 func TestConfigureNeverDisablesColour(t *testing.T) {
+	Configure("always", os.Stdout)
 	Configure("never", os.Stdout)
 	if got := Header.Sprint("x"); got != "x" {
 		t.Errorf("colour not disabled: %q", got)
@@ -29,6 +30,10 @@ func TestConfigureNeverDisablesColour(t *testing.T) {
 }
 
 func TestConfigureAlwaysEnablesColour(t *testing.T) {
+	// fatih/color stamps per-Color noColor when NO_COLOR is set at construction;
+	// always must still force colour on those package styles.
+	t.Setenv("NO_COLOR", "1")
+	t.Setenv("TERM", "dumb")
 	Configure("always", os.Stdout)
 	if got := Header.Sprint("x"); got == "x" {
 		t.Error("colour not enabled under always")

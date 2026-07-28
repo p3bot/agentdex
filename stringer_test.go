@@ -49,6 +49,7 @@ func TestStringers(t *testing.T) {
 			"WarnSomeProvidersAbsent",
 			"WarnNotInstalled",
 			"WarnProvidersRequired",
+			"WarnModelsStale",
 		}, func(v int) string { return WarningKind(v).String() })
 	})
 

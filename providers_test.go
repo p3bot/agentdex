@@ -44,7 +44,7 @@ func TestProvidersListOrdersByIDAndReadsEnv(t *testing.T) {
 		t.Fatalf("provider order = %v, want %v", got, want)
 	}
 	if len(res.Warnings) != 0 {
-		t.Errorf("a provider listing loads no catalog and must raise no warnings: %v", res.Warnings)
+		t.Errorf("a fresh provider listing must raise no warnings: %v", res.Warnings)
 	}
 
 	var anthropic Provider
@@ -174,5 +174,30 @@ func TestProvidersGetSchemaDriftPropagates(t *testing.T) {
 	_, err := idx.Providers.Get(context.Background(), "anthropic")
 	if !errors.Is(err, modelsdev.ErrModelsSchema) {
 		t.Fatalf("Get against malformed provider err = %v, want wrapping modelsdev.ErrModelsSchema", err)
+	}
+}
+
+func TestProvidersListWarnsWhenModelsStale(t *testing.T) {
+	cache := t.TempDir()
+	seedModelsCache(t, cache, "anthropic", "google")
+	idx, err := Open(
+		WithModelsURL(failingModelsURL(t)),
+		WithCacheDir(cache),
+		WithModelsTTL(0),
+	)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	res, err := idx.Providers.List(context.Background(), ProviderQuery{})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	msg, ok := warningMsg(res.Warnings, WarnModelsStale)
+	if !ok {
+		t.Fatalf("missing WarnModelsStale, got %v", res.Warnings)
+	}
+	const want = "models.dev catalog is stale: refetch failed, using the cached copy"
+	if msg != want {
+		t.Errorf("warning = %q, want %q", msg, want)
 	}
 }

@@ -15,20 +15,22 @@ import (
 // agnostic/home rules (R8), explicit Providers name a direct set, and an empty
 // scope spans every provider models.dev knows. Each returned Model carries its
 // provider and, when the composite is a key in the agnostic map, its canonical id
-// (R9). Stale-catalog warnings from an agent scope ride the return, valid on the
-// error path too (R6).
+// (R9). Stale-catalog warnings from an agent scope, and WarnModelsStale when this
+// listing consulted models.dev and the serve was a stale fallback, ride the
+// return, valid on the error path too (R6).
 func (s ModelService) List(ctx context.Context, q ModelQuery) (Result[Model], error) {
 	c := s.core
 	mc := c.modelsClient()
 
-	providers, warnings, err := c.resolveModelScope(ctx, mc, q.Scope)
+	providers, warnings, modelsConsulted, err := c.resolveModelScope(ctx, mc, q.Scope)
 	if err != nil {
-		return Result[Model]{Warnings: warnings}, err
+		return Result[Model]{Warnings: appendModelsStale(warnings, mc, modelsConsulted)}, err
 	}
 
 	items, err := c.modelsForProviders(ctx, mc, providers)
+	modelsConsulted = true
 	if err != nil {
-		return Result[Model]{Warnings: warnings}, mapModelsErr(err)
+		return Result[Model]{Warnings: appendModelsStale(warnings, mc, modelsConsulted)}, mapModelsErr(err)
 	}
 	if needle := strings.ToLower(q.Filter); needle != "" {
 		filtered := make([]Model, 0, len(items))
@@ -40,7 +42,7 @@ func (s ModelService) List(ctx context.Context, q ModelQuery) (Result[Model], er
 		items = filtered
 	}
 	sortModels(items)
-	return Result[Model]{Items: items, Warnings: warnings}, nil
+	return Result[Model]{Items: items, Warnings: appendModelsStale(warnings, mc, modelsConsulted)}, nil
 }
 
 // Get returns one model selected exactly by its composite provider-id/model-id. The
@@ -85,14 +87,15 @@ func (s ModelService) Get(ctx context.Context, composite string) (Model, error) 
 // models.dev outage is not a rejection — validation is skipped and the outage
 // surfaces on the listing fetch as ErrModelsUnavailable — while recognisable schema
 // drift propagates. An agent scope resolves the catalog, so a stale fallback rides
-// the return, on the error path too (R6).
-func (c *core) resolveModelScope(ctx context.Context, mc *modelsdev.Client, scope ModelScope) ([]string, []Warning, error) {
+// the return, on the error path too (R6). The bool reports whether this call
+// consulted models.dev, so the listing can gate WarnModelsStale on real use.
+func (c *core) resolveModelScope(ctx context.Context, mc *modelsdev.Client, scope ModelScope) ([]string, []Warning, bool, error) {
 	caller := dedupeIDs(scope.Providers)
 
 	if scope.Agent != "" {
 		cat, info, err := c.resolveCatalog(ctx)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, false, err
 		}
 		var warnings []Warning
 		if info.Stale {
@@ -100,43 +103,43 @@ func (c *core) resolveModelScope(ctx context.Context, mc *modelsdev.Client, scop
 		}
 		ka, ok := cat.Agents[scope.Agent]
 		if !ok {
-			return nil, warnings, errf(ErrAgentUnknown, "no agent %q", scope.Agent)
+			return nil, warnings, false, errf(ErrAgentUnknown, "no agent %q", scope.Agent)
 		}
 		if ka.Agnostic {
 			if len(caller) == 0 {
-				return nil, warnings, errf(ErrProvidersRequired, "providers required for agnostic agent: %q is provider-agnostic", scope.Agent)
+				return nil, warnings, false, errf(ErrProvidersRequired, "providers required for agnostic agent: %q is provider-agnostic", scope.Agent)
 			}
 			if verr := c.validateModelProviders(ctx, mc, caller); verr != nil {
-				return nil, warnings, verr
+				return nil, warnings, true, verr
 			}
 			c.logger.LogAttrs(ctx, slog.LevelDebug, "model scope resolved",
 				slog.String("agent", scope.Agent), slog.Any("providers", caller))
-			return caller, warnings, nil
+			return caller, warnings, true, nil
 		}
 		if len(caller) > 0 {
-			return nil, warnings, errf(ErrProvidersNotAllowed, "agent %q has catalog providers", scope.Agent)
+			return nil, warnings, false, errf(ErrProvidersNotAllowed, "agent %q has catalog providers", scope.Agent)
 		}
 		set := append([]string(nil), ka.Provider...)
 		c.logger.LogAttrs(ctx, slog.LevelDebug, "model scope resolved",
 			slog.String("agent", scope.Agent), slog.Any("providers", set))
-		return set, warnings, nil
+		return set, warnings, false, nil
 	}
 
 	if len(caller) > 0 {
 		if verr := c.validateModelProviders(ctx, mc, caller); verr != nil {
-			return nil, nil, verr
+			return nil, nil, true, verr
 		}
 		c.logger.LogAttrs(ctx, slog.LevelDebug, "model scope resolved", slog.Any("providers", caller))
-		return caller, nil, nil
+		return caller, nil, true, nil
 	}
 
 	cat, err := mc.Catalog(ctx)
 	if err != nil {
-		return nil, nil, mapModelsErr(err)
+		return nil, nil, true, mapModelsErr(err)
 	}
 	ids := sortedKeys(cat.Providers)
 	c.logger.LogAttrs(ctx, slog.LevelDebug, "model scope resolved", slog.Int("providers", len(ids)))
-	return ids, nil, nil
+	return ids, nil, true, nil
 }
 
 // validateModelProviders rejects an unknown caller id and propagates recognisable

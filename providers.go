@@ -8,14 +8,19 @@ import (
 
 // List browses the models.dev providers, narrowed by a case-insensitive substring
 // over id and name, and returns them in the library's default order, by id (R14).
-// It loads no agent catalog and raises no warnings; a models.dev outage is
-// ErrModelsUnavailable and recognisable schema drift propagates wrapping
-// modelsdev.ErrModelsSchema (R7, R12).
+// It loads no agent catalog. A stale models.dev fallback raises WarnModelsStale;
+// a models.dev outage is ErrModelsUnavailable and recognisable schema drift
+// propagates wrapping modelsdev.ErrModelsSchema (R7, R12).
 func (s ProviderService) List(ctx context.Context, q ProviderQuery) (Result[Provider], error) {
 	c := s.core
-	cat, err := c.modelsClient().Catalog(ctx)
+	mc := c.modelsClient()
+	cat, err := mc.Catalog(ctx)
 	if err != nil {
 		return Result[Provider]{}, mapModelsErr(err)
+	}
+	var warnings []Warning
+	if mc.Stale() {
+		warnings = append(warnings, modelsStaleWarning())
 	}
 
 	needle := strings.ToLower(q.Filter)
@@ -29,7 +34,7 @@ func (s ProviderService) List(ctx context.Context, q ProviderQuery) (Result[Prov
 		items = append(items, Provider{Provider: p, EnvPresent: c.envPresence(p.Env)})
 	}
 	c.logger.LogAttrs(ctx, slog.LevelDebug, "providers listed", slog.Int("count", len(items)))
-	return Result[Provider]{Items: items}, nil
+	return Result[Provider]{Items: items, Warnings: warnings}, nil
 }
 
 // Get returns one models.dev provider selected exactly by its id, with the presence

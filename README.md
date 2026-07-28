@@ -25,7 +25,7 @@ type Index struct {
 }
 ```
 
-Each service has exactly two operations: a browse `List`, returning a `Result[T]` of items and warnings, and an exact `Get`. Detection is a property of an agent, reported on `Agent.Detection`, not a top-level verb. The `Index` also carries the cache-level operations `Refresh`, `CatalogInfo`, and `CatalogStale`.
+Each service has exactly two operations: a browse `List`, returning a `Result[T]` of items and warnings, and an exact `Get`. Detection is a property of an agent, reported on `Agent.Detection`, not a top-level verb. The `Index` also carries the cache-level operations `Refresh`, `CatalogInfo`, `CatalogStale`, and `ModelsStale`.
 
 `Open` performs no network I/O. The agent catalog and the models.dev catalog are resolved lazily on the first operation that needs each, once, behind a guard, so the `Index` is safe for concurrent use. Options configure the catalog source (`WithCatalogModule`, `WithCatalogDir`, `WithCatalogTTL`), the caches (`WithCacheDir`, `WithModelsURL`, `WithModelsTTL`), detection (`WithSearchDirs`, `WithBinPaths`), the boundary inputs (`WithEnvLookup`, `WithWorkingDir`, `WithHTTPClient`), and structured debug logging (`WithLogger`, silent by default).
 

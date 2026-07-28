@@ -136,6 +136,9 @@ const (
 	// WarnProvidersRequired is guidance, not an error: an agnostic agent reported
 	// without a provider set.
 	WarnProvidersRequired
+	// WarnModelsStale means models.dev was served from a stale cache fallback after
+	// a failed refetch. Emitted only by operations that actually consulted models.dev.
+	WarnModelsStale
 )
 
 // String returns the constant name for known kinds, or WarningKind(n) for others.
@@ -153,6 +156,8 @@ func (k WarningKind) String() string {
 		return "WarnNotInstalled"
 	case WarnProvidersRequired:
 		return "WarnProvidersRequired"
+	case WarnModelsStale:
+		return "WarnModelsStale"
 	default:
 		return fmt.Sprintf("WarningKind(%d)", int(k))
 	}

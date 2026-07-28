@@ -64,7 +64,8 @@ func (a *app) newModelsListCmd() *cobra.Command {
 // agnostic/home rules, canonical-id assignment, and the newest-first order. The CLI
 // applies its arbitrary-field ordering, decides the provider column from the returned
 // rows (R15), and renders. Scope faults arrive as typed errors mapped to exit codes
-// with the CLI's own remedies (R7); stale-catalog warnings ride the return.
+// with the CLI's own remedies (R7); stale-catalog and models.dev-stale warnings
+// ride the return.
 func (a *app) modelsList(cmd *cobra.Command, idx *agentdex.Index, agentID string, providers []string, filter string, fields []string, orderBy string, reverse bool) error {
 	q := agentdex.ModelQuery{
 		Scope:  agentdex.ModelScope{Agent: agentID, Providers: providers},

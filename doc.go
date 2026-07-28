@@ -24,7 +24,7 @@
 // each with exactly two operations: a browse List returning a Result[T] of items
 // and warnings, and an exact Get. Detection is a property of an agent, reported on
 // Agent.Detection, not a top-level verb. The Index also carries the cache-level
-// operations Refresh, CatalogInfo, and CatalogStale.
+// operations Refresh, CatalogInfo, CatalogStale, and ModelsStale.
 //
 // # Enrichment levels
 //

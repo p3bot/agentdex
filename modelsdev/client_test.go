@@ -286,6 +286,9 @@ func TestStaleServedOnFetchFailure(t *testing.T) {
 	t.Cleanup(failing.Close)
 
 	c := New(WithURL(failing.URL), WithCacheDir(dir), WithTTL(0))
+	if c.Stale() {
+		t.Error("Stale before load must be false")
+	}
 	cat, err := c.Catalog(context.Background())
 	if err != nil {
 		t.Fatalf("expected stale copy served, got error: %v", err)
@@ -293,12 +296,41 @@ func TestStaleServedOnFetchFailure(t *testing.T) {
 	if _, ok := cat.Providers["anthropic"]; !ok {
 		t.Error("stale catalog missing expected provider")
 	}
+	if !c.Stale() {
+		t.Error("Stale after post-failure cache re-decode must be true")
+	}
 
 	if _, err := c.Catalog(context.Background()); err != nil {
 		t.Fatalf("second Catalog: %v", err)
 	}
 	if got := attempts.Load(); got != 1 {
 		t.Errorf("stale-served result re-fetched: %d upstream attempts", got)
+	}
+	if !c.Stale() {
+		t.Error("memoised stale serve must keep Stale true")
+	}
+}
+
+func TestStaleFalseOnFreshAndWithinTTL(t *testing.T) {
+	body := mustJSON(t, smallCatalog())
+	url, _ := serveBytes(t, body)
+	dir := t.TempDir()
+
+	fresh := New(WithURL(url), WithCacheDir(dir))
+	if _, err := fresh.Catalog(context.Background()); err != nil {
+		t.Fatalf("fresh Catalog: %v", err)
+	}
+	if fresh.Stale() {
+		t.Error("fresh network fetch must report not-stale")
+	}
+
+	// Within-TTL hit is a cache read, not a post-failure fallback.
+	hit := New(WithURL(url), WithCacheDir(dir), WithTTL(time.Hour))
+	if _, err := hit.Catalog(context.Background()); err != nil {
+		t.Fatalf("within-TTL Catalog: %v", err)
+	}
+	if hit.Stale() {
+		t.Error("within-TTL cache hit must report not-stale")
 	}
 }
 

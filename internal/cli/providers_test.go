@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -120,6 +123,46 @@ func TestProvidersFilterNoMatchIsEmptyExitZero(t *testing.T) {
 	text := runCLI("providers", "list", "no-such-provider")
 	if !strings.Contains(text.stdout, `No providers match "no-such-provider".`) {
 		t.Errorf("no-match text output missing filter-aware empty-state line:\n%s", text.stdout)
+	}
+}
+
+func TestProvidersListWarnsOnStaleModels(t *testing.T) {
+	// providers list must forward WarnModelsStale the same way agents and models
+	// list forward library warnings. Seed the models.dev cache from a live server,
+	// then point config at a failing URL with TTL zero so the next list serves the
+	// cache as a stale fallback and both the JSON envelope and text stderr surface it.
+	good := modelsServer(t, []string{"anthropic", "google"})
+	s := newScenario(t, good.URL)
+
+	if got := runCLI("providers", "list"); got.code != codeOK {
+		t.Fatalf("warm providers list exit = %d; stderr=%q", got.code, got.stderr)
+	}
+
+	failing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(failing.Close)
+	s.writeConfig(t, fmt.Sprintf(
+		"color: \"never\"\nsearch_dirs: [%q]\nmodels: {\n\turl: %q\n\tttl: \"0s\"\n}\n",
+		s.binDir, failing.URL,
+	))
+
+	const wantWarn = "models.dev catalog is stale: refetch failed, using the cached copy"
+
+	got := runCLI("--json", "providers", "list")
+	if got.code != codeOK {
+		t.Fatalf("stale providers list exit = %d, want 0; stderr=%q", got.code, got.stderr)
+	}
+	if !anyContains(got.envelope(t).Warnings, wantWarn) {
+		t.Errorf("stale providers list warnings = %v, want containing %q", got.envelope(t).Warnings, wantWarn)
+	}
+
+	text := runCLI("providers", "list")
+	if text.code != codeOK {
+		t.Fatalf("stale providers text list exit = %d; stderr=%q", text.code, text.stderr)
+	}
+	if !strings.Contains(text.stderr, wantWarn) {
+		t.Errorf("text mode stderr = %q, want containing %q", text.stderr, wantWarn)
 	}
 }
 

@@ -59,12 +59,13 @@ func (a *app) newProvidersListCmd() *cobra.Command {
 
 // providersList browses providers through the library, which returns them ordered
 // by id with each API-key variable's presence resolved. It then applies the CLI's
-// arbitrary-field ordering and renders. A provider listing loads no agent catalog
-// and raises no warnings.
+// arbitrary-field ordering and renders. A provider listing loads no agent catalog;
+// a stale models.dev fallback rides as WarnModelsStale through the envelope.
 func (a *app) providersList(cmd *cobra.Command, idx *agentdex.Index, filter string, fields []string, orderBy string, reverse bool) error {
 	res, err := idx.Providers.List(cmd.Context(), agentdex.ProviderQuery{Filter: filter})
+	warnings := libWarnings(res.Warnings)
 	if err != nil {
-		return a.fail(cmd, codeFor(err), err)
+		return a.fail(cmd, codeFor(err), err, warnings...)
 	}
 
 	recs := make([]*record, len(res.Items))
@@ -86,7 +87,7 @@ func (a *app) providersList(cmd *cobra.Command, idx *agentdex.Index, filter stri
 		return a.usage(cmd, err)
 	}
 	empty := emptyListMessage(filter, "providers", "No providers.")
-	return a.ok(cmd, data, nil, func(w io.Writer) {
+	return a.ok(cmd, data, warnings, func(w io.Writer) {
 		fmt.Fprintln(w)
 		renderTable(w, headers, rows, empty)
 	})

@@ -107,8 +107,9 @@ type Agent struct {
 }
 
 // AgentDetail is the exact-fetch result: an Agent with the per-provider coverage
-// verdict and the warnings this fetch raised (stale catalog, not-installed,
-// coverage degrade, agnostic guidance).
+// verdict and the warnings this fetch raised (stale catalog, models.dev stale
+// when enrichment consulted models.dev, not-installed, coverage degrade,
+// agnostic guidance).
 type AgentDetail struct {
 	Agent
 	Coverage ProviderCoverage

@@ -67,6 +67,18 @@ func (x *Index) CatalogStale(ctx context.Context) (bool, error) {
 	return info.Stale, nil
 }
 
+// ModelsStale reports whether the models.dev catalog currently served is a stale
+// fallback: a fetch that failed after the TTL expired and reused the on-disk
+// cache. It triggers the models.dev load lazily; a cold-offline first call with
+// nothing cached returns ErrModelsUnavailable rather than a misleading false.
+func (x *Index) ModelsStale(ctx context.Context) (bool, error) {
+	mc := x.core.modelsClient()
+	if _, err := mc.Catalog(ctx); err != nil {
+		return false, mapModelsErr(err)
+	}
+	return mc.Stale(), nil
+}
+
 // AgentService browses and fetches agents joined with detection and enrichment.
 type AgentService struct{ core *core }
 
