@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"strings"
 
@@ -249,12 +250,7 @@ func namedProviderField(models bool, fields []string) bool {
 
 // containsField reports whether fields names key.
 func containsField(fields []string, key string) bool {
-	for _, f := range fields {
-		if f == key {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(fields, key)
 }
 
 // agentGetError appends the CLI's own remedy clause to the get faults the library

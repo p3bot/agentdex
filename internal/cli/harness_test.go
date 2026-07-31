@@ -78,7 +78,8 @@ type scenario struct {
 // enrichment (now always attempted by list) stays deterministic and network-free,
 // without ever reaching the real models.dev. bins lists which fixture agent
 // binaries to install, so a test can make an agent "not installed" by leaving its
-// binary out.
+// binary out. PATH is restricted to binDir so host tools cannot satisfy fixture
+// binary names via exec.LookPath.
 func newScenario(t *testing.T, modelsURL string, bins ...string) *scenario {
 	t.Helper()
 	if modelsURL == "" {
@@ -92,6 +93,10 @@ func newScenario(t *testing.T, modelsURL string, bins ...string) *scenario {
 
 	binDir := filepath.Join(home, "bin")
 	mustMkdir(t, binDir)
+	// Isolate PATH before installing fakes so LookPath only sees this dir. Host
+	// tools (e.g. git-delta as "delta") must not mark an uninstalled fixture agent
+	// as Found.
+	t.Setenv("PATH", binDir)
 	for _, name := range bins {
 		installFakeBin(t, binDir, name)
 	}
@@ -116,17 +121,9 @@ func (s *scenario) writeConfig(t *testing.T, body string) {
 	writeFile(t, filepath.Join(s.configDir, "config.cue"), body)
 }
 
-// fixtureBins are the catalog-valid fixture's binary names by agent id.
-var fixtureBins = map[string]string{
-	"alpha-cli":   "alpha",
-	"beta-tool":   "beta",
-	"gamma-agent": "gamma",
-	"delta-agent": "delta",
-}
-
 func installFakeBin(t *testing.T, dir, agentID string) {
 	t.Helper()
-	path := filepath.Join(dir, fixtureBinName(t, agentID))
+	path := filepath.Join(dir, catalogtest.FixtureBin(t, agentID))
 	writeFile(t, path, "#!/bin/sh\necho \"v1.0.0\"\n")
 	if err := os.Chmod(path, 0o755); err != nil {
 		t.Fatalf("chmod fake bin: %v", err)
@@ -138,7 +135,7 @@ func installFakeBin(t *testing.T, dir, agentID string) {
 // the binary.
 func installCountingBin(t *testing.T, dir, agentID, counterPath string) {
 	t.Helper()
-	path := filepath.Join(dir, fixtureBinName(t, agentID))
+	path := filepath.Join(dir, catalogtest.FixtureBin(t, agentID))
 	writeFile(t, path, fmt.Sprintf("#!/bin/sh\necho run >> %q\necho \"v1.0.0\"\n", counterPath))
 	if err := os.Chmod(path, 0o755); err != nil {
 		t.Fatalf("chmod counting bin: %v", err)
@@ -157,15 +154,6 @@ func probeCount(t *testing.T, counterPath string) int {
 		t.Fatalf("read probe counter: %v", err)
 	}
 	return strings.Count(string(data), "\n")
-}
-
-func fixtureBinName(t *testing.T, agentID string) string {
-	t.Helper()
-	name, ok := fixtureBins[agentID]
-	if !ok {
-		t.Fatalf("unknown fixture agent %q", agentID)
-	}
-	return name
 }
 
 // modelsServer serves a tailored models.dev catalog.json. present lists the

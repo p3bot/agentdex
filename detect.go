@@ -3,7 +3,6 @@ package agentdex
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -46,10 +45,13 @@ func (c *core) detect(ctx context.Context, ka catalog.KnownAgent) Agent {
 
 // locateBinary resolves an agent's binary. An explicit per-agent override wins
 // outright — it is the sole candidate, still verified to exist and be executable
-// so Found reflects reality — otherwise PATH is searched (exec.LookPath), then the
-// extra search dirs. PATH resolution stays on the process (R10); only making the
-// located path absolute uses the captured working directory, so BinaryPath and the
-// local config and skills paths all root a relative value the same way.
+// so Found reflects reality — otherwise PATH is searched via the boundary
+// lookPath (default exec.LookPath), then the extra search dirs. Every candidate
+// path, including a lookPath hit, must be executable before Found is true; a
+// non-executable lookPath result falls through to search dirs the same way a
+// failed PATH search does. Making the located path absolute uses the captured
+// working directory, so BinaryPath and the local config and skills paths all
+// root a relative value the same way.
 func (c *core) locateBinary(id, bin string) (string, bool) {
 	if override, ok := c.binPaths[id]; ok && override != "" {
 		if isExecutable(override) {
@@ -57,7 +59,7 @@ func (c *core) locateBinary(id, bin string) (string, bool) {
 		}
 		return "", false
 	}
-	if p, err := exec.LookPath(bin); err == nil {
+	if p, err := c.lookPath(bin); err == nil && isExecutable(p) {
 		return c.absPath(p), true
 	}
 	for _, dir := range c.searchDirs {

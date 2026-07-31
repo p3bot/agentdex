@@ -2,13 +2,15 @@ package agentdex
 
 import (
 	"log/slog"
+	"maps"
 	"net/http"
 	"time"
 )
 
 // Option configures Open. Every nondeterministic input that shapes a reported
-// value enters here, save for the process reads R10 names and defends: the PATH
-// search, the default cache directory, and the clock.
+// value enters here, save for the process defaults that R10 still names and
+// defends: the default cache directory and the clock. PATH search is injectable
+// via WithLookPath (defaulting to exec.LookPath).
 type Option func(*options)
 
 // options is the resolved settings Open reads. The two catalog sources are
@@ -24,6 +26,7 @@ type options struct {
 	modelsTTLSet  bool
 	searchDirs    []string
 	binPaths      map[string]string
+	lookPath      func(string) (string, error)
 	envLookup     func(string) (string, bool)
 	workingDir    string
 	workingDirSet bool
@@ -55,8 +58,8 @@ func WithCatalogTTL(d time.Duration) Option {
 }
 
 // WithCacheDir sets the cache directory for the catalog resolution cache and
-// models.dev. The models.dev half honours it; the clock and PATH stay on the
-// process (R10).
+// models.dev. The models.dev half honours it; the clock stays on the process
+// (R10).
 func WithCacheDir(dir string) Option {
 	return func(o *options) { o.cacheDir = dir }
 }
@@ -87,10 +90,17 @@ func WithBinPaths(m map[string]string) Option {
 		if o.binPaths == nil {
 			o.binPaths = make(map[string]string, len(m))
 		}
-		for id, path := range m {
-			o.binPaths[id] = path
-		}
+		maps.Copy(o.binPaths, m)
 	}
+}
+
+// WithLookPath supplies the PATH search used to locate agent binaries by name. It
+// defaults to exec.LookPath. A successful hit must still name an executable file;
+// a non-executable or failed result falls through to WithSearchDirs the same way
+// a miss does. Callers (and tests) inject a closed or fixture-scoped function so
+// host PATH never leaks into detection (R10).
+func WithLookPath(fn func(string) (string, error)) Option {
+	return func(o *options) { o.lookPath = fn }
 }
 
 // WithEnvLookup supplies the environment source for the library's own data-shaping

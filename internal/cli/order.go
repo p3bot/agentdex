@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -163,10 +164,8 @@ func recordID(r *record) string {
 // anchor, leaving cols unchanged when anchor is absent or add is already present. It
 // copies rather than mutating the shared default slice it is given.
 func insertAfter(cols []string, anchor, add string) []string {
-	for _, c := range cols {
-		if c == add {
-			return cols
-		}
+	if slices.Contains(cols, add) {
+		return cols
 	}
 	out := make([]string, 0, len(cols)+1)
 	for _, c := range cols {

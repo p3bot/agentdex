@@ -130,7 +130,7 @@ func TestSingleFlightAndMemoisation(t *testing.T) {
 	const goroutines = 32
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
-	for i := 0; i < goroutines; i++ {
+	for i := range goroutines {
 		go func(i int) {
 			defer wg.Done()
 			switch i % 3 {

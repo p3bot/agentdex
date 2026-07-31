@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"sync"
 	"time"
 
@@ -43,6 +44,7 @@ func Open(opts ...Option) (*Index, error) {
 // lifetime; only the guarded resolved values change, under their own mutex.
 type core struct {
 	envLookup  func(string) (string, bool)
+	lookPath   func(string) (string, error)
 	home       string
 	workingDir string
 	searchDirs []string
@@ -70,12 +72,16 @@ type core struct {
 
 // newCore captures every nondeterministic boundary input once, at Open, so the
 // per-operation logic downstream is a pure function of these values (R10). The
-// environment lookup, working directory, and home directory default to the
-// process only when the caller supplies no override.
+// environment lookup, PATH search, working directory, and home directory default
+// to the process only when the caller supplies no override.
 func newCore(o *options) *core {
 	lookup := o.envLookup
 	if lookup == nil {
 		lookup = os.LookupEnv
+	}
+	lp := o.lookPath
+	if lp == nil {
+		lp = exec.LookPath
 	}
 	wd := o.workingDir
 	if !o.workingDirSet {
@@ -89,6 +95,7 @@ func newCore(o *options) *core {
 	}
 	return &core{
 		envLookup:     lookup,
+		lookPath:      lp,
 		home:          resolveHome(lookup),
 		workingDir:    wd,
 		searchDirs:    o.searchDirs,

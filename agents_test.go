@@ -3,7 +3,9 @@ package agentdex
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,13 +15,22 @@ import (
 	"github.com/start-cli/agentdex/modelsdev"
 )
 
+// Fixture binary names come from catalogtest.FixtureBins — the single table
+// shared with the CLI harness and locked against testdata/catalog-valid.
+var (
+	fixtureBinAlpha = catalogtest.FixtureBins["alpha-cli"]
+	fixtureBinBeta  = catalogtest.FixtureBins["beta-tool"]
+	fixtureBinGamma = catalogtest.FixtureBins["gamma-agent"]
+	fixtureBinDelta = catalogtest.FixtureBins["delta-agent"]
+)
+
 // testCatalog is the standard fixture body: a home-provider agent (alpha-cli,
 // anthropic), a multi-provider home agent (gamma-agent, google+openai), and a
-// provider-agnostic agent (delta-agent).
-const testCatalog = `
+// provider-agnostic agent (delta-agent). Bin names are taken from FixtureBins.
+var testCatalog = fmt.Sprintf(`
 agents: "alpha-cli": {
 	name: "Alpha CLI"
-	bin:  "alpha"
+	bin:  %q
 	config: {global: "~/.alpha", local: ".alpha"}
 	skills: {global: "~/.alpha/skills", local: ".alpha/skills"}
 	version: {args: ["--version"], pattern: "v([0-9.]+)"}
@@ -28,22 +39,32 @@ agents: "alpha-cli": {
 }
 agents: "gamma-agent": {
 	name: "Gamma Agent"
-	bin:  "gamma"
+	bin:  %q
 	config: {global: "~/.gamma"}
 	provider: ["google", "openai"]
 }
 agents: "delta-agent": {
 	name: "Delta Agent"
-	bin:  "delta"
+	bin:  %q
 	config: {global: "~/.delta"}
 	agnostic: true
 }
-`
+`, fixtureBinAlpha, fixtureBinGamma, fixtureBinDelta)
+
+// closedLookPath never resolves a name on PATH, so library tests depend only on
+// WithSearchDirs / WithBinPaths and cannot pick up host tools.
+func closedLookPath(string) (string, error) {
+	return "", exec.ErrNotFound
+}
 
 func openAgents(t *testing.T, body string, opts ...Option) *Index {
 	t.Helper()
 	dir := catalogtest.WriteModule(t, body)
-	base := []Option{WithCatalogDir(dir), WithCacheDir(t.TempDir())}
+	base := []Option{
+		WithCatalogDir(dir),
+		WithCacheDir(t.TempDir()),
+		WithLookPath(closedLookPath),
+	}
 	idx, err := Open(append(base, opts...)...)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
@@ -103,11 +124,127 @@ func warningMsg(ws []Warning, kind WarningKind) (string, bool) {
 	return "", false
 }
 
+func TestWithLookPathBoundary(t *testing.T) {
+	hostDir := t.TempDir()
+	hostBin := filepath.Join(hostDir, fixtureBinAlpha)
+	if err := os.WriteFile(hostBin, []byte("#!/bin/sh\necho v9.9.9\n"), 0o755); err != nil {
+		t.Fatalf("write host-style bin: %v", err)
+	}
+	t.Setenv("PATH", hostDir)
+
+	// Default Open uses exec.LookPath against process PATH — do not go through
+	// openAgents, which closes the boundary for other library tests.
+	dir := catalogtest.WriteModule(t, testCatalog)
+	def, err := Open(
+		WithCatalogDir(dir),
+		WithCacheDir(t.TempDir()),
+		WithEnvLookup(envFn(t.TempDir())),
+		WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+	if err != nil {
+		t.Fatalf("default Open: %v", err)
+	}
+	d, err := def.Agents.Get(context.Background(), "alpha-cli", AgentGetQuery{Enrich: EnrichNone})
+	if err != nil {
+		t.Fatalf("default Get: %v", err)
+	}
+	if !d.Detection.Found {
+		t.Fatal("default lookPath should find the fixture binary on PATH")
+	}
+	if d.Detection.BinaryPath != hostBin {
+		t.Errorf("default BinaryPath = %q, want %q", d.Detection.BinaryPath, hostBin)
+	}
+	if d.Detection.Version != "9.9.9" {
+		t.Errorf("default Version = %q, want 9.9.9", d.Detection.Version)
+	}
+
+	// Closed lookPath ignores process PATH even when the binary is present.
+	closed := openAgents(t, testCatalog,
+		WithEnvLookup(envFn(t.TempDir())),
+		WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+	d, err = closed.Agents.Get(context.Background(), "alpha-cli", AgentGetQuery{Enrich: EnrichNone})
+	if err != nil {
+		t.Fatalf("closed Get: %v", err)
+	}
+	if d.Detection.Found {
+		t.Fatalf("closed lookPath found %q via host PATH", d.Detection.BinaryPath)
+	}
+
+	// Explicit WithLookPath overrides the closed default openAgents installs.
+	injected := openAgents(t, testCatalog,
+		WithLookPath(func(name string) (string, error) {
+			if name == fixtureBinAlpha {
+				return hostBin, nil
+			}
+			return "", exec.ErrNotFound
+		}),
+		WithEnvLookup(envFn(t.TempDir())),
+		WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+	d, err = injected.Agents.Get(context.Background(), "alpha-cli", AgentGetQuery{Enrich: EnrichNone})
+	if err != nil {
+		t.Fatalf("injected Get: %v", err)
+	}
+	if !d.Detection.Found {
+		t.Fatal("injected lookPath should find alpha-cli")
+	}
+	if d.Detection.BinaryPath != hostBin {
+		t.Errorf("injected BinaryPath = %q, want %q", d.Detection.BinaryPath, hostBin)
+	}
+
+	// A lookPath hit that is not executable must not mark Found; search dirs can
+	// still satisfy the same name.
+	missing := filepath.Join(t.TempDir(), "absent")
+	search := binDir(t, fixtureBinAlpha)
+	nonExec := openAgents(t, testCatalog,
+		WithLookPath(func(name string) (string, error) {
+			if name == fixtureBinAlpha {
+				return missing, nil
+			}
+			return "", exec.ErrNotFound
+		}),
+		WithSearchDirs(search),
+		WithEnvLookup(envFn(t.TempDir())),
+		WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+	d, err = nonExec.Agents.Get(context.Background(), "alpha-cli", AgentGetQuery{Enrich: EnrichNone})
+	if err != nil {
+		t.Fatalf("non-exec lookPath Get: %v", err)
+	}
+	if !d.Detection.Found {
+		t.Fatal("search dirs should find alpha-cli after a non-executable lookPath hit")
+	}
+	wantSearch := filepath.Join(search, fixtureBinAlpha)
+	if d.Detection.BinaryPath != wantSearch {
+		t.Errorf("BinaryPath = %q, want search-dir path %q", d.Detection.BinaryPath, wantSearch)
+	}
+
+	// Non-executable lookPath with no search-dir fallback stays not Found.
+	onlyBad := openAgents(t, testCatalog,
+		WithLookPath(func(name string) (string, error) {
+			if name == fixtureBinAlpha {
+				return missing, nil
+			}
+			return "", exec.ErrNotFound
+		}),
+		WithEnvLookup(envFn(t.TempDir())),
+		WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+	d, err = onlyBad.Agents.Get(context.Background(), "alpha-cli", AgentGetQuery{Enrich: EnrichNone})
+	if err != nil {
+		t.Fatalf("only-bad lookPath Get: %v", err)
+	}
+	if d.Detection.Found {
+		t.Fatalf("non-executable lookPath should not Found, got %q", d.Detection.BinaryPath)
+	}
+}
+
 func TestGetDetectionFactsOfflineAtEnrichNone(t *testing.T) {
 	home := t.TempDir()
 	wd := t.TempDir()
 	idx := openAgents(t, testCatalog,
-		WithSearchDirs(binDir(t, "alpha")),
+		WithSearchDirs(binDir(t, fixtureBinAlpha)),
 		WithEnvLookup(envFn(home)),
 		WithWorkingDir(wd),
 		WithModelsURL(modelsdevtest.MustNotFetch(t)),
@@ -142,7 +279,7 @@ func TestGetDetectionFactsOfflineAtEnrichNone(t *testing.T) {
 
 func TestGetHomeProviderEnrichProvidersOffline(t *testing.T) {
 	idx := openAgents(t, testCatalog,
-		WithSearchDirs(binDir(t, "alpha")),
+		WithSearchDirs(binDir(t, fixtureBinAlpha)),
 		WithEnvLookup(envFn(t.TempDir())),
 		WithModelsURL(modelsdevtest.MustNotFetch(t)),
 	)
@@ -168,7 +305,7 @@ func TestGetHomeProviderEnrichProvidersOffline(t *testing.T) {
 // mutates them must not change later Get/List results on the same Index.
 func TestProviderSlicesDoNotAliasCatalog(t *testing.T) {
 	idx := openAgents(t, testCatalog,
-		WithSearchDirs(binDir(t, "alpha")),
+		WithSearchDirs(binDir(t, fixtureBinAlpha)),
 		WithEnvLookup(envFn(t.TempDir())),
 		WithModelsURL(modelsdevtest.MustNotFetch(t)),
 	)
@@ -216,7 +353,7 @@ func TestProviderSlicesDoNotAliasCatalog(t *testing.T) {
 
 func TestGetHomeProviderRejectsExplicitProvidersEveryLevel(t *testing.T) {
 	idx := openAgents(t, testCatalog,
-		WithSearchDirs(binDir(t, "alpha")),
+		WithSearchDirs(binDir(t, fixtureBinAlpha)),
 		WithEnvLookup(envFn(t.TempDir())),
 		WithModelsURL(modelsdevtest.MustNotFetch(t)),
 	)
@@ -234,7 +371,7 @@ func TestGetHomeProviderRejectsExplicitProvidersEveryLevel(t *testing.T) {
 
 func TestGetAgnosticNoProvidersNotApplicable(t *testing.T) {
 	idx := openAgents(t, testCatalog,
-		WithSearchDirs(binDir(t, "delta")),
+		WithSearchDirs(binDir(t, fixtureBinDelta)),
 		WithEnvLookup(envFn(t.TempDir())),
 		WithModelsURL(modelsdevtest.MustNotFetch(t)), // no round-trip at any level
 	)
@@ -258,7 +395,7 @@ func TestGetAgnosticNoProvidersNotApplicable(t *testing.T) {
 func TestGetAgnosticValidatesCallerProviders(t *testing.T) {
 	srv := modelsdevtest.Server(t, []string{"google"})
 	idx := openAgents(t, testCatalog,
-		WithSearchDirs(binDir(t, "delta")),
+		WithSearchDirs(binDir(t, fixtureBinDelta)),
 		WithEnvLookup(envFn(t.TempDir(), "GOOGLE_API_KEY")),
 		WithModelsURL(srv.URL),
 	)
@@ -294,7 +431,7 @@ func TestEnrichProvidersDegradeStatesFault(t *testing.T) {
 	t.Run("schema drift", func(t *testing.T) {
 		srv := modelsdevtest.Server(t, []string{"google"}, "google") // present but malformed
 		idx := openAgents(t, testCatalog,
-			WithSearchDirs(binDir(t, "delta")),
+			WithSearchDirs(binDir(t, fixtureBinDelta)),
 			WithEnvLookup(envFn(t.TempDir())),
 			WithModelsURL(srv.URL),
 		)
@@ -328,7 +465,7 @@ func TestEnrichProvidersDegradeStatesFault(t *testing.T) {
 
 	t.Run("unreachable", func(t *testing.T) {
 		idx := openAgents(t, testCatalog,
-			WithSearchDirs(binDir(t, "delta")),
+			WithSearchDirs(binDir(t, fixtureBinDelta)),
 			WithEnvLookup(envFn(t.TempDir())),
 			WithModelsURL(modelsdevtest.Closed(t)),
 		)
@@ -360,7 +497,7 @@ func TestEnrichProvidersDegradeStatesFault(t *testing.T) {
 	t.Run("clean validation stays silent", func(t *testing.T) {
 		srv := modelsdevtest.Server(t, []string{"google"})
 		idx := openAgents(t, testCatalog,
-			WithSearchDirs(binDir(t, "delta")),
+			WithSearchDirs(binDir(t, fixtureBinDelta)),
 			WithEnvLookup(envFn(t.TempDir())),
 			WithModelsURL(srv.URL),
 		)
@@ -388,7 +525,7 @@ func TestGetCoverageVerdicts(t *testing.T) {
 	t.Run("all present", func(t *testing.T) {
 		srv := modelsdevtest.Server(t, []string{"google", "openai"})
 		idx := openAgents(t, testCatalog,
-			WithSearchDirs(binDir(t, "gamma")),
+			WithSearchDirs(binDir(t, fixtureBinGamma)),
 			WithEnvLookup(envFn(t.TempDir(), "GOOGLE_API_KEY")),
 			WithModelsURL(srv.URL),
 		)
@@ -422,7 +559,7 @@ func TestGetCoverageVerdicts(t *testing.T) {
 	t.Run("some present", func(t *testing.T) {
 		srv := modelsdevtest.Server(t, []string{"google"}) // openai absent
 		idx := openAgents(t, testCatalog,
-			WithSearchDirs(binDir(t, "gamma")),
+			WithSearchDirs(binDir(t, fixtureBinGamma)),
 			WithEnvLookup(envFn(t.TempDir(), "GOOGLE_API_KEY")),
 			WithModelsURL(srv.URL),
 		)
@@ -447,7 +584,7 @@ func TestGetCoverageVerdicts(t *testing.T) {
 	t.Run("none present", func(t *testing.T) {
 		srv := modelsdevtest.Server(t, []string{"google"}) // alpha uses anthropic, absent
 		idx := openAgents(t, testCatalog,
-			WithSearchDirs(binDir(t, "alpha")),
+			WithSearchDirs(binDir(t, fixtureBinAlpha)),
 			WithEnvLookup(envFn(t.TempDir())),
 			WithModelsURL(srv.URL),
 		)
@@ -469,7 +606,7 @@ func TestGetCoverageVerdicts(t *testing.T) {
 	t.Run("schema drift", func(t *testing.T) {
 		srv := modelsdevtest.Server(t, []string{"google"}, "anthropic") // anthropic malformed
 		idx := openAgents(t, testCatalog,
-			WithSearchDirs(binDir(t, "alpha")),
+			WithSearchDirs(binDir(t, fixtureBinAlpha)),
 			WithEnvLookup(envFn(t.TempDir())),
 			WithModelsURL(srv.URL),
 		)
@@ -506,7 +643,7 @@ func TestGetCoverageVerdicts(t *testing.T) {
 		// must warn that ids went unvalidated, not that model data was omitted.
 		srv := modelsdevtest.Server(t, nil, "google")
 		idx := openAgents(t, testCatalog,
-			WithSearchDirs(binDir(t, "delta")),
+			WithSearchDirs(binDir(t, fixtureBinDelta)),
 			WithEnvLookup(envFn(t.TempDir())),
 			WithModelsURL(srv.URL),
 		)
@@ -531,7 +668,7 @@ func TestGetCoverageVerdicts(t *testing.T) {
 
 	t.Run("unreachable", func(t *testing.T) {
 		idx := openAgents(t, testCatalog,
-			WithSearchDirs(binDir(t, "alpha")),
+			WithSearchDirs(binDir(t, fixtureBinAlpha)),
 			WithEnvLookup(envFn(t.TempDir())),
 			WithModelsURL(modelsdevtest.Closed(t)),
 		)
@@ -592,7 +729,7 @@ func TestGetNotInstalledEnrichesLikeInstalled(t *testing.T) {
 func TestGetEnrichCountOmitsModelsList(t *testing.T) {
 	srv := modelsdevtest.Server(t, []string{"anthropic"})
 	idx := openAgents(t, testCatalog,
-		WithSearchDirs(binDir(t, "alpha")),
+		WithSearchDirs(binDir(t, fixtureBinAlpha)),
 		WithEnvLookup(envFn(t.TempDir(), "ANTHROPIC_API_KEY")),
 		WithModelsURL(srv.URL),
 	)
@@ -624,7 +761,7 @@ func TestGetUnknownAgentCarriesMessage(t *testing.T) {
 
 func TestListOrdersByIDAndNarrowsByInstalled(t *testing.T) {
 	idx := openAgents(t, testCatalog,
-		WithSearchDirs(binDir(t, "alpha", "gamma")), // delta not installed
+		WithSearchDirs(binDir(t, fixtureBinAlpha, fixtureBinGamma)), // delta not installed
 		WithEnvLookup(envFn(t.TempDir())),
 		WithModelsURL(modelsdevtest.MustNotFetch(t)),
 	)
@@ -647,7 +784,7 @@ func TestListOrdersByIDAndNarrowsByInstalled(t *testing.T) {
 
 func TestListFilterNarrowsByIDAndName(t *testing.T) {
 	idx := openAgents(t, testCatalog,
-		WithSearchDirs(binDir(t, "alpha", "gamma", "delta")),
+		WithSearchDirs(binDir(t, fixtureBinAlpha, fixtureBinGamma, fixtureBinDelta)),
 		WithEnvLookup(envFn(t.TempDir())),
 		WithModelsURL(modelsdevtest.MustNotFetch(t)),
 	)
@@ -663,7 +800,7 @@ func TestListFilterNarrowsByIDAndName(t *testing.T) {
 func TestListEnrichFullPerAgent(t *testing.T) {
 	srv := modelsdevtest.Server(t, []string{"anthropic", "google", "openai"})
 	idx := openAgents(t, testCatalog,
-		WithSearchDirs(binDir(t, "alpha", "gamma", "delta")),
+		WithSearchDirs(binDir(t, fixtureBinAlpha, fixtureBinGamma, fixtureBinDelta)),
 		WithEnvLookup(envFn(t.TempDir())),
 		WithModelsURL(srv.URL),
 	)
@@ -700,7 +837,7 @@ func TestListEnrichFullPerAgent(t *testing.T) {
 func TestListDegradeWarnings(t *testing.T) {
 	t.Run("unreachable", func(t *testing.T) {
 		idx := openAgents(t, testCatalog,
-			WithSearchDirs(binDir(t, "alpha")),
+			WithSearchDirs(binDir(t, fixtureBinAlpha)),
 			WithEnvLookup(envFn(t.TempDir())),
 			WithModelsURL(modelsdevtest.Closed(t)),
 		)
@@ -719,7 +856,7 @@ func TestListDegradeWarnings(t *testing.T) {
 	t.Run("schema drift", func(t *testing.T) {
 		srv := modelsdevtest.Server(t, nil, "anthropic")
 		idx := openAgents(t, testCatalog,
-			WithSearchDirs(binDir(t, "alpha")),
+			WithSearchDirs(binDir(t, fixtureBinAlpha)),
 			WithEnvLookup(envFn(t.TempDir())),
 			WithModelsURL(srv.URL),
 		)
@@ -750,7 +887,7 @@ func TestListProviderValidationAtBoundary(t *testing.T) {
 
 	t.Run("unreachable degrades not rejects", func(t *testing.T) {
 		idx := openAgents(t, testCatalog,
-			WithSearchDirs(binDir(t, "alpha")),
+			WithSearchDirs(binDir(t, fixtureBinAlpha)),
 			WithEnvLookup(envFn(t.TempDir())),
 			WithModelsURL(modelsdevtest.Closed(t)),
 		)
@@ -767,7 +904,7 @@ func TestListProviderValidationAtBoundary(t *testing.T) {
 func TestListFetchesModelsDevOnce(t *testing.T) {
 	srv, count := modelsdevtest.CountingServer(t, []string{"anthropic", "google", "openai"})
 	idx := openAgents(t, testCatalog,
-		WithSearchDirs(binDir(t, "alpha", "gamma")),
+		WithSearchDirs(binDir(t, fixtureBinAlpha, fixtureBinGamma)),
 		WithEnvLookup(envFn(t.TempDir())),
 		WithModelsURL(srv.URL),
 	)
@@ -780,17 +917,17 @@ func TestListFetchesModelsDevOnce(t *testing.T) {
 }
 
 func TestGetNoLocalConfigOrSkills(t *testing.T) {
-	body := `
+	body := fmt.Sprintf(`
 agents: "beta-tool": {
 	name: "Beta Tool"
-	bin:  "beta"
+	bin:  %q
 	config: {global: "~/.config/beta"}
 	provider: ["openai"]
 }
-`
+`, fixtureBinBeta)
 	home := t.TempDir()
 	idx := openAgents(t, body,
-		WithSearchDirs(binDir(t, "beta")),
+		WithSearchDirs(binDir(t, fixtureBinBeta)),
 		WithEnvLookup(envFn(home)),
 		WithModelsURL(modelsdevtest.MustNotFetch(t)),
 	)
@@ -808,7 +945,7 @@ agents: "beta-tool": {
 
 func TestGetHonoursCancelledContext(t *testing.T) {
 	idx := openAgents(t, testCatalog,
-		WithSearchDirs(binDir(t, "alpha")),
+		WithSearchDirs(binDir(t, fixtureBinAlpha)),
 		WithEnvLookup(envFn(t.TempDir())),
 		WithModelsURL(modelsdevtest.MustNotFetch(t)),
 	)

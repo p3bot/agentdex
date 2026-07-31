@@ -532,16 +532,14 @@ func TestIndexConcurrentUseUnderRace(t *testing.T) {
 
 	var wg sync.WaitGroup
 	work := func(fn func() error) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if err := fn(); err != nil {
 				t.Errorf("concurrent op: %v", err)
 			}
-		}()
+		})
 	}
 
-	for i := 0; i < 8; i++ {
+	for range 8 {
 		work(func() error {
 			_, err := idx.Agents.List(ctx, AgentQuery{Enrich: EnrichCount})
 			return err

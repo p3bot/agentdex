@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -177,12 +178,7 @@ func warningsOf(t *testing.T, r result) []string {
 
 // hasExact reports whether ss carries s verbatim.
 func hasExact(ss []string, s string) bool {
-	for _, v := range ss {
-		if v == s {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(ss, s)
 }
 
 func TestOracleWarningMessagesVerbatim(t *testing.T) {
@@ -314,7 +310,7 @@ func TestOracleGetDataFaultReportsAgentAndError(t *testing.T) {
 // field is id, from a text listing whose last column is MODELS.
 func modelsCell(t *testing.T, stdout, id string) string {
 	t.Helper()
-	for _, line := range strings.Split(stdout, "\n") {
+	for line := range strings.SplitSeq(stdout, "\n") {
 		if strings.HasPrefix(strings.TrimSpace(line), id) {
 			f := strings.Fields(line)
 			return f[len(f)-1]

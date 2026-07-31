@@ -1,6 +1,8 @@
 package config
 
 import (
+	"maps"
+
 	"github.com/start-cli/agentdex"
 )
 
@@ -65,11 +67,7 @@ func mergeBinPaths(cfg, flags map[string]string) map[string]string {
 		return nil
 	}
 	out := make(map[string]string, len(cfg)+len(flags))
-	for id, p := range cfg {
-		out[id] = p
-	}
-	for id, p := range flags {
-		out[id] = p
-	}
+	maps.Copy(out, cfg)
+	maps.Copy(out, flags)
 	return out
 }

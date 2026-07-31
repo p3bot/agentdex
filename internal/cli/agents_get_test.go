@@ -133,7 +133,7 @@ func TestGetModelsFlagFieldsOmitPresentation(t *testing.T) {
 // equal to title. Substring search is unsafe: t.TempDir paths include the test
 // name and can embed words like "Models".
 func hasTextSection(stdout, title string) bool {
-	for _, line := range strings.Split(stdout, "\n") {
+	for line := range strings.SplitSeq(stdout, "\n") {
 		if strings.TrimSpace(line) == title {
 			return true
 		}

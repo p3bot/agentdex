@@ -11,8 +11,9 @@
 // first operation that needs each, once, behind a guard, and the Index is safe for
 // concurrent use. Options configure the catalog source (WithCatalogModule, or
 // WithCatalogDir to evaluate a local working-tree module with no registry
-// contact), the caches, detection, and the boundary inputs (environment lookup and
-// working directory); WithLogger opts the library into structured debug logging.
+// contact), the caches, detection, and the boundary inputs (environment lookup,
+// PATH search via WithLookPath, and working directory); WithLogger opts the
+// library into structured debug logging.
 //
 //	idx, err := agentdex.Open()
 //	if err != nil { return err }

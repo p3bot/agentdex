@@ -190,7 +190,7 @@ func TestProvidersJSONModelsIsArrayCellIsCount(t *testing.T) {
 		t.Errorf("text output missing MODELS column:\n%s", text.stdout)
 	}
 	cell := ""
-	for _, line := range strings.Split(text.stdout, "\n") {
+	for line := range strings.SplitSeq(text.stdout, "\n") {
 		if strings.HasPrefix(strings.TrimSpace(line), "anthropic") {
 			f := strings.Fields(line)
 			cell = f[len(f)-1]

@@ -4,10 +4,14 @@ package catalog
 // (description, config.local, skills, version, homepage) present and absent in
 // different combinations, so map iteration, id-from-key, and optional-field
 // decoding are all exercised across entries.
+//
+// Binary names use the unclaimable agentdex-fixture-* prefix so a host PATH
+// tool (e.g. git-delta installed as "delta") cannot satisfy detection in tests.
+// These must match internal/catalogtest.FixtureBins (locked by test).
 
 agents: "alpha-cli": {
 	name:        "Alpha CLI"
-	bin:         "alpha"
+	bin:         "agentdex-fixture-alpha"
 	description: "Synthetic Anthropic-backed agent."
 	config: {
 		global: "~/.alpha"
@@ -27,7 +31,7 @@ agents: "alpha-cli": {
 
 agents: "beta-tool": {
 	name: "Beta Tool"
-	bin:  "beta"
+	bin:  "agentdex-fixture-beta"
 	config: {
 		global: "~/.config/beta"
 	}
@@ -39,7 +43,7 @@ agents: "beta-tool": {
 
 agents: "gamma-agent": {
 	name:        "Gamma Agent"
-	bin:         "gamma"
+	bin:         "agentdex-fixture-gamma"
 	description: "Synthetic multi-provider agent."
 	config: {
 		global: "~/.gamma"
@@ -55,7 +59,7 @@ agents: "gamma-agent": {
 
 agents: "delta-agent": {
 	name:        "Delta Agent"
-	bin:         "delta"
+	bin:         "agentdex-fixture-delta"
 	description: "Synthetic provider-agnostic agent."
 	config: {
 		global: "~/.delta"
