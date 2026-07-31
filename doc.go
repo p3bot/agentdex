@@ -32,7 +32,9 @@
 // Enrich is the single demand axis for an agent operation, each level a superset
 // of the one below:
 //
-//   - EnrichNone: catalog and detection facts only; silent and offline.
+//   - EnrichNone: catalog and detection facts only; no enrichment of agent rows.
+//     Get never contacts models.dev. List contacts models.dev only to validate a
+//     non-empty Providers filter (at every Enrich level, including this one).
 //   - EnrichProviders: adds the resolved provider set. Offline for a home-provider
 //     agent (catalog data); contacts models.dev for an agnostic agent, to validate
 //     the caller's provider ids.

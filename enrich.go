@@ -9,9 +9,10 @@ import "fmt"
 type Enrich int
 
 const (
-	// EnrichNone is catalog and detection facts only: silent and offline for every
-	// agent, agnostic or not. No provider resolution, no warning, no models.dev
-	// round-trip.
+	// EnrichNone is catalog and detection facts only: no provider resolution and no
+	// enrichment of agent rows. Get never contacts models.dev. List is offline from
+	// models.dev when Providers is empty; a non-empty Providers filter is still
+	// validated against models.dev at every Enrich level, including this one.
 	EnrichNone Enrich = iota
 	// EnrichProviders adds the resolved provider set and nothing else. For a
 	// home-provider agent that is offline catalog data; for an agnostic agent the
