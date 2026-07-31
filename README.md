@@ -70,6 +70,8 @@ func main() {
 
 The full surface — every option, service method, query and result type, enrichment level, and error — is documented on the [package](https://pkg.go.dev/github.com/start-cli/agentdex).
 
+Skill directories are classified, not a single path: per scope (global user-wide, local project) the catalog records `agents` (shared `~/.agents/skills` / `.agents/skills` when supported), `native` (the product's own tree), and `alternatives` (other supported roots, priority order). Primary is derived — agents, else native, else the first alternative — and is the install/query target. The library exposes the full layout on `Detection.Skills` (each root is a path plus on-disk existence). The CLI surfaces primary as `skills_dir` / `skills_local_dir` and the matrix as `skills`, where each role is `{path, exists}` and `primary` remains a bare path string. Agents with no skills dirs omit skills entirely. Catalog authoring is in [AGENTS.md](AGENTS.md).
+
 ## CLI
 
 agentdex ships a thin command-line interface over the library.

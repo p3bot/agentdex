@@ -9,8 +9,13 @@ agents: "agy": {
 		local:  ".agents"
 	}
 	skills: {
-		global: "~/.agents/skills"
-		local:  ".agents/skills"
+		global: {
+			native: "~/.gemini/antigravity-cli/skills"
+		}
+		local: {
+			agents: ".agents/skills"
+			alternatives: [".claude/skills", ".opencode/skills"]
+		}
 	}
 	version: {
 		args:    ["--version"]
@@ -29,8 +34,12 @@ agents: "claude-code": {
 		local:  ".claude"
 	}
 	skills: {
-		global: "~/.claude/skills"
-		local:  ".claude/skills"
+		global: {
+			native: "~/.claude/skills"
+		}
+		local: {
+			native: ".claude/skills"
+		}
 	}
 	version: {
 		args:    ["--version"]
@@ -49,8 +58,15 @@ agents: "opencode": {
 		local:  ".opencode"
 	}
 	skills: {
-		global: "~/.agents/skills"
-		local:  ".agents/skills"
+		global: {
+			agents: "~/.agents/skills"
+			alternatives: ["~/.claude/skills"]
+		}
+		local: {
+			agents: ".agents/skills"
+			native: ".opencode/skills"
+			alternatives: [".claude/skills"]
+		}
 	}
 	version: {
 		args:    ["--version"]

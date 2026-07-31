@@ -22,7 +22,7 @@ type KnownAgent struct {
 	Bin         string
 	Description string
 	Config      PathPair
-	Skills      *PathPair
+	Skills      *SkillsPaths
 	Version     *VersionProbe
 	Agnostic    bool
 	Provider    []string
@@ -30,9 +30,26 @@ type KnownAgent struct {
 }
 
 // PathPair is a catalog global/local directory pair before any expansion.
+// Config uses this shape.
 type PathPair struct {
 	Global string
 	Local  string
+}
+
+// SkillsPaths is catalog skills roots before expansion, split by scope.
+// Primary is not stored; the library derives it after resolve.
+type SkillsPaths struct {
+	Global SkillsScope
+	Local  SkillsScope
+}
+
+// SkillsScope is one scope's classified skill roots before expansion.
+// Empty strings and a nil Alternatives mean that role is unsupported.
+// Alternatives is priority order (first is primary when agents and native are unset).
+type SkillsScope struct {
+	Agents       string
+	Native       string
+	Alternatives []string
 }
 
 // VersionProbe describes how to read an agent's version from its binary.

@@ -45,8 +45,18 @@ Gather the static facts the catalog stores and confirm each against the real
 agent, not from memory:
 
 - `bin`: the executable name resolved on PATH (`exec.LookPath`), no `.exe`.
-- `config` / `skills` paths: global and optional local directories, written with
-  `~` and XDG-style paths, not an absolute home.
+- `config` paths: global and optional local directories, written with `~` and
+  XDG-style paths, not an absolute home.
+- `skills` paths: omit entirely when the agent has no skills directories. When
+  present, classified roots per scope (`global` = user-wide, `local` =
+  project). Within each scope set the roles the agent supports: `agents`
+  (shared `~/.agents/skills` or `.agents/skills`), `native` (this product's own
+  tree, e.g. `~/.claude/skills`), and `alternatives` (other supported roots).
+  Written with `~` and XDG-style paths. See `docs/agents-skills-path-matrix.md`.
+  Do not store `primary` — the library derives it as agents, else native, else
+  the first alternative. Order `alternatives` by preference: when agents and
+  native are unset, `alternatives[0]` becomes primary. Empty `skills: {}` or an
+  empty scope is rejected.
 - `version.args` and optional `version.pattern`: the flag that prints the version
   and a regex to extract it.
 - `provider`: one or more real models.dev provider ids. This is the join key to
@@ -56,11 +66,10 @@ agent, not from memory:
   that has both. Callers supply the enrichment set at query time via
   `--provider`; never infer it from the agent's internal configuration.
 
-When an agent supports the shared `.agents/` and `~/.agents/` convention, prefer
-those paths over the agent's native equivalents for the slot that maps to them
-(usually `skills`), the same way `agy` records `~/.agents/skills` and
-`.agents/skills`. Keep the native location only where the agent has no `.agents`
-mapping for that slot (usually `config`).
+Config is a single global/local pair. Skills use agents / native / alternatives
+per scope so the main product answer (primary) stays a stable path while the
+full support set remains expressible. Keep the native location for `config`
+when the agent has no `.agents` mapping for that slot.
 
 ### 2. Add the entry
 
@@ -76,8 +85,8 @@ agents: "claude-code": {
 		local:  ".claude"
 	}
 	skills: {
-		global: "~/.claude/skills"
-		local:  ".claude/skills"
+		global: {native: "~/.claude/skills"}
+		local:  {native: ".claude/skills"}
 	}
 	version: {
 		args:    ["--version"]
@@ -101,8 +110,10 @@ Fields, per `catalog/schema.cue`:
 | `agnostic` | no | Defaults false; true marks a provider-agnostic agent with no home provider |
 | `description` | no | One sentence |
 | `config.local` | no | Project-local config directory |
-| `skills.global` | with `skills` | Required when `skills` is present |
-| `skills.local` | no | Project-local skills directory |
+| `skills.global` / `skills.local` | with `skills` | At least one scope; each is a `#SkillsScope` |
+| `skills.*.agents` | no | Shared `.agents` skills path when supported |
+| `skills.*.native` | no | This product's own skills path when supported |
+| `skills.*.alternatives` | no | Other supported roots (compat trees, etc.); priority order, first is primary fallback |
 | `version.args` | no | Appended to the binary, e.g. `["--version"]` |
 | `version.pattern` | no | Regex to extract the version string |
 | `homepage` | no | Project URL |
@@ -117,8 +128,11 @@ cue mod tidy
 ```
 
 `cue vet` validates by evaluation because `schema.cue` travels with the data; a
-missing required field or an empty path fails here. `cue mod tidy` must leave the
-module clean.
+missing required field or an empty path string fails here. Empty `skills: {}` or
+an empty scope (`skills: { global: {} }`) is not caught by CUE: every role and
+scope field is optional, and an at-least-one rule over optionals cannot stay
+concrete. The loader rejects those after decode (`ErrInvalidCatalog`); step 4
+catches them before publish. `cue mod tidy` must leave the module clean.
 
 ### 4. Exercise through the library
 
@@ -152,6 +166,13 @@ line to the CUE Central Registry with the same mechanism start/library uses;
 `cue login` and `CUE_REGISTRY` are honoured as-is, with no agentdex-specific auth.
 Existing installs resolve the new version within the cache TTL (24h default); new
 installs resolve it immediately via `ModuleVersions`.
+
+Schema-breaking catalog changes are not independent of the binary. The schema
+travels with the data, so a new `#KnownAgent` shape that older loaders cannot
+decode will fail every install that re-resolves after the TTL. Publish those
+catalog versions only together with a matching agentdex release, and do not
+publish the catalog alone ahead of the binary. Additive entry changes (new
+agents, path or provider edits within the existing schema) stay catalog-only.
 
 ## Style
 

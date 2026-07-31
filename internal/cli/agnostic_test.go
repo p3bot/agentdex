@@ -240,10 +240,7 @@ func TestGetAgnosticNonProviderFieldsStayOffline(t *testing.T) {
 	if len(env.Warnings) != 0 {
 		t.Errorf("non-provider field selection should carry no warnings: %v", env.Warnings)
 	}
-	data := env.Data.(map[string]any)
-	if _, ok := data["skills_dir"]; !ok {
-		t.Errorf("expected skills_dir in selection: %v", data)
-	}
+	assertSkillsPrimaryPath(t, env.Data.(map[string]any)["skills_dir"])
 }
 
 func TestGetAgnosticFieldsProvidersValidatesCallerIds(t *testing.T) {
@@ -280,10 +277,7 @@ func TestGetAgnosticNonProviderFieldsWithProviderStaysOffline(t *testing.T) {
 	if got.code != codeOK {
 		t.Fatalf("get --fields skills_dir --provider exit = %d, stderr=%q", got.code, got.stderr)
 	}
-	data := got.envelope(t).Data.(map[string]any)
-	if _, ok := data["skills_dir"]; !ok {
-		t.Errorf("expected skills_dir in selection: %v", data)
-	}
+	assertSkillsPrimaryPath(t, got.envelope(t).Data.(map[string]any)["skills_dir"])
 }
 
 func TestModelsListDuplicateProviderDeduplicates(t *testing.T) {

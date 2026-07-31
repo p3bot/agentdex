@@ -80,6 +80,20 @@ func TestLoadValidFixture(t *testing.T) {
 	if got["gamma-agent"].Version != nil {
 		t.Error("gamma-agent should have no version probe")
 	}
+	// gamma exercises classified skills (agents + alternatives).
+	if sk := got["gamma-agent"].Skills; sk == nil {
+		t.Error("gamma-agent should have skills")
+	} else {
+		if sk.Global.Agents != "~/.agents/skills" {
+			t.Errorf("gamma-agent skills.global.agents = %q, want ~/.agents/skills", sk.Global.Agents)
+		}
+		if want := []string{"~/.claude/skills"}; !equal(sk.Global.Alternatives, want) {
+			t.Errorf("gamma-agent skills.global.alternatives = %v, want %v", sk.Global.Alternatives, want)
+		}
+		if sk.Local.Agents != ".agents/skills" {
+			t.Errorf("gamma-agent skills.local.agents = %q, want .agents/skills", sk.Local.Agents)
+		}
+	}
 	if want := []string{"google", "openai"}; !equal(got["gamma-agent"].Provider, want) {
 		t.Errorf("gamma-agent providers = %v, want %v", got["gamma-agent"].Provider, want)
 	}
@@ -108,6 +122,57 @@ func TestLoadSchemaViolationFails(t *testing.T) {
 	}
 	if res != nil {
 		t.Errorf("expected no partial catalog, got %+v", res)
+	}
+}
+
+func TestLoadEmptySkillsRejected(t *testing.T) {
+	// skills must be omitted when an agent has no skills dirs. An empty skills
+	// object or empty scope is invalid and fails load with ErrInvalidCatalog.
+	valid := catalogtest.FixtureDir(t, "catalog-valid")
+	cases := []struct {
+		name   string
+		agents string
+	}{
+		{"skills with no scopes", `package catalog
+
+agents: "bad-agent": {
+	name: "Bad Agent"
+	bin:  "bad"
+	config: global: "~/.bad"
+	skills: {}
+	provider: ["openai"]
+}
+`},
+		{"skills scope with no roles", `package catalog
+
+agents: "bad-agent": {
+	name: "Bad Agent"
+	bin:  "bad"
+	config: global: "~/.bad"
+	skills: { global: {} }
+	provider: ["openai"]
+}
+`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			copyModuleFile(t, valid, dir, "cue.mod/module.cue")
+			copyModuleFile(t, valid, dir, "schema.cue")
+			writeModuleFile(t, dir, "agents.cue", tc.agents)
+
+			loader := catalog.New(catalogtest.Serve("v1.0.0", dir),
+				catalog.WithModulePath(mainPath),
+				catalog.WithCacheDir(t.TempDir()),
+			)
+			res, err := loader.Load(context.Background())
+			if err == nil {
+				t.Fatalf("Load succeeded on empty skills; got %+v", res)
+			}
+			if !errors.Is(err, catalog.ErrInvalidCatalog) {
+				t.Errorf("error = %v, want ErrInvalidCatalog", err)
+			}
+		})
 	}
 }
 

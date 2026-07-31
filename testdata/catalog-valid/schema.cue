@@ -1,8 +1,6 @@
 package catalog
 
-// A standalone copy of the #KnownAgent schema, so the fixture module exercises
-// the identical load-evaluate-validate-decode path the published catalog uses:
-// the schema travels with the data and is unified with it at build time.
+// Mirrors catalog/schema.cue so fixtures validate the same contract.
 #KnownAgent: {
 	name:         string & !=""
 	bin:          string & !=""
@@ -12,8 +10,8 @@ package catalog
 		local?: string & !=""
 	}
 	skills?: {
-		global: string & !=""
-		local?: string & !=""
+		global?: #SkillsScope
+		local?:  #SkillsScope
 	}
 	version?: {
 		args: [string, ...string]
@@ -24,6 +22,13 @@ package catalog
 		provider: [string, ...string]
 	}
 	homepage?: string
+}
+
+// alternatives is priority order (first is primary fallback).
+#SkillsScope: {
+	agents?:       string & !=""
+	native?:       string & !=""
+	alternatives?: [string & !="", ...(string & !="")]
 }
 
 agents: [=~"^[a-z0-9]+(-[a-z0-9]+)*$"]: #KnownAgent

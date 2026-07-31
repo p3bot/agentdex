@@ -18,8 +18,12 @@ agents: "alpha-cli": {
 		local:  ".alpha"
 	}
 	skills: {
-		global: "~/.alpha/skills"
-		local:  ".alpha/skills"
+		global: {
+			native: "~/.alpha/skills"
+		}
+		local: {
+			native: ".alpha/skills"
+		}
 	}
 	version: {
 		args:    ["--version"]
@@ -50,8 +54,14 @@ agents: "gamma-agent": {
 		local:  ".gamma"
 	}
 	skills: {
-		global: "~/.agents/skills"
-		local:  ".agents/skills"
+		global: {
+			agents: "~/.agents/skills"
+			alternatives: ["~/.claude/skills"]
+		}
+		local: {
+			agents: ".agents/skills"
+			alternatives: [".claude/skills"]
+		}
 	}
 	provider: ["google", "openai"]
 	homepage: "https://example.com/gamma"
@@ -66,8 +76,12 @@ agents: "delta-agent": {
 		local:  ".delta"
 	}
 	skills: {
-		global: "~/.agents/skills"
-		local:  ".agents/skills"
+		global: {
+			agents: "~/.agents/skills"
+		}
+		local: {
+			agents: ".agents/skills"
+		}
 	}
 	version: {
 		args:    ["--version"]

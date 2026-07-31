@@ -1,5 +1,6 @@
 package catalog
 
+// Mirrors catalog/schema.cue so fixtures validate the same contract.
 #KnownAgent: {
 	name:         string & !=""
 	bin:          string & !=""
@@ -9,8 +10,8 @@ package catalog
 		local?: string & !=""
 	}
 	skills?: {
-		global: string & !=""
-		local?: string & !=""
+		global?: #SkillsScope
+		local?:  #SkillsScope
 	}
 	version?: {
 		args: [string, ...string]
@@ -21,6 +22,13 @@ package catalog
 		provider: [string, ...string]
 	}
 	homepage?: string
+}
+
+// alternatives is priority order (first is primary fallback).
+#SkillsScope: {
+	agents?:       string & !=""
+	native?:       string & !=""
+	alternatives?: [string & !="", ...(string & !="")]
 }
 
 agents: [=~"^[a-z0-9]+(-[a-z0-9]+)*$"]: #KnownAgent

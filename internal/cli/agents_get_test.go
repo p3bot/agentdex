@@ -104,15 +104,94 @@ func TestGetFieldsOmitModelsKey(t *testing.T) {
 	if _, ok := data["models"]; ok {
 		t.Errorf("output should omit models when not selected: %v", data)
 	}
-	if _, ok := data["skills_dir"]; !ok {
-		t.Errorf("expected skills_dir in selection: %v", data)
+	assertSkillsPrimaryPath(t, data["skills_dir"])
+}
+
+func TestGetSkillsPrimaryJSON(t *testing.T) {
+	// gamma's primary is the agents slot; skills_dir / skills_local_dir are
+	// scalar primary paths, not the full role object.
+	newScenario(t, mustNotFetchModelsServer(t), "gamma-agent")
+
+	got := runCLI("--json", "agents", "get", "gamma-agent", "--fields", "skills_dir,skills_local_dir")
+	if got.code != codeOK {
+		t.Fatalf("get skills fields exit = %d, stderr=%q", got.code, got.stderr)
+	}
+	data := got.envelope(t).Data.(map[string]any)
+	assertSkillsPrimaryPath(t, data["skills_dir"])
+	assertSkillsPrimaryPath(t, data["skills_local_dir"])
+	// Primary is shared agents for gamma (not a list or nested object).
+	if p, ok := data["skills_dir"].(string); !ok || !strings.Contains(p, ".agents") {
+		t.Errorf("skills_dir = %v, want a path containing .agents", data["skills_dir"])
+	}
+}
+
+func TestGetSkillsStructuredJSON(t *testing.T) {
+	// skills exposes agents / native / alternatives (path+exists) and primary per scope.
+	newScenario(t, mustNotFetchModelsServer(t), "gamma-agent")
+
+	got := runCLI("--json", "agents", "get", "gamma-agent", "--fields", "skills")
+	if got.code != codeOK {
+		t.Fatalf("get --fields skills exit = %d, stderr=%q", got.code, got.stderr)
+	}
+	data := got.envelope(t).Data.(map[string]any)
+	raw, ok := data["skills"].(map[string]any)
+	if !ok {
+		t.Fatalf("skills = %T %v, want object", data["skills"], data["skills"])
+	}
+	global, ok := raw["global"].(map[string]any)
+	if !ok {
+		t.Fatalf("skills.global = %T %v, want object", raw["global"], raw["global"])
+	}
+	agentsPath := assertSkillsPathEntry(t, global["agents"], ".agents")
+	if primary, _ := global["primary"].(string); primary == "" || primary != agentsPath {
+		t.Errorf("skills.global.primary = %v, want equal to agents path %q", global["primary"], agentsPath)
+	}
+	alts, ok := global["alternatives"].([]any)
+	if !ok || len(alts) != 1 {
+		t.Fatalf("skills.global.alternatives = %v, want one path entry", global["alternatives"])
+	}
+	assertSkillsPathEntry(t, alts[0], ".claude")
+	if _, ok := global["native"]; ok {
+		t.Errorf("skills.global.native present = %v, want omitted", global["native"])
+	}
+	local, ok := raw["local"].(map[string]any)
+	if !ok {
+		t.Fatalf("skills.local = %T %v, want object", raw["local"], raw["local"])
+	}
+	assertSkillsPathEntry(t, local["agents"], ".agents")
+}
+
+// assertSkillsPathEntry checks a skills role JSON value is {path, exists} with
+// path containing substr. Returns the path string.
+func assertSkillsPathEntry(t *testing.T, raw any, substr string) string {
+	t.Helper()
+	obj, ok := raw.(map[string]any)
+	if !ok {
+		t.Fatalf("skills path entry = %T %v, want object", raw, raw)
+	}
+	path, _ := obj["path"].(string)
+	if path == "" || !strings.Contains(path, substr) {
+		t.Fatalf("skills path entry path = %v, want non-empty containing %q", obj["path"], substr)
+	}
+	if _, ok := obj["exists"].(bool); !ok {
+		t.Fatalf("skills path entry exists = %T %v, want bool", obj["exists"], obj["exists"])
+	}
+	return path
+}
+
+// assertSkillsPrimaryPath checks skills_dir / skills_local_dir JSON is a non-empty path string.
+func assertSkillsPrimaryPath(t *testing.T, raw any) {
+	t.Helper()
+	p, ok := raw.(string)
+	if !ok || p == "" {
+		t.Fatalf("skills primary = %T %v, want non-empty string path", raw, raw)
 	}
 }
 
 func TestGetModelsFlagFieldsOmitPresentation(t *testing.T) {
 	// Demand that --models still fills when fields omit models is covered by
 	// TestModelsDemand ("flag and omit fields"). This integration test only
-	// checks presentation: selected skills_dir, models key absent from output.
+	// checks presentation: selected skills, models key absent from output.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL, "alpha-cli")
 
@@ -124,9 +203,7 @@ func TestGetModelsFlagFieldsOmitPresentation(t *testing.T) {
 	if _, ok := data["models"]; ok {
 		t.Errorf("output should omit models when not selected: %v", data)
 	}
-	if _, ok := data["skills_dir"]; !ok {
-		t.Errorf("expected skills_dir in selection: %v", data)
-	}
+	assertSkillsPrimaryPath(t, data["skills_dir"])
 }
 
 // hasTextSection reports whether stdout contains a whole-line section header
@@ -437,8 +514,8 @@ func TestGetVerboseAddsDetail(t *testing.T) {
 
 func TestGetTextDetailDrivenByRecord(t *testing.T) {
 	// The text detail must show every inline scalar field the record carries, in
-	// declared order, so it cannot drift from the JSON/--fields surfaces. found is
-	// routed to a section (omitted), so it must not appear as an inline label.
+	// declared order, so it cannot drift from the JSON/--fields surfaces. found,
+	// skills, provider_env, and models are section fields (not inline labels).
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL, "alpha-cli")
 
@@ -446,13 +523,53 @@ func TestGetTextDetailDrivenByRecord(t *testing.T) {
 	if got.code != codeOK {
 		t.Fatalf("get exit = %d, stderr=%q", got.code, got.stderr)
 	}
-	for _, key := range []string{"id", "name", "version", "bin", "config_dir", "providers", "homepage"} {
+	for _, key := range []string{
+		"id", "name", "version", "bin", "config_dir", "config_local_dir",
+		"skills_dir", "skills_local_dir", "providers", "homepage",
+	} {
 		if !strings.Contains(got.stdout, key) {
 			t.Errorf("text detail missing field %q:\n%s", key, got.stdout)
 		}
 	}
 	if strings.Contains(got.stdout, "\nfound") {
 		t.Errorf("text detail should not render the found field inline:\n%s", got.stdout)
+	}
+	if !hasTextSection(got.stdout, "Skills") {
+		t.Errorf("text detail missing Skills section:\n%s", got.stdout)
+	}
+	// alpha-cli skills are native-only; section should list the role, not a dense one-liner.
+	if !strings.Contains(got.stdout, "native") {
+		t.Errorf("Skills section missing native role:\n%s", got.stdout)
+	}
+	if strings.Contains(got.stdout, "skills  ") || strings.Contains(got.stdout, "skills\t") {
+		t.Errorf("skills should not render as an inline Agent field:\n%s", got.stdout)
+	}
+}
+
+func TestGetSkillsTextSection(t *testing.T) {
+	// gamma has agents + alternatives; the Skills section lists roles per scope
+	// without repeating primary (that stays on skills_dir / skills_local_dir).
+	srv := modelsServer(t, []string{"google", "openai"})
+	newScenario(t, srv.URL, "gamma-agent")
+
+	got := runCLI("agents", "get", "gamma-agent")
+	if got.code != codeOK {
+		t.Fatalf("get exit = %d, stderr=%q", got.code, got.stderr)
+	}
+	if !hasTextSection(got.stdout, "Skills") {
+		t.Fatalf("missing Skills section:\n%s", got.stdout)
+	}
+	for _, want := range []string{"global", "local", "agents", "alternatives"} {
+		if !strings.Contains(got.stdout, want) {
+			t.Errorf("Skills section missing %q:\n%s", want, got.stdout)
+		}
+	}
+	// Lean section: no primary rows (primaries are skills_dir / skills_local_dir).
+	for line := range strings.SplitSeq(got.stdout, "\n") {
+		trim := strings.TrimSpace(line)
+		if strings.HasPrefix(trim, "primary") {
+			t.Errorf("Skills section should omit primary rows, got %q", trim)
+		}
 	}
 }
 

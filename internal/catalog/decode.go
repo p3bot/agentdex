@@ -20,8 +20,8 @@ type cueAgent struct {
 		Local  string `json:"local,omitempty"`
 	} `json:"config"`
 	Skills *struct {
-		Global string `json:"global"`
-		Local  string `json:"local,omitempty"`
+		Global *cueSkillsScope `json:"global,omitempty"`
+		Local  *cueSkillsScope `json:"local,omitempty"`
 	} `json:"skills,omitempty"`
 	Version *struct {
 		Args    []string `json:"args"`
@@ -30,6 +30,13 @@ type cueAgent struct {
 	Agnostic bool     `json:"agnostic,omitempty"`
 	Provider []string `json:"provider,omitempty"`
 	Homepage string   `json:"homepage,omitempty"`
+}
+
+// cueSkillsScope mirrors #SkillsScope for decoding.
+type cueSkillsScope struct {
+	Agents       string   `json:"agents,omitempty"`
+	Native       string   `json:"native,omitempty"`
+	Alternatives []string `json:"alternatives,omitempty"`
 }
 
 // loadCatalogModule loads the CUE catalog module rooted at sourceDir, validates
@@ -92,7 +99,11 @@ func loadCatalogModule(sourceDir string) (*Catalog, error) {
 			Homepage:    a.Homepage,
 		}
 		if a.Skills != nil {
-			ka.Skills = &PathPair{Global: a.Skills.Global, Local: a.Skills.Local}
+			sk, err := decodeSkills(id, a.Skills.Global, a.Skills.Local)
+			if err != nil {
+				return nil, err
+			}
+			ka.Skills = sk
 		}
 		if a.Version != nil {
 			ka.Version = &VersionProbe{Args: a.Version.Args, Pattern: a.Version.Pattern}
@@ -100,4 +111,44 @@ func loadCatalogModule(sourceDir string) (*Catalog, error) {
 		agents[id] = ka
 	}
 	return &Catalog{Agents: agents}, nil
+}
+
+// decodeSkills builds SkillsPaths and rejects empty skills objects. Agents with
+// no skills omit the field entirely (a.Skills == nil). When skills is present,
+// at least one of global/local must be set, and each present scope must have at
+// least one of agents, native, or alternatives. CUE cannot express that
+// at-least-one-optional rule without leaving valid entries non-concrete, so the
+// loader enforces it here (cue vet alone does not).
+func decodeSkills(id string, global, local *cueSkillsScope) (*SkillsPaths, error) {
+	if global == nil && local == nil {
+		return nil, fmt.Errorf("%w: agent %q: skills has no global or local scope", ErrInvalidCatalog, id)
+	}
+	sk := &SkillsPaths{}
+	if global != nil {
+		sc, err := decodeSkillsScope(id, "global", global)
+		if err != nil {
+			return nil, err
+		}
+		sk.Global = sc
+	}
+	if local != nil {
+		sc, err := decodeSkillsScope(id, "local", local)
+		if err != nil {
+			return nil, err
+		}
+		sk.Local = sc
+	}
+	return sk, nil
+}
+
+func decodeSkillsScope(id, scope string, s *cueSkillsScope) (SkillsScope, error) {
+	sc := SkillsScope{
+		Agents:       s.Agents,
+		Native:       s.Native,
+		Alternatives: append([]string(nil), s.Alternatives...),
+	}
+	if sc.Agents == "" && sc.Native == "" && len(sc.Alternatives) == 0 {
+		return SkillsScope{}, fmt.Errorf("%w: agent %q: skills.%s has no agents, native, or alternatives", ErrInvalidCatalog, id, scope)
+	}
+	return sc, nil
 }

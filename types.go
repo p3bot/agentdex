@@ -70,13 +70,36 @@ type KnownAgent struct {
 
 // ResolvedPaths is a catalog directory pair after tilde, environment, and
 // working-directory expansion, with existence recorded per scope. Local is "" when
-// the catalog defines no local scope; the zero value of the whole struct means the
-// agent has no such concept (Detection.Skills uses it when there are no skills).
+// the catalog defines no local scope. Used for config, which is a single pair.
 type ResolvedPaths struct {
 	Global       string
 	GlobalExists bool
 	Local        string
 	LocalExists  bool
+}
+
+// PathEntry is one expanded catalog path with on-disk existence recorded.
+// Path is "" when that role is unsupported for the agent/scope.
+type PathEntry struct {
+	Path   string
+	Exists bool
+}
+
+// SkillsScope is one scope's (global or local) classified skill roots after
+// expansion. Primary is derived: agents if set, else native if set, else
+// Alternatives[0] if any, else empty. Alternatives is priority order.
+type SkillsScope struct {
+	Agents       PathEntry
+	Native       PathEntry
+	Alternatives []PathEntry
+	Primary      PathEntry
+}
+
+// SkillsPaths is the resolved skills layout by scope. The zero value means the
+// agent has no skills concept (catalog omits skills).
+type SkillsPaths struct {
+	Global SkillsScope
+	Local  SkillsScope
 }
 
 // Detection is what locating an agent found on this machine: its binary, version,
@@ -88,7 +111,7 @@ type Detection struct {
 	BinaryPath string
 	Version    string
 	Config     ResolvedPaths
-	Skills     ResolvedPaths
+	Skills     SkillsPaths
 }
 
 // Agent is the catalog's static facts joined with what detection found and, from

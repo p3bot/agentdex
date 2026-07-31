@@ -17,7 +17,7 @@ import (
 // It governs --fields validation and the get text-detail ordering, so both
 // surfaces stay in step when a field is added or renamed.
 var agentFieldSet = newFieldSet(
-	[]string{"id", "name", "version", "bin", "found", "config_dir", "config_local_dir", "skills_dir", "providers", "homepage", "provider_env", "models"},
+	[]string{"id", "name", "version", "bin", "found", "config_dir", "config_local_dir", "skills_dir", "skills_local_dir", "skills", "providers", "homepage", "provider_env", "models"},
 	[]string{"id", "name", "version", "providers", "models", "bin"},
 ).ordered("id")
 
@@ -26,6 +26,29 @@ var agentFieldSet = newFieldSet(
 // bin in both sets; bin stays last, the widest, most variable column, whose
 // "missing" cell is the list detection signal.
 var agentVerboseFields = []string{"id", "name", "version", "config_dir", "providers", "models", "bin"}
+
+// skillsPathPayload is one expanded skill root in the structured skills field:
+// path plus on-disk existence, matching library PathEntry.
+type skillsPathPayload struct {
+	Path   string `json:"path"`
+	Exists bool   `json:"exists"`
+}
+
+// skillsScopePayload is one scope in the structured skills field (JSON).
+// Role entries carry path and exists; primary stays a bare path string (the
+// fast product answer — same value as skills_dir / skills_local_dir).
+type skillsScopePayload struct {
+	Agents       *skillsPathPayload  `json:"agents,omitempty"`
+	Native       *skillsPathPayload  `json:"native,omitempty"`
+	Alternatives []skillsPathPayload `json:"alternatives,omitempty"`
+	Primary      string              `json:"primary,omitempty"`
+}
+
+// skillsPayload is the full skills matrix for CLI JSON: roles plus derived primary.
+type skillsPayload struct {
+	Global *skillsScopePayload `json:"global,omitempty"`
+	Local  *skillsScopePayload `json:"local,omitempty"`
+}
 
 // agentRecord builds the field values for one detected agent. Optional fields that
 // are absent (no local config, no skills concept, no enrichment) are simply not
@@ -55,19 +78,110 @@ func buildAgentRecord(a *agentdex.Agent, includeProviders bool) *record {
 	r.add("bin", d.BinaryPath, binText)
 	r.add("found", d.Found, fmt.Sprintf("%t", d.Found))
 	r.add("config_dir", d.Config.Global, orDash(d.Config.Global))
-	// config_local_dir and skills_dir are added here, in their declared position, so the add
-	// order matches agentFieldSet.all and the text detail view renders in that order.
+	// config_local_dir and skills paths are added here, in their declared position,
+	// so the add order matches agentFieldSet.all and the text detail view order.
 	if d.Config.Local != "" {
 		r.add("config_local_dir", d.Config.Local, d.Config.Local)
 	}
-	if d.Skills.Global != "" {
-		r.add("skills_dir", d.Skills.Global, d.Skills.Global)
+	// skills_dir / skills_local_dir are the derived primary for each scope
+	// (fast product answer). skills is the full agents/native/alternatives matrix.
+	if d.Skills.Global.Primary.Path != "" {
+		r.add("skills_dir", d.Skills.Global.Primary.Path, d.Skills.Global.Primary.Path)
+	}
+	if d.Skills.Local.Primary.Path != "" {
+		r.add("skills_local_dir", d.Skills.Local.Primary.Path, d.Skills.Local.Primary.Path)
+	}
+	if payload, text := skillsField(d.Skills); payload != nil {
+		r.add("skills", payload, text)
 	}
 	if includeProviders {
 		r.add("providers", a.ResolvedProviders, strings.Join(a.ResolvedProviders, ", "))
 	}
 	r.add("homepage", a.Homepage, orDash(a.Homepage))
 	return r
+}
+
+// skillsField builds the structured skills matrix for JSON and plain text.
+// Omitted when the agent has no skills concept (both scopes empty).
+func skillsField(sp agentdex.SkillsPaths) (*skillsPayload, string) {
+	g := skillsScopePayloadOf(sp.Global)
+	l := skillsScopePayloadOf(sp.Local)
+	if g == nil && l == nil {
+		return nil, ""
+	}
+	p := &skillsPayload{Global: g, Local: l}
+	return p, formatSkillsText(p)
+}
+
+func skillsScopePayloadOf(sc agentdex.SkillsScope) *skillsScopePayload {
+	if sc.Agents.Path == "" && sc.Native.Path == "" && len(sc.Alternatives) == 0 && sc.Primary.Path == "" {
+		return nil
+	}
+	p := &skillsScopePayload{
+		Agents:  skillsPathPayloadOf(sc.Agents),
+		Native:  skillsPathPayloadOf(sc.Native),
+		Primary: sc.Primary.Path,
+	}
+	if len(sc.Alternatives) > 0 {
+		p.Alternatives = make([]skillsPathPayload, len(sc.Alternatives))
+		for i, e := range sc.Alternatives {
+			p.Alternatives[i] = skillsPathPayload{Path: e.Path, Exists: e.Exists}
+		}
+	}
+	return p
+}
+
+func skillsPathPayloadOf(e agentdex.PathEntry) *skillsPathPayload {
+	if e.Path == "" {
+		return nil
+	}
+	return &skillsPathPayload{Path: e.Path, Exists: e.Exists}
+}
+
+// formatSkillsText is a compact one-line rendering of the skills matrix for
+// --fields and other plain-text surfaces. Full get detail uses the Skills
+// section instead (renderSkillsSection). Path colour stays on skills_dir /
+// skills_local_dir scalars only; role lines carry (exists)/(missing) inline.
+func formatSkillsText(p *skillsPayload) string {
+	var parts []string
+	if p.Global != nil {
+		parts = append(parts, "global: "+formatSkillsScopeText(p.Global))
+	}
+	if p.Local != nil {
+		parts = append(parts, "local: "+formatSkillsScopeText(p.Local))
+	}
+	return strings.Join(parts, "; ")
+}
+
+func formatSkillsScopeText(s *skillsScopePayload) string {
+	var bits []string
+	if s.Agents != nil {
+		bits = append(bits, "agents="+formatSkillsPathText(s.Agents))
+	}
+	if s.Native != nil {
+		bits = append(bits, "native="+formatSkillsPathText(s.Native))
+	}
+	if len(s.Alternatives) > 0 {
+		alts := make([]string, len(s.Alternatives))
+		for i := range s.Alternatives {
+			alts[i] = formatSkillsPathText(&s.Alternatives[i])
+		}
+		bits = append(bits, "alternatives=["+strings.Join(alts, ", ")+"]")
+	}
+	if s.Primary != "" {
+		bits = append(bits, "primary="+s.Primary)
+	}
+	return strings.Join(bits, " ")
+}
+
+func formatSkillsPathText(p *skillsPathPayload) string {
+	if p == nil {
+		return ""
+	}
+	if p.Exists {
+		return p.Path + " (exists)"
+	}
+	return p.Path + " (missing)"
 }
 
 // withModelsNA marks models as not applicable (agnostic agent without --provider):

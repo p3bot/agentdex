@@ -33,9 +33,9 @@ func (c *core) detect(ctx context.Context, ka catalog.KnownAgent) Agent {
 		},
 	}
 	a.Detection.BinaryPath, a.Detection.Found = c.locateBinary(ka.ID, ka.Bin)
-	a.Detection.Config = c.resolvePaths(ka.Config)
+	a.Detection.Config = c.resolvePathPair(ka.Config)
 	if ka.Skills != nil {
-		a.Detection.Skills = c.resolvePaths(*ka.Skills)
+		a.Detection.Skills = c.resolveSkillsPaths(*ka.Skills)
 	}
 	if a.Detection.Found && ka.Version != nil {
 		a.Detection.Version = probeVersion(ctx, a.Detection.BinaryPath, *ka.Version)
@@ -71,10 +71,11 @@ func (c *core) locateBinary(id, bin string) (string, bool) {
 	return "", false
 }
 
-// resolvePaths expands a catalog path pair into resolved global and local paths
-// with per-scope existence. Local is rooted at the captured working directory when
-// it is not already absolute. An empty local scope stays empty and not-existing.
-func (c *core) resolvePaths(pp catalog.PathPair) ResolvedPaths {
+// resolvePathPair expands a catalog config pair into resolved global and local
+// paths with per-scope existence. Local is rooted at the captured working
+// directory when it is not already absolute. An empty local scope stays empty
+// and not-existing.
+func (c *core) resolvePathPair(pp catalog.PathPair) ResolvedPaths {
 	rp := ResolvedPaths{Global: c.expandPath(pp.Global)}
 	rp.GlobalExists = pathExists(rp.Global)
 	if pp.Local != "" {
@@ -86,6 +87,60 @@ func (c *core) resolvePaths(pp catalog.PathPair) ResolvedPaths {
 		rp.LocalExists = pathExists(rp.Local)
 	}
 	return rp
+}
+
+// resolveSkillsPaths expands catalog skills roles into path entries with
+// per-path existence and derives Primary per scope (agents, else native, else
+// first alternative). Local roots are joined to the captured working directory
+// when not already absolute.
+func (c *core) resolveSkillsPaths(sp catalog.SkillsPaths) SkillsPaths {
+	return SkillsPaths{
+		Global: c.resolveSkillsScope(sp.Global, false),
+		Local:  c.resolveSkillsScope(sp.Local, true),
+	}
+}
+
+func (c *core) resolveSkillsScope(sc catalog.SkillsScope, projectLocal bool) SkillsScope {
+	out := SkillsScope{
+		Agents: c.resolveSkillPath(sc.Agents, projectLocal),
+		Native: c.resolveSkillPath(sc.Native, projectLocal),
+	}
+	if len(sc.Alternatives) > 0 {
+		out.Alternatives = make([]PathEntry, 0, len(sc.Alternatives))
+		for _, raw := range sc.Alternatives {
+			out.Alternatives = append(out.Alternatives, c.resolveSkillPath(raw, projectLocal))
+		}
+	}
+	out.Primary = skillsPrimary(out)
+	return out
+}
+
+// resolveSkillPath expands one catalog skill path. projectLocal roots relative
+// paths at the captured working directory; empty raw stays empty.
+func (c *core) resolveSkillPath(raw string, projectLocal bool) PathEntry {
+	if raw == "" {
+		return PathEntry{}
+	}
+	p := c.expandPath(raw)
+	if projectLocal && !filepath.IsAbs(p) {
+		p = filepath.Join(c.workingDir, p)
+	}
+	return PathEntry{Path: p, Exists: pathExists(p)}
+}
+
+// skillsPrimary picks the install/query target for one scope: shared agents
+// convention first, then native, then the first alternative.
+func skillsPrimary(sc SkillsScope) PathEntry {
+	if sc.Agents.Path != "" {
+		return sc.Agents
+	}
+	if sc.Native.Path != "" {
+		return sc.Native
+	}
+	if len(sc.Alternatives) > 0 {
+		return sc.Alternatives[0]
+	}
+	return PathEntry{}
 }
 
 // expandPath applies environment-variable expansion and then leading-tilde

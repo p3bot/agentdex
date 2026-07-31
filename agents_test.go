@@ -32,7 +32,10 @@ agents: "alpha-cli": {
 	name: "Alpha CLI"
 	bin:  %q
 	config: {global: "~/.alpha", local: ".alpha"}
-	skills: {global: "~/.alpha/skills", local: ".alpha/skills"}
+	skills: {
+		global: {native: "~/.alpha/skills"}
+		local:  {native: ".alpha/skills"}
+	}
 	version: {args: ["--version"], pattern: "v([0-9.]+)"}
 	provider: ["anthropic"]
 	homepage: "https://example.com/alpha"
@@ -938,8 +941,213 @@ agents: "beta-tool": {
 	if d.Detection.Config.Local != "" {
 		t.Errorf("Config.Local = %q, want empty", d.Detection.Config.Local)
 	}
-	if (d.Detection.Skills != ResolvedPaths{}) {
-		t.Errorf("Skills = %+v, want zero value for an agent with no skills", d.Detection.Skills)
+	// SkillsPaths holds slices, so compare field-by-field rather than ==.
+	if sk := d.Detection.Skills; !skillsPathsZero(sk) {
+		t.Errorf("Skills = %+v, want zero value for an agent with no skills", sk)
+	}
+}
+
+func skillsPathsZero(sk SkillsPaths) bool {
+	return skillsScopeZero(sk.Global) && skillsScopeZero(sk.Local)
+}
+
+func skillsScopeZero(sc SkillsScope) bool {
+	return sc.Agents.Path == "" && !sc.Agents.Exists &&
+		sc.Native.Path == "" && !sc.Native.Exists &&
+		len(sc.Alternatives) == 0 &&
+		sc.Primary.Path == "" && !sc.Primary.Exists
+}
+
+func TestGetSkillsRolesAndPrimary(t *testing.T) {
+	body := fmt.Sprintf(`
+agents: "agy-like": {
+	name: "Agy Like"
+	bin:  %q
+	config: {global: "~/.gemini/antigravity-cli", local: ".agents"}
+	skills: {
+		global: {native: "~/.gemini/antigravity-cli/skills"}
+		local: {
+			agents: ".agents/skills"
+			alternatives: [".claude/skills", ".opencode/skills"]
+		}
+	}
+	provider: ["google"]
+}
+agents: "open-like": {
+	name: "Open Like"
+	bin:  %q
+	config: {global: "~/.config/open", local: ".open"}
+	skills: {
+		global: {
+			agents: "~/.agents/skills"
+			alternatives: ["~/.claude/skills"]
+		}
+		local: {
+			agents: ".agents/skills"
+			native: ".open/skills"
+			alternatives: [".claude/skills"]
+		}
+	}
+	provider: ["openai"]
+}
+`, fixtureBinAlpha, fixtureBinGamma)
+	home := t.TempDir()
+	mustMkdirAll(t, filepath.Join(home, ".gemini", "antigravity-cli", "skills"))
+	mustMkdirAll(t, filepath.Join(home, ".agents", "skills"))
+	wd := t.TempDir()
+	mustMkdirAll(t, filepath.Join(wd, ".agents", "skills"))
+	idx := openAgents(t, body,
+		WithSearchDirs(binDir(t, fixtureBinAlpha, fixtureBinGamma)),
+		WithEnvLookup(envFn(home)),
+		WithWorkingDir(wd),
+		WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+
+	agy, err := idx.Agents.Get(context.Background(), "agy-like", AgentGetQuery{Enrich: EnrichNone})
+	if err != nil {
+		t.Fatalf("Get agy-like: %v", err)
+	}
+	wantNative := filepath.Join(home, ".gemini", "antigravity-cli", "skills")
+	if agy.Detection.Skills.Global.Native.Path != wantNative || !agy.Detection.Skills.Global.Native.Exists {
+		t.Errorf("agy global.native = %+v, want %q exists", agy.Detection.Skills.Global.Native, wantNative)
+	}
+	if agy.Detection.Skills.Global.Agents.Path != "" {
+		t.Errorf("agy global.agents = %q, want empty", agy.Detection.Skills.Global.Agents.Path)
+	}
+	if agy.Detection.Skills.Global.Primary.Path != wantNative {
+		t.Errorf("agy global.primary = %q, want native %q", agy.Detection.Skills.Global.Primary.Path, wantNative)
+	}
+	wantAgentsLocal := filepath.Join(wd, ".agents", "skills")
+	if agy.Detection.Skills.Local.Agents.Path != wantAgentsLocal || !agy.Detection.Skills.Local.Agents.Exists {
+		t.Errorf("agy local.agents = %+v, want %q exists", agy.Detection.Skills.Local.Agents, wantAgentsLocal)
+	}
+	wantAlts := []string{
+		filepath.Join(wd, ".claude", "skills"),
+		filepath.Join(wd, ".opencode", "skills"),
+	}
+	if len(agy.Detection.Skills.Local.Alternatives) != len(wantAlts) {
+		t.Fatalf("agy local.alternatives len = %d, want %d", len(agy.Detection.Skills.Local.Alternatives), len(wantAlts))
+	}
+	for i, want := range wantAlts {
+		if got := agy.Detection.Skills.Local.Alternatives[i].Path; got != want {
+			t.Errorf("agy local.alternatives[%d] = %q, want %q", i, got, want)
+		}
+	}
+	if agy.Detection.Skills.Local.Primary.Path != wantAgentsLocal {
+		t.Errorf("agy local.primary = %q, want agents %q", agy.Detection.Skills.Local.Primary.Path, wantAgentsLocal)
+	}
+
+	open, err := idx.Agents.Get(context.Background(), "open-like", AgentGetQuery{Enrich: EnrichNone})
+	if err != nil {
+		t.Fatalf("Get open-like: %v", err)
+	}
+	wantAgentsGlobal := filepath.Join(home, ".agents", "skills")
+	if open.Detection.Skills.Global.Primary.Path != wantAgentsGlobal {
+		t.Errorf("open global.primary = %q, want agents %q", open.Detection.Skills.Global.Primary.Path, wantAgentsGlobal)
+	}
+	if open.Detection.Skills.Local.Primary.Path != wantAgentsLocal {
+		t.Errorf("open local.primary = %q, want agents %q", open.Detection.Skills.Local.Primary.Path, wantAgentsLocal)
+	}
+	if open.Detection.Skills.Local.Native.Path != filepath.Join(wd, ".open", "skills") {
+		t.Errorf("open local.native = %q, want .open/skills", open.Detection.Skills.Local.Native.Path)
+	}
+}
+
+func TestGetSkillsPrimaryFromAlternativesOnly(t *testing.T) {
+	// Third primary branch: no agents, no native → first alternative.
+	body := fmt.Sprintf(`
+agents: "alt-only": {
+	name: "Alt Only"
+	bin:  %q
+	config: {global: "~/.alt"}
+	skills: {
+		global: {alternatives: ["~/.other/skills", "~/.third/skills"]}
+		local:  {alternatives: [".other/skills", ".third/skills"]}
+	}
+	provider: ["openai"]
+}
+`, fixtureBinAlpha)
+	home := t.TempDir()
+	wd := t.TempDir()
+	idx := openAgents(t, body,
+		WithSearchDirs(binDir(t, fixtureBinAlpha)),
+		WithEnvLookup(envFn(home)),
+		WithWorkingDir(wd),
+		WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+	d, err := idx.Agents.Get(context.Background(), "alt-only", AgentGetQuery{Enrich: EnrichNone})
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	wantG := filepath.Join(home, ".other", "skills")
+	if d.Detection.Skills.Global.Primary.Path != wantG {
+		t.Errorf("global.primary = %q, want first alternative %q", d.Detection.Skills.Global.Primary.Path, wantG)
+	}
+	if d.Detection.Skills.Global.Agents.Path != "" || d.Detection.Skills.Global.Native.Path != "" {
+		t.Errorf("global agents/native should be empty, got agents=%q native=%q",
+			d.Detection.Skills.Global.Agents.Path, d.Detection.Skills.Global.Native.Path)
+	}
+	wantL := filepath.Join(wd, ".other", "skills")
+	if d.Detection.Skills.Local.Primary.Path != wantL {
+		t.Errorf("local.primary = %q, want first alternative %q", d.Detection.Skills.Local.Primary.Path, wantL)
+	}
+}
+
+func TestGetSkillsPrimaryNativeOverAlternatives(t *testing.T) {
+	// Middle primary branch: no agents, native set → native beats alternatives.
+	body := fmt.Sprintf(`
+agents: "native-first": {
+	name: "Native First"
+	bin:  %q
+	config: {global: "~/.nf"}
+	skills: {
+		global: {
+			native: "~/.nf/skills"
+			alternatives: ["~/.other/skills", "~/.third/skills"]
+		}
+		local: {
+			native: ".nf/skills"
+			alternatives: [".other/skills", ".third/skills"]
+		}
+	}
+	provider: ["openai"]
+}
+`, fixtureBinAlpha)
+	home := t.TempDir()
+	wd := t.TempDir()
+	idx := openAgents(t, body,
+		WithSearchDirs(binDir(t, fixtureBinAlpha)),
+		WithEnvLookup(envFn(home)),
+		WithWorkingDir(wd),
+		WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+	d, err := idx.Agents.Get(context.Background(), "native-first", AgentGetQuery{Enrich: EnrichNone})
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	wantG := filepath.Join(home, ".nf", "skills")
+	if d.Detection.Skills.Global.Primary.Path != wantG {
+		t.Errorf("global.primary = %q, want native %q", d.Detection.Skills.Global.Primary.Path, wantG)
+	}
+	if d.Detection.Skills.Global.Agents.Path != "" {
+		t.Errorf("global.agents = %q, want empty", d.Detection.Skills.Global.Agents.Path)
+	}
+	if got := len(d.Detection.Skills.Global.Alternatives); got != 2 {
+		t.Errorf("global.alternatives len = %d, want 2", got)
+	}
+	wantL := filepath.Join(wd, ".nf", "skills")
+	if d.Detection.Skills.Local.Primary.Path != wantL {
+		t.Errorf("local.primary = %q, want native %q", d.Detection.Skills.Local.Primary.Path, wantL)
+	}
+	if got := len(d.Detection.Skills.Local.Alternatives); got != 2 {
+		t.Errorf("local.alternatives len = %d, want 2", got)
+	}
+}
+
+func mustMkdirAll(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir %s: %v", dir, err)
 	}
 }
 

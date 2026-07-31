@@ -320,18 +320,22 @@ func (a *app) reportSoftPathAgent(cmd *cobra.Command, agent *agentdex.Agent, war
 	fs, _ := r.resolve(nil)
 	return a.ok(cmd, jsonObject(fs), warnings, func(w io.Writer) {
 		renderAgentDetailFields(w, r, agent, a.verbose)
+		renderSkillsSection(w, agent.Detection.Skills)
 	})
 }
 
 // detailSections are the record fields rendered as their own labelled sections
 // below the inline scalar fields, rather than as inline detail lines. Every other
 // field flows into the inline detail straight from the record.
-var detailSections = map[string]bool{"provider_env": true, "models": true}
+var detailSections = map[string]bool{"skills": true, "provider_env": true, "models": true}
 
 // pathFields are the detail fields whose value is a filesystem path, styled with
 // tui.Path in the text view. Colour lives here, not in the record text, so table
 // cells and --fields output stay plain.
-var pathFields = map[string]bool{"bin": true, "config_dir": true, "config_local_dir": true, "skills_dir": true}
+var pathFields = map[string]bool{
+	"bin": true, "config_dir": true, "config_local_dir": true,
+	"skills_dir": true, "skills_local_dir": true,
+}
 
 // renderAgentDetailFields writes the Agent heading and the inline scalar fields
 // of the given agent record. Fields are driven from the record in its declared
@@ -381,9 +385,10 @@ func renderAgentDetailFields(w io.Writer, r *record, agent *agentdex.Agent, verb
 }
 
 // renderAgentDetail writes the full text detail view: the inline fields of the
-// report record, then the provider_env and models sections when populated.
+// report record, then the skills, provider_env, and models sections when populated.
 func renderAgentDetail(w io.Writer, agent *agentdex.Agent, verbose bool) {
 	renderAgentDetailFields(w, agentReportRecord(agent), agent, verbose)
+	renderSkillsSection(w, agent.Detection.Skills)
 
 	if agent.ProviderEnv != nil {
 		fmt.Fprintln(w)
@@ -403,6 +408,55 @@ func renderAgentDetail(w io.Writer, agent *agentdex.Agent, verbose bool) {
 	}
 }
 
+// renderSkillsSection writes the Skills detail section: roles per scope with
+// existence markers. Primary is omitted here — it is already skills_dir /
+// skills_local_dir on the Agent block. No section when the agent has no skills.
+func renderSkillsSection(w io.Writer, sp agentdex.SkillsPaths) {
+	payload, _ := skillsField(sp)
+	if payload == nil {
+		return
+	}
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, tui.Header.Sprint("Skills"))
+	if payload.Global != nil {
+		renderSkillsScopeBlock(w, "global", payload.Global)
+	}
+	if payload.Local != nil {
+		renderSkillsScopeBlock(w, "local", payload.Local)
+	}
+}
+
+func renderSkillsScopeBlock(w io.Writer, scope string, s *skillsScopePayload) {
+	fmt.Fprintln(w, "  "+scope)
+	type line struct {
+		role string
+		text string
+	}
+	var lines []line
+	if s.Agents != nil {
+		lines = append(lines, line{"agents", formatSkillsPathText(s.Agents)})
+	}
+	if s.Native != nil {
+		lines = append(lines, line{"native", formatSkillsPathText(s.Native)})
+	}
+	if len(s.Alternatives) > 0 {
+		alts := make([]string, len(s.Alternatives))
+		for i := range s.Alternatives {
+			alts[i] = formatSkillsPathText(&s.Alternatives[i])
+		}
+		lines = append(lines, line{"alternatives", strings.Join(alts, ", ")})
+	}
+	width := 0
+	for _, l := range lines {
+		if n := len(l.role); n > width {
+			width = n
+		}
+	}
+	for _, l := range lines {
+		fmt.Fprintf(w, "    %s  %s\n", padRight(l.role, width), l.text)
+	}
+}
+
 // existenceNote reports the on-disk existence of a resolved path field for the
 // verbose detail view, or "" for a field that names no directory or carries no
 // path (so an absent-concept "-" is not annotated as a missing directory).
@@ -416,7 +470,9 @@ func existenceNote(key string, agent *agentdex.Agent) string {
 	case "config_local_dir":
 		path, exists = d.Config.Local, d.Config.LocalExists
 	case "skills_dir":
-		path, exists = d.Skills.Global, d.Skills.GlobalExists
+		path, exists = d.Skills.Global.Primary.Path, d.Skills.Global.Primary.Exists
+	case "skills_local_dir":
+		path, exists = d.Skills.Local.Primary.Path, d.Skills.Local.Primary.Exists
 	default:
 		return ""
 	}
