@@ -22,14 +22,12 @@ import (
 	"github.com/start-cli/agentdex/modelsdev"
 )
 
-// result is the captured outcome of one CLI invocation.
 type result struct {
 	stdout string
 	stderr string
 	code   int
 }
 
-// env decode helper for asserting envelope JSON.
 func (r result) envelope(t *testing.T) envelope {
 	t.Helper()
 	var env envelope
@@ -39,8 +37,6 @@ func (r result) envelope(t *testing.T) envelope {
 	return env
 }
 
-// runCLI builds a fresh command tree, runs it with args against captured buffers,
-// and maps the resulting error to an exit code exactly as Execute does.
 func runCLI(args ...string) result {
 	root := NewRootCommand()
 	var out, errb bytes.Buffer
@@ -61,9 +57,8 @@ func runCLI(args ...string) result {
 	return result{stdout: out.String(), stderr: errb.String(), code: code}
 }
 
-// scenario captures the per-test world: temp XDG dirs, a fake-binary directory, a
-// local catalog registry, and an optional models.dev server, wired through
-// config.cue.
+// scenario is the per-test world: temp XDG dirs, fake binaries, local catalog registry,
+// optional models.dev server, wired through config.cue.
 type scenario struct {
 	home          string
 	binDir        string
@@ -71,15 +66,10 @@ type scenario struct {
 	closeRegistry func() // shuts down the in-process catalog registry mid-test
 }
 
-// newScenario stands up an isolated agentdex world: temp HOME and XDG dirs, the
-// fixture catalog published to an in-process OCI registry, fake agent binaries on
-// a search dir, and a config.cue pointing model enrichment at modelsURL. An empty
-// modelsURL wires a local models server carrying every fixture provider so
-// enrichment (now always attempted by list) stays deterministic and network-free,
-// without ever reaching the real models.dev. bins lists which fixture agent
-// binaries to install, so a test can make an agent "not installed" by leaving its
-// binary out. PATH is restricted to binDir so host tools cannot satisfy fixture
-// binary names via exec.LookPath.
+// newScenario stands up an isolated world. Empty modelsURL wires a local server with
+// every fixture provider so enrichment stays deterministic. bins lists which fixture
+// binaries to install (omit to leave an agent not installed). PATH is restricted to
+// binDir so host tools cannot satisfy fixture binary names via LookPath.
 func newScenario(t *testing.T, modelsURL string, bins ...string) *scenario {
 	t.Helper()
 	if modelsURL == "" {
@@ -94,8 +84,7 @@ func newScenario(t *testing.T, modelsURL string, bins ...string) *scenario {
 	binDir := filepath.Join(home, "bin")
 	mustMkdir(t, binDir)
 	// Isolate PATH before installing fakes so LookPath only sees this dir. Host
-	// tools (e.g. git-delta as "delta") must not mark an uninstalled fixture agent
-	// as Found.
+	// tools (e.g. git-delta as "delta") must not mark an uninstalled fixture agent Found.
 	t.Setenv("PATH", binDir)
 	for _, name := range bins {
 		installFakeBin(t, binDir, name)
@@ -114,8 +103,6 @@ func newScenario(t *testing.T, modelsURL string, bins ...string) *scenario {
 	return &scenario{home: home, binDir: binDir, configDir: configDir, closeRegistry: closeRegistry}
 }
 
-// writeConfig overwrites the scenario's config.cue, for tests that need a
-// malformed or bespoke configuration.
 func (s *scenario) writeConfig(t *testing.T, body string) {
 	t.Helper()
 	writeFile(t, filepath.Join(s.configDir, "config.cue"), body)
@@ -130,9 +117,6 @@ func installFakeBin(t *testing.T, dir, agentID string) {
 	}
 }
 
-// installCountingBin installs a fake binary that appends a line to counterPath on
-// each invocation, so a test can assert how many times the version probe exec'd
-// the binary.
 func installCountingBin(t *testing.T, dir, agentID, counterPath string) {
 	t.Helper()
 	path := filepath.Join(dir, catalogtest.FixtureBin(t, agentID))
@@ -142,8 +126,6 @@ func installCountingBin(t *testing.T, dir, agentID, counterPath string) {
 	}
 }
 
-// probeCount returns how many times the counting binary was invoked, or 0 if it
-// was never run.
 func probeCount(t *testing.T, counterPath string) int {
 	t.Helper()
 	data, err := os.ReadFile(counterPath)
@@ -156,9 +138,6 @@ func probeCount(t *testing.T, counterPath string) int {
 	return strings.Count(string(data), "\n")
 }
 
-// modelsServer serves a tailored models.dev catalog.json. present lists the
-// providers to expose (each with one valid model); malformed lists providers to
-// expose with a model that has a zero limit, to trigger ErrModelsSchema.
 func modelsServer(t *testing.T, present []string, malformed ...string) *httptest.Server {
 	t.Helper()
 	data := modelsCatalog(present, malformed)
@@ -169,8 +148,6 @@ func modelsServer(t *testing.T, present []string, malformed ...string) *httptest
 	return srv
 }
 
-// closedModelsServer returns the URL of a server that is already shut down, so a
-// fetch against it fails: the no-network, no-cache condition.
 func closedModelsServer(t *testing.T) string {
 	t.Helper()
 	srv := httptest.NewServer(http.NotFoundHandler())
@@ -179,11 +156,10 @@ func closedModelsServer(t *testing.T) string {
 	return url
 }
 
-// modelsCatalog marshals a models.dev catalog.json with the requested providers.
 func modelsCatalog(present, malformed []string) []byte {
 	cat := modelsdev.Catalog{
-		// A non-empty agnostic map keeps validateTopLevel happy and carries the
-		// canonical id used by the canonical-id tests.
+		// Non-empty agnostic map keeps validateTopLevel happy and carries the
+		// canonical id used by canonical-id tests.
 		Models: map[string]modelsdev.Model{
 			"anthropic/claude-sonnet": {ID: "anthropic/claude-sonnet", Name: "Claude Sonnet", Limit: modelsdev.Limit{Context: 200000}},
 		},
@@ -202,18 +178,15 @@ func modelsCatalog(present, malformed []string) []byte {
 	return data
 }
 
-// providerReleaseDates gives each fixture provider's model a distinct release
-// date, so newest-first ordering is observable across providers: openai's model
-// is newer than google's even though google sorts first by id.
+// providerReleaseDates give distinct release dates so newest-first ordering is
+// observable across providers.
 var providerReleaseDates = map[string]string{
 	"anthropic": "2025-06-01",
 	"google":    "2024-01-01",
 	"openai":    "2025-01-01",
 }
 
-// provider builds one provider with a single model. anthropic carries the
-// "claude-sonnet" model so the canonical-id path resolves; other providers carry a
-// generic model. A malformed provider's model has an empty id.
+// anthropic carries "claude-sonnet" for the canonical-id path; malformed models have an empty id.
 func provider(pid string, malformed bool) modelsdev.Provider {
 	key, name := pid+"-model", pid+" model"
 	if pid == "anthropic" {
@@ -239,10 +212,8 @@ func provider(pid string, malformed bool) modelsdev.Provider {
 	}
 }
 
-// startCatalogRegistry publishes the catalog-valid fixture to an in-process OCI
-// registry and points CUE_REGISTRY and CUE_CACHE_DIR at it, so the production
-// loader resolves the default catalog module fully offline. It returns a closer,
-// also registered for cleanup, so a test can take the registry offline mid-run.
+// startCatalogRegistry publishes the fixture catalog to an in-process OCI registry
+// and points CUE_REGISTRY/CUE_CACHE_DIR at it. The closer can take the registry offline mid-run.
 func startCatalogRegistry(t *testing.T) func() {
 	t.Helper()
 	dir := catalogtest.FixtureDir(t, "catalog-valid")
@@ -279,9 +250,7 @@ func cueCacheDir(t *testing.T) string {
 	return dir
 }
 
-// unsetEnv guarantees name is absent for the duration of the test and restores any
-// prior value on cleanup, so a provider-env assertion does not depend on the host
-// environment. testing has no Unsetenv, so this is done by hand.
+// unsetEnv guarantees name is absent for the test; testing has no Unsetenv.
 func unsetEnv(t *testing.T, name string) {
 	t.Helper()
 	orig, had := os.LookupEnv(name)

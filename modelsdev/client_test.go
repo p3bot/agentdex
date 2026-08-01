@@ -14,8 +14,6 @@ import (
 	"time"
 )
 
-// smallCatalog builds a minimal but well-formed catalog: one first-party
-// provider whose model has a matching agnostic entry carrying benchmarks.
 func smallCatalog() Catalog {
 	return Catalog{
 		Models: map[string]Model{
@@ -38,8 +36,6 @@ func mustJSON(t *testing.T, v any) []byte {
 	return data
 }
 
-// serveBytes starts a server returning the given body for every request and
-// records how many requests it received.
 func serveBytes(t *testing.T, body []byte) (url string, requests *atomic.Int64) {
 	t.Helper()
 	var count atomic.Int64
@@ -64,7 +60,6 @@ func TestCatalogMergesRealData(t *testing.T) {
 		t.Fatalf("Catalog: %v", err)
 	}
 
-	// A first-party model receives benchmarks by decomposing its real agnostic id.
 	kimi, ok := cat.Providers["moonshotai"].Models["kimi-k2-thinking"]
 	if !ok {
 		t.Fatal("expected moonshotai/kimi-k2-thinking in fixture")
@@ -76,8 +71,7 @@ func TestCatalogMergesRealData(t *testing.T) {
 		t.Errorf("provider Model.ID rewritten: got %q, want short id", kimi.ID)
 	}
 
-	// An aggregator model under a path-bearing key has no agnostic id decomposing
-	// to it and is returned without agnostic benchmarks.
+	// Aggregator under a path-bearing key has no decomposing agnostic id.
 	agg, ok := cat.Providers["requesty"].Models["xai/grok-4"]
 	if !ok {
 		t.Fatal("expected aggregator requesty/xai/grok-4 in fixture")
@@ -89,7 +83,6 @@ func TestCatalogMergesRealData(t *testing.T) {
 		t.Error("aggregator Model.ID is a minted composite")
 	}
 
-	// Tiered pricing decodes its nested dimension and threshold.
 	gemini := cat.Providers["google"].Models["gemini-2.5-pro"]
 	if gemini.Cost == nil || len(gemini.Cost.Tiers) == 0 {
 		t.Fatal("expected google/gemini-2.5-pro to carry tiered pricing")
@@ -97,15 +90,13 @@ func TestCatalogMergesRealData(t *testing.T) {
 	if tier := gemini.Cost.Tiers[0].Tier; tier.Type != "context" || tier.Size != 200000 {
 		t.Errorf("tier dimension not decoded: got %+v", tier)
 	}
-	// The parallel over-200k pricing block decodes into its nested *Cost.
 	if gemini.Cost.ContextOver200K == nil {
 		t.Error("expected google/gemini-2.5-pro to carry context_over_200k pricing")
 	} else if got := gemini.Cost.ContextOver200K.Input; got != 2.5 {
 		t.Errorf("context_over_200k input not decoded: got %v, want 2.5", got)
 	}
 
-	// The join rate is partial: some first-party models attach, but far from all
-	// provider models do (aggregators carry none).
+	// Join is partial: some first-party models attach; far from all do.
 	var withBench, total int
 	for _, p := range cat.Providers {
 		for _, m := range p.Models {
@@ -149,7 +140,6 @@ func TestSingleFlightAndMemoisation(t *testing.T) {
 		t.Errorf("expected exactly one upstream fetch, got %d", got)
 	}
 
-	// A subsequent call still does not refetch.
 	if _, err := c.Catalog(context.Background()); err != nil {
 		t.Fatalf("Catalog: %v", err)
 	}
@@ -159,10 +149,9 @@ func TestSingleFlightAndMemoisation(t *testing.T) {
 }
 
 func TestLeaderCancellationDoesNotPoisonWaiters(t *testing.T) {
-	// The handler holds every response until release fires, so the first fetch
-	// is reliably in flight while the test arranges a waiter and cancels the
-	// leader. release is guarded by a Once so the test body and the cleanup can
-	// both call it without double-closing.
+	// Hold responses until release so the first fetch is in flight while the
+	// test arranges a waiter and cancels the leader. Once-guarded so test body
+	// and cleanup can both call without double-close.
 	release := make(chan struct{})
 	var releaseOnce sync.Once
 	unblock := func() { releaseOnce.Do(func() { close(release) }) }
@@ -174,16 +163,14 @@ func TestLeaderCancellationDoesNotPoisonWaiters(t *testing.T) {
 		_, _ = w.Write(body)
 	}))
 	t.Cleanup(srv.Close)
-	t.Cleanup(unblock) // unblock any handler still parked on an early exit
+	t.Cleanup(unblock) // unblock any handler still parked on early exit
 
 	c := New(WithURL(srv.URL), WithCacheDir(t.TempDir()))
 
-	// The leader starts the shared fetch and parks in the handler.
 	leaderCtx, cancelLeader := context.WithCancel(context.Background())
 	go func() { _, _ = c.Catalog(leaderCtx) }()
 	waitFor(t, func() bool { return count.Load() == 1 }, "leader fetch to reach the server")
 
-	// A second caller with a live context joins as a waiter on the same fetch.
 	type result struct {
 		cat *Catalog
 		err error
@@ -194,8 +181,6 @@ func TestLeaderCancellationDoesNotPoisonWaiters(t *testing.T) {
 		waiter <- result{cat, err}
 	}()
 
-	// Cancel the leader while the shared fetch is still parked, then let the
-	// detached fetch complete. The waiter's own context never cancelled.
 	cancelLeader()
 	unblock()
 
@@ -206,14 +191,11 @@ func TestLeaderCancellationDoesNotPoisonWaiters(t *testing.T) {
 	if got.cat == nil || got.cat.Providers["anthropic"].ID != "anthropic" {
 		t.Errorf("waiter did not receive the merged catalog: %+v", got.cat)
 	}
-	// The leader's cancellation must not have spawned a second upstream fetch.
 	if n := count.Load(); n != 1 {
 		t.Errorf("expected one shared fetch despite leader cancellation, got %d", n)
 	}
 }
 
-// waitFor polls cond until it holds or a short deadline elapses, failing the test
-// on timeout. It keeps timing-dependent tests from hanging the suite.
 func waitFor(t *testing.T, cond func() bool, what string) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
@@ -239,8 +221,7 @@ func TestCacheWithinTTLReadsFile(t *testing.T) {
 		t.Fatalf("expected one fetch, got %d", got)
 	}
 
-	// A freshly constructed Client over the same cache dir, within TTL, reads the
-	// file and does not hit the network.
+	// Fresh Client over same cache dir within TTL must not hit the network.
 	if _, err := New(WithURL(url), WithCacheDir(dir), WithTTL(time.Hour)).Catalog(context.Background()); err != nil {
 		t.Fatalf("second Catalog: %v", err)
 	}
@@ -256,8 +237,7 @@ func TestCacheExpiryRefetches(t *testing.T) {
 		t.Fatalf("seed cache: %v", err)
 	}
 
-	// A clock advanced past the TTL makes the otherwise-fresh file expired, so a
-	// reachable endpoint is refetched rather than read from cache.
+	// Clock past TTL forces refetch of an otherwise-fresh file.
 	c := New(WithURL(url), WithCacheDir(dir), WithTTL(time.Minute))
 	c.now = func() time.Time { return time.Now().Add(time.Hour) }
 	if _, err := c.Catalog(context.Background()); err != nil {
@@ -275,9 +255,7 @@ func TestStaleServedOnFetchFailure(t *testing.T) {
 		t.Fatalf("seed cache: %v", err)
 	}
 
-	// TTL zero forces a refetch attempt; the failing endpoint makes it fall back
-	// to the stale file. The endpoint counts attempts so we can assert the
-	// stale-served result is memoised and not re-fetched.
+	// TTL zero forces refetch; failing endpoint falls back to stale file.
 	var attempts atomic.Int64
 	failing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts.Add(1)
@@ -324,7 +302,6 @@ func TestStaleFalseOnFreshAndWithinTTL(t *testing.T) {
 		t.Error("fresh network fetch must report not-stale")
 	}
 
-	// Within-TTL hit is a cache read, not a post-failure fallback.
 	hit := New(WithURL(url), WithCacheDir(dir), WithTTL(time.Hour))
 	if _, err := hit.Catalog(context.Background()); err != nil {
 		t.Fatalf("within-TTL Catalog: %v", err)
@@ -335,9 +312,8 @@ func TestStaleFalseOnFreshAndWithinTTL(t *testing.T) {
 }
 
 func TestForceRefreshFailsRatherThanServeStale(t *testing.T) {
-	// The honest counterpart to TestStaleServedOnFetchFailure: with WithForceRefresh
-	// a fetch failure is reported even when a cache exists, so an explicit refresh
-	// learns the network was unreachable instead of silently serving stale bytes.
+	// WithForceRefresh reports fetch failure even when a cache exists, so an
+	// explicit refresh learns the network was unreachable rather than silent stale.
 	dir := t.TempDir()
 	good, _ := serveBytes(t, mustJSON(t, smallCatalog()))
 	if _, err := New(WithURL(good), WithCacheDir(dir)).Catalog(context.Background()); err != nil {
@@ -356,8 +332,8 @@ func TestForceRefreshFailsRatherThanServeStale(t *testing.T) {
 }
 
 func TestForceRefreshUpdatesCacheOnSuccess(t *testing.T) {
-	// A successful force refresh writes the fetched bytes to the cache, so a later
-	// ordinary client serves the refreshed data offline.
+	// Successful force refresh writes the cache so a later ordinary client can
+	// serve offline.
 	dir := t.TempDir()
 	url, _ := serveBytes(t, mustJSON(t, smallCatalog()))
 	if _, err := New(WithURL(url), WithCacheDir(dir), WithForceRefresh()).Catalog(context.Background()); err != nil {
@@ -380,9 +356,8 @@ func TestCorruptCacheNotServedAsStale(t *testing.T) {
 		t.Fatalf("seed corrupt cache: %v", err)
 	}
 
-	// A within-TTL but corrupt cache is unusable as either fresh or stale. With a
-	// failing endpoint the only fallback would be the corrupt file, which must not
-	// be served; the fetch error surfaces instead.
+	// Within-TTL corrupt cache is unusable as fresh or stale; with a failing
+	// endpoint the fetch error must surface rather than the corrupt file.
 	failing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
@@ -391,7 +366,6 @@ func TestCorruptCacheNotServedAsStale(t *testing.T) {
 		t.Fatal("expected error: a corrupt cache must not be served as stale")
 	}
 
-	// A reachable endpoint overwrites the corrupt file and returns a fresh catalog.
 	good, _ := serveBytes(t, mustJSON(t, smallCatalog()))
 	cat, err := New(WithURL(good), WithCacheDir(dir), WithTTL(time.Hour)).Catalog(context.Background())
 	if err != nil {
@@ -466,15 +440,14 @@ func TestTopLevelSchemaError(t *testing.T) {
 }
 
 func TestPerRequestedProviderSchemaError(t *testing.T) {
-	// A malformed model (empty id) sits in "broken"; "anthropic" is clean.
+	// Malformed model (empty id) in "broken"; "anthropic" is clean.
 	cat := smallCatalog()
 	cat.Providers["broken"] = Provider{ID: "broken", Models: map[string]Model{
-		"bad": {ID: ""}, // empty id
+		"bad": {ID: ""},
 	}}
 	url, _ := serveBytes(t, mustJSON(t, cat))
 	c := New(WithURL(url), WithCacheDir(t.TempDir()))
 
-	// Catalog and an unrequested-provider request are unaffected.
 	if _, err := c.Catalog(context.Background()); err != nil {
 		t.Fatalf("Catalog must not validate per-model: %v", err)
 	}
@@ -485,9 +458,7 @@ func TestPerRequestedProviderSchemaError(t *testing.T) {
 		t.Fatalf("clean provider models: %v", err)
 	}
 
-	// Requesting the broken provider raises ErrModelsSchema from the accessor, and
-	// still reports found=true: existence is independent of the schema error, so a
-	// caller branching on found alone cannot mistake drift for an absent provider.
+	// found=true with ErrModelsSchema: existence is independent of schema error.
 	if p, ok, err := c.Provider(context.Background(), "broken"); !errors.Is(err, ErrModelsSchema) {
 		t.Errorf("Provider(broken): got %v, want ErrModelsSchema", err)
 	} else if !ok || p.ID != "broken" {

@@ -18,7 +18,6 @@ const (
 	forkPath = "example.com/fork/catalog@v2"
 )
 
-// fakeClock is a settable clock so TTL behaviour is driven from inputs.
 type fakeClock struct {
 	mu  sync.Mutex
 	now time.Time
@@ -70,7 +69,6 @@ func TestLoadValidFixture(t *testing.T) {
 		t.Errorf("got %d agents, want 4", len(got))
 	}
 
-	// Spot-check optional-field decoding across entries.
 	if got["beta-tool"].Skills != nil {
 		t.Error("beta-tool should have no skills")
 	}
@@ -80,7 +78,6 @@ func TestLoadValidFixture(t *testing.T) {
 	if got["gamma-agent"].Version != nil {
 		t.Error("gamma-agent should have no version probe")
 	}
-	// gamma exercises classified skills (agents + alternatives).
 	if sk := got["gamma-agent"].Skills; sk == nil {
 		t.Error("gamma-agent should have skills")
 	} else {
@@ -126,8 +123,7 @@ func TestLoadSchemaViolationFails(t *testing.T) {
 }
 
 func TestLoadEmptySkillsRejected(t *testing.T) {
-	// skills must be omitted when an agent has no skills dirs. Schema MinFields
-	// rejects an empty skills object or empty scope as ErrInvalidCatalog.
+	// skills must be omitted when empty; schema MinFields rejects {} or empty scope.
 	valid := catalogtest.FixtureDir(t, "catalog-valid")
 	cases := []struct {
 		name   string
@@ -177,10 +173,8 @@ agents: "bad-agent": {
 }
 
 func TestLoadAgnosticProviderInvariantFailsBothDirections(t *testing.T) {
-	// The provider invariant is conditional on agnostic: an agnostic entry must
-	// not declare provider (the closed definition rejects the field) and a
-	// home-provider entry must declare it. Both directions are validated by real
-	// CUE evaluation through the loader, against the schema the fixture bundles.
+	// Agnostic must not declare provider; home-provider must declare it.
+	// Both directions validated by real CUE evaluation through the loader.
 	valid := catalogtest.FixtureDir(t, "catalog-valid")
 
 	cases := []struct {
@@ -294,7 +288,6 @@ func TestStaleResolveKeepsLastResolved(t *testing.T) {
 		t.Fatalf("first Load: %v", err)
 	}
 
-	// TTL expires and re-resolution now fails (network down).
 	clock.advance(25 * time.Hour)
 	stub.OnResolve = func(context.Context, string) (string, error) {
 		return "", errors.New("network unreachable")
@@ -344,7 +337,6 @@ func TestRefreshedResolveUpdatesCache(t *testing.T) {
 		t.Error("Stale = true on a successful re-resolve")
 	}
 
-	// The refreshed version is now cached: a subsequent within-TTL load reuses it.
 	if _, err := loader.Load(context.Background()); err != nil {
 		t.Fatalf("post-refresh Load: %v", err)
 	}
@@ -419,8 +411,6 @@ func TestResolutionsAreIndependentPerModulePath(t *testing.T) {
 		t.Errorf("fork version = %q, want v2.3.0 (fork must not be served main's resolution)", forkRes.Version)
 	}
 
-	// Reloading main within TTL must still see v1.0.0 from its own cache entry,
-	// untouched by the fork resolution, and must not re-resolve.
 	reMain, err := main.Load(context.Background())
 	if err != nil {
 		t.Fatalf("main reload: %v", err)

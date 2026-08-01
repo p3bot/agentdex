@@ -22,8 +22,8 @@ func writeConfig(t *testing.T, body string) string {
 }
 
 func TestOptionsCatalogDirOmitsModule(t *testing.T) {
-	// catalog.dir is set while CatalogModule still carries the default path (as
-	// Load always does). Options must not pass both, or Open rejects the pair.
+	// catalog.dir set while CatalogModule still carries the default: Options must
+	// not pass both, or Open rejects the pair.
 	dir := catalogtest.WriteModule(t, `agents: "alpha-cli": {
 	name: "Alpha CLI"
 	bin:  "alpha"
@@ -110,8 +110,8 @@ func TestLoadRejectsRemovedEnrichModels(t *testing.T) {
 }
 
 func TestLoadRejectsRemovedDisabledAgents(t *testing.T) {
-	// disabled_agents was removed; a config.cue still setting it must fail closed
-	// rather than silently ignore a key that no longer does anything (R11).
+	// disabled_agents was removed; leftover keys must fail closed rather than
+	// silently ignore a key that no longer does anything.
 	path := writeConfig(t, `disabled_agents: ["foo"]`)
 	_, err := Load(path)
 	if !errors.Is(err, ErrConfig) {

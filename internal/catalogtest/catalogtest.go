@@ -14,10 +14,8 @@ import (
 	"testing"
 )
 
-// StubRegistry implements catalog.Registry. OnResolve and OnFetch supply the
-// canned outcomes; call counts are recorded per module path so tests can assert
-// that, e.g., a within-TTL load did not re-resolve, or that resolving one module
-// path never touches another's entry.
+// StubRegistry implements catalog.Registry. OnResolve and OnFetch supply canned
+// outcomes; call counts are per module path so tests can assert isolation.
 type StubRegistry struct {
 	OnResolve func(ctx context.Context, modulePath string) (string, error)
 	OnFetch   func(ctx context.Context, modulePath string) (string, error)
@@ -27,10 +25,8 @@ type StubRegistry struct {
 	fetchCalls   map[string]int
 }
 
-// Serve returns a stub that resolves the given base module path to version and
-// fetches its canonical form from sourceDir. Other module paths are served from
-// the same version/sourceDir too, which keeps single-module tests trivial; tests
-// that care about per-path behaviour set OnResolve/OnFetch directly.
+// Resolves any module path to version and fetches from sourceDir.
+// Tests that care about per-path behaviour set handlers directly.
 func Serve(version, sourceDir string) *StubRegistry {
 	return &StubRegistry{
 		OnResolve: func(context.Context, string) (string, error) { return version, nil },
@@ -48,7 +44,6 @@ func (s *StubRegistry) Fetch(ctx context.Context, modulePath string) (string, er
 	return s.OnFetch(ctx, modulePath)
 }
 
-// ResolveCalls returns how many times the given base module path was resolved.
 func (s *StubRegistry) ResolveCalls(modulePath string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -56,9 +51,8 @@ func (s *StubRegistry) ResolveCalls(modulePath string) int {
 }
 
 // FetchCalls returns how many times a canonical form of the given path was
-// fetched. Fetches are recorded under the canonical module@version, so a base
-// path (…/catalog@v1) is matched against its canonical fetches (…/catalog@v1.0.0)
-// by treating the base as a "base." prefix; an exact key also counts.
+// fetched. Fetches are recorded under module@version, so a base path matches
+// its canonical fetches via the "base." prefix as well as an exact key.
 func (s *StubRegistry) FetchCalls(modulePath string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -71,7 +65,6 @@ func (s *StubRegistry) FetchCalls(modulePath string) int {
 	return total
 }
 
-// TotalResolveCalls returns the total number of resolve calls across all paths.
 func (s *StubRegistry) TotalResolveCalls() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -91,8 +84,7 @@ func (s *StubRegistry) record(m *map[string]int, key string) {
 	(*m)[key]++
 }
 
-// FixtureDir returns the absolute path to a fixture module under testdata,
-// resolved relative to this source file so it works from any test package.
+// Absolute fixture path under testdata, relative to this source file so any test package can use it.
 func FixtureDir(t *testing.T, name string) string {
 	t.Helper()
 	_, thisFile, _, ok := runtime.Caller(0)

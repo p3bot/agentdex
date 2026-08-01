@@ -31,8 +31,7 @@ func TestMalformedConfigExits78(t *testing.T) {
 }
 
 func TestUnreadableConfigExits4(t *testing.T) {
-	// A config.cue that cannot be read for a permission reason is distinct from a
-	// validity fault: it exits permission (4), not config (78).
+	// Permission denial is exit 4, distinct from validity fault (78).
 	if os.Geteuid() == 0 {
 		t.Skip("root bypasses file permissions")
 	}
@@ -96,8 +95,7 @@ func TestUnknownFieldIsUsageError(t *testing.T) {
 }
 
 func TestFieldSingularAliasSelectsFields(t *testing.T) {
-	// The singular --field is a normalize-func alias for --fields, so a common
-	// slip resolves to the same selector instead of an unknown-flag usage error.
+	// Singular --field is a normalize-func alias so a common slip still selects.
 	newScenario(t, "", "alpha-cli")
 
 	got := runCLI("--json", "agents", "list", "--field", "id,version")
@@ -114,8 +112,7 @@ func TestFieldSingularAliasSelectsFields(t *testing.T) {
 }
 
 func TestInvalidColorFlagIsUsageError(t *testing.T) {
-	// An out-of-range --color value is settled in preRun before any command runs,
-	// so it is a usage fault (exit 2) regardless of the subcommand.
+	// Settled in preRun before any command runs, so usage regardless of subcommand.
 	newScenario(t, "", "alpha-cli")
 
 	got := runCLI("--color", "rainbow", "agents", "list")
@@ -123,8 +120,6 @@ func TestInvalidColorFlagIsUsageError(t *testing.T) {
 		t.Fatalf("invalid --color exit = %d, want 2; stderr=%q", got.code, got.stderr)
 	}
 
-	// Under --json the usage fault must still arrive as the standard envelope on
-	// stdout, not as plain stderr text, like every other usage error.
 	gotJSON := runCLI("--json", "--color", "rainbow", "agents", "list")
 	if gotJSON.code != codeUsage {
 		t.Fatalf("invalid --color --json exit = %d, want 2; stderr=%q", gotJSON.code, gotJSON.stderr)
@@ -136,8 +131,6 @@ func TestInvalidColorFlagIsUsageError(t *testing.T) {
 }
 
 func TestMalformedBinPathIsUsageError(t *testing.T) {
-	// A --bin-path entry that is not id=path cannot be mapped to an override, so it
-	// fails fast as a usage error.
 	newScenario(t, "", "alpha-cli")
 
 	got := runCLI("agents", "list", "--bin-path", "no-equals-sign")
@@ -147,8 +140,7 @@ func TestMalformedBinPathIsUsageError(t *testing.T) {
 }
 
 func TestSearchDirValueTakenLiterally(t *testing.T) {
-	// --search-dir is a StringArray: a directory path containing a comma is one
-	// location, never csv-split into two bogus entries.
+	// StringArray: a path containing a comma is one location, never csv-split.
 	s := newScenario(t, "")
 	commaDir := filepath.Join(s.home, "odd,dir")
 	mustMkdir(t, commaDir)
@@ -163,8 +155,6 @@ func TestSearchDirValueTakenLiterally(t *testing.T) {
 	}
 }
 
-// configBody builds a config.cue with the standard search dir and models URL plus
-// extra lines, for tests that need a bespoke configuration.
 func configBody(modelsURL, binDir, extra string) string {
 	var b strings.Builder
 	b.WriteString("color: \"never\"\n")

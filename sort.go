@@ -6,17 +6,13 @@ import (
 	"github.com/start-cli/agentdex/modelsdev"
 )
 
-// sortModels orders attributed models newest release first, in place. One
-// comparator covers Models.List and agent EnrichFull (R14); the rule lives on
-// modelsdev.Newer so the CLI and library cannot diverge.
+// Newest release first via modelsdev.Newer so library and CLI share one rule.
 func sortModels(models []Model) {
 	sort.SliceStable(models, func(i, j int) bool {
 		return modelsdev.Newer(models[i].Model, models[j].Model)
 	})
 }
 
-// sortedKeys returns a map's string keys in ascending order, for deterministic
-// iteration over a provider set or a provider's model map.
 func sortedKeys[V any](m map[string]V) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
@@ -26,8 +22,7 @@ func sortedKeys[V any](m map[string]V) []string {
 	return keys
 }
 
-// dedupeIDs drops duplicate ids preserving first-seen order, so a repeated
-// provider id cannot double model candidates or coverage probes downstream.
+// First-seen order so a repeated provider id cannot double candidates or probes.
 func dedupeIDs(ids []string) []string {
 	if len(ids) == 0 {
 		return nil

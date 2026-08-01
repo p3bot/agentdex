@@ -9,9 +9,7 @@ import (
 	"github.com/start-cli/agentdex/internal/tui"
 )
 
-// envelope is the agentdex JSON output contract: a status, the command's data,
-// an error message, and any warnings. It is settled once here and shared by every
-// command so the JSON shape never diverges per command.
+// envelope is the shared JSON output contract for every command.
 type envelope struct {
 	Status   string   `json:"status"`             // "ok" or "error"
 	Data     any      `json:"data,omitempty"`     // command payload on success
@@ -19,22 +17,18 @@ type envelope struct {
 	Warnings []string `json:"warnings,omitempty"` // non-fatal notes
 }
 
-// field is one selectable output field: a JSON value and its text rendering. The
-// two are kept together so --fields selects the same field for both surfaces.
+// field is one selectable output field: JSON value and text rendering kept together
+// so --fields selects the same field for both surfaces.
 type field struct {
 	key  string
 	val  any
 	text string
 }
 
-// fieldSet is the declared field authority for a record type. all is the full,
-// canonically ordered set of valid --fields keys; defaults is the subset shown as
-// table columns without an explicit selection. It is the single source of truth
-// for validation (independent of how many records exist) and for field ordering,
-// so a record never derives validity from the fields it happens to carry.
-// defaultKey and descend govern ordering: defaultKey is the field sorted by when
-// --order-by is absent, and descend holds the keys whose natural direction is
-// descending (newest or most first), which --reverse flips.
+// fieldSet is the declared field authority for a record type. Validity and order
+// come from the declaration, never from which fields a record instance carries.
+// defaultKey is the sort field when --order-by is absent; descend keys sort
+// newest/most first and --reverse flips that.
 type fieldSet struct {
 	all        []string
 	defaults   []string
@@ -43,8 +37,6 @@ type fieldSet struct {
 	descend    map[string]bool
 }
 
-// newFieldSet builds a fieldSet, precomputing the membership index used for
-// validation. defaults must be a subset of all.
 func newFieldSet(all, defaults []string) fieldSet {
 	index := make(map[string]bool, len(all))
 	for _, k := range all {
@@ -53,8 +45,6 @@ func newFieldSet(all, defaults []string) fieldSet {
 	return fieldSet{all: all, defaults: defaults, index: index}
 }
 
-// validate reports the first selected field not in the declared set as a usage
-// error. An empty selection is always valid; defaults are valid by construction.
 func (fs fieldSet) validate(fields []string) error {
 	for _, k := range fields {
 		if !fs.index[k] {
@@ -64,10 +54,8 @@ func (fs fieldSet) validate(fields []string) error {
 	return nil
 }
 
-// record is one output row (an agent, a model) as an ordered, selectable field
-// set drawn from a declared fieldSet. present holds the fields this instance
-// actually carries; a selected key that is valid but absent (an empty canonical
-// id, say) resolves to a blank rather than an unknown-field error.
+// record is one output row as an ordered, selectable field set. A valid but absent
+// key (empty canonical id, say) resolves to a blank rather than an unknown-field error.
 type record struct {
 	set     fieldSet
 	order   []string
@@ -78,8 +66,6 @@ func newRecord(set fieldSet) *record {
 	return &record{set: set, present: map[string]field{}}
 }
 
-// add records a present field. The key's validity comes from the declared
-// fieldSet, not from being added here.
 func (r *record) add(key string, val any, text string) {
 	if _, dup := r.present[key]; !dup {
 		r.order = append(r.order, key)
@@ -87,12 +73,7 @@ func (r *record) add(key string, val any, text string) {
 	r.present[key] = field{key: key, val: val, text: text}
 }
 
-// resolve returns the fields to emit for the requested selection. An empty
-// selection means every field this record carries, in declared order — the full
-// JSON record and detail view; a caller wanting the narrower table defaults passes
-// them explicitly (see tabulate). A non-empty selection is validated against the
-// declared set, and an unknown field is a usage error. A selected-but-absent field
-// resolves to a blank.
+// Empty selection is every field this record carries; selected-but-absent resolve blank.
 func (r *record) resolve(fields []string) ([]field, error) {
 	if err := r.set.validate(fields); err != nil {
 		return nil, err
@@ -112,7 +93,6 @@ func (r *record) resolve(fields []string) ([]field, error) {
 	return out, nil
 }
 
-// jsonObject builds the map a record contributes to the JSON envelope's data.
 func jsonObject(fields []field) map[string]any {
 	m := make(map[string]any, len(fields))
 	for _, f := range fields {
@@ -121,7 +101,6 @@ func jsonObject(fields []field) map[string]any {
 	return m
 }
 
-// writeJSON renders an envelope as indented JSON with a trailing newline.
 func writeJSON(w io.Writer, env envelope) {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
@@ -129,7 +108,6 @@ func writeJSON(w io.Writer, env envelope) {
 	_ = enc.Encode(env)
 }
 
-// emitWarnings writes warnings to stderr for text output, one per line.
 func emitWarnings(w io.Writer, warnings []string) {
 	for _, msg := range warnings {
 		fmt.Fprintln(w, tui.Warn.Sprint("warning:")+" "+msg)

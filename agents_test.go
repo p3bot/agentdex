@@ -15,8 +15,7 @@ import (
 	"github.com/start-cli/agentdex/modelsdev"
 )
 
-// Fixture binary names come from catalogtest.FixtureBins — the single table
-// shared with the CLI harness and locked against testdata/catalog-valid.
+// From catalogtest.FixtureBins — single table shared with the CLI harness.
 var (
 	fixtureBinAlpha = catalogtest.FixtureBins["alpha-cli"]
 	fixtureBinBeta  = catalogtest.FixtureBins["beta-tool"]
@@ -24,9 +23,7 @@ var (
 	fixtureBinDelta = catalogtest.FixtureBins["delta-agent"]
 )
 
-// testCatalog is the standard fixture body: a home-provider agent (alpha-cli,
-// anthropic), a multi-provider home agent (gamma-agent, google+openai), and a
-// provider-agnostic agent (delta-agent). Bin names are taken from FixtureBins.
+// Home-provider (alpha), multi-provider home (gamma), and agnostic (delta).
 var testCatalog = fmt.Sprintf(`
 agents: "alpha-cli": {
 	name: "Alpha CLI"
@@ -54,8 +51,7 @@ agents: "delta-agent": {
 }
 `, fixtureBinAlpha, fixtureBinGamma, fixtureBinDelta)
 
-// closedLookPath never resolves a name on PATH, so library tests depend only on
-// WithSearchDirs / WithBinPaths and cannot pick up host tools.
+// So library tests cannot pick up host tools via PATH.
 func closedLookPath(string) (string, error) {
 	return "", exec.ErrNotFound
 }
@@ -75,9 +71,7 @@ func openAgents(t *testing.T, body string, opts ...Option) *Index {
 	return idx
 }
 
-// binDir writes executable fake binaries that print a version banner, so
-// detection finds them through WithSearchDirs and the version probe extracts a
-// value.
+// Executable fakes that print a version banner for detection + version probe.
 func binDir(t *testing.T, names ...string) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -93,8 +87,6 @@ func binDir(t *testing.T, names ...string) string {
 	return dir
 }
 
-// envFn returns an environment lookup with a fixed HOME and the named variables
-// marked present.
 func envFn(home string, present ...string) func(string) (string, bool) {
 	set := map[string]struct{}{}
 	for _, k := range present {
@@ -135,8 +127,7 @@ func TestWithLookPathBoundary(t *testing.T) {
 	}
 	t.Setenv("PATH", hostDir)
 
-	// Default Open uses exec.LookPath against process PATH — do not go through
-	// openAgents, which closes the boundary for other library tests.
+	// Default Open uses process PATH; openAgents would close that boundary.
 	dir := catalogtest.WriteModule(t, testCatalog)
 	def, err := Open(
 		WithCatalogDir(dir),
@@ -161,7 +152,6 @@ func TestWithLookPathBoundary(t *testing.T) {
 		t.Errorf("default Version = %q, want 9.9.9", d.Detection.Version)
 	}
 
-	// Closed lookPath ignores process PATH even when the binary is present.
 	closed := openAgents(t, testCatalog,
 		WithEnvLookup(envFn(t.TempDir())),
 		WithModelsURL(modelsdevtest.MustNotFetch(t)),
@@ -174,7 +164,6 @@ func TestWithLookPathBoundary(t *testing.T) {
 		t.Fatalf("closed lookPath found %q via host PATH", d.Detection.BinaryPath)
 	}
 
-	// Explicit WithLookPath overrides the closed default openAgents installs.
 	injected := openAgents(t, testCatalog,
 		WithLookPath(func(name string) (string, error) {
 			if name == fixtureBinAlpha {
@@ -196,8 +185,7 @@ func TestWithLookPathBoundary(t *testing.T) {
 		t.Errorf("injected BinaryPath = %q, want %q", d.Detection.BinaryPath, hostBin)
 	}
 
-	// A lookPath hit that is not executable must not mark Found; search dirs can
-	// still satisfy the same name.
+	// Non-executable lookPath hit must not Found; search dirs may still satisfy.
 	missing := filepath.Join(t.TempDir(), "absent")
 	search := binDir(t, fixtureBinAlpha)
 	nonExec := openAgents(t, testCatalog,
@@ -223,7 +211,6 @@ func TestWithLookPathBoundary(t *testing.T) {
 		t.Errorf("BinaryPath = %q, want search-dir path %q", d.Detection.BinaryPath, wantSearch)
 	}
 
-	// Non-executable lookPath with no search-dir fallback stays not Found.
 	onlyBad := openAgents(t, testCatalog,
 		WithLookPath(func(name string) (string, error) {
 			if name == fixtureBinAlpha {
@@ -304,8 +291,7 @@ func TestGetHomeProviderEnrichProvidersOffline(t *testing.T) {
 	}
 }
 
-// Returned provider slices must not alias the memoised catalog: a caller who
-// mutates them must not change later Get/List results on the same Index.
+// Caller mutation of returned slices must not affect later Get/List on the same Index.
 func TestProviderSlicesDoNotAliasCatalog(t *testing.T) {
 	idx := openAgents(t, testCatalog,
 		WithSearchDirs(binDir(t, fixtureBinAlpha)),
@@ -376,7 +362,7 @@ func TestGetAgnosticNoProvidersNotApplicable(t *testing.T) {
 	idx := openAgents(t, testCatalog,
 		WithSearchDirs(binDir(t, fixtureBinDelta)),
 		WithEnvLookup(envFn(t.TempDir())),
-		WithModelsURL(modelsdevtest.MustNotFetch(t)), // no round-trip at any level
+		WithModelsURL(modelsdevtest.MustNotFetch(t)),
 	)
 	for _, lvl := range []Enrich{EnrichCount, EnrichFull} {
 		d, err := idx.Agents.Get(context.Background(), "delta-agent", AgentGetQuery{Enrich: lvl})
@@ -402,7 +388,6 @@ func TestGetAgnosticValidatesCallerProviders(t *testing.T) {
 		WithEnvLookup(envFn(t.TempDir(), "GOOGLE_API_KEY")),
 		WithModelsURL(srv.URL),
 	)
-	// Known provider resolves.
 	d, err := idx.Agents.Get(context.Background(), "delta-agent", AgentGetQuery{Enrich: EnrichFull, Providers: []string{"google"}})
 	if err != nil {
 		t.Fatalf("Get google: %v", err)
@@ -416,23 +401,20 @@ func TestGetAgnosticValidatesCallerProviders(t *testing.T) {
 	if d.Enrichment != EnrichmentApplied || d.ModelCount != 1 {
 		t.Errorf("Enrichment=%v ModelCount=%d, want EnrichmentApplied 1", d.Enrichment, d.ModelCount)
 	}
-	// Unknown provider is rejected.
 	_, err = idx.Agents.Get(context.Background(), "delta-agent", AgentGetQuery{Enrich: EnrichProviders, Providers: []string{"bogus"}})
 	if !errors.Is(err, ErrUnknownProvider) {
 		t.Errorf("unknown provider err = %v, want ErrUnknownProvider", err)
 	}
 }
 
-// TestEnrichProvidersDegradeStatesFault pins the rule that a degraded verdict never
-// travels alone (see EnrichmentState godoc). EnrichProviders probes no coverage, so
-// a warning is the only channel that can carry the fault on either surface; without
-// one the caller sees EnrichmentDegraded with a nil error and no way to learn why.
+// EnrichProviders has no coverage channel: a degraded verdict must carry a warning
+// or the caller sees EnrichmentDegraded with no way to learn why.
 func TestEnrichProvidersDegradeStatesFault(t *testing.T) {
 	q := AgentGetQuery{Enrich: EnrichProviders, Providers: []string{"google"}}
 	lq := AgentQuery{Enrich: EnrichProviders, Providers: []string{"google"}}
 
 	t.Run("schema drift", func(t *testing.T) {
-		srv := modelsdevtest.Server(t, []string{"google"}, "google") // present but malformed
+		srv := modelsdevtest.Server(t, []string{"google"}, "google")
 		idx := openAgents(t, testCatalog,
 			WithSearchDirs(binDir(t, fixtureBinDelta)),
 			WithEnvLookup(envFn(t.TempDir())),
@@ -445,7 +427,6 @@ func TestEnrichProvidersDegradeStatesFault(t *testing.T) {
 		if d.Enrichment != EnrichmentDegraded {
 			t.Errorf("Enrichment = %v, want EnrichmentDegraded", d.Enrichment)
 		}
-		// The ids are still reported; only their validation was lost.
 		if len(d.ResolvedProviders) != 1 || d.ResolvedProviders[0] != "google" {
 			t.Errorf("ResolvedProviders = %v, want [google] reported despite the drift", d.ResolvedProviders)
 		}
@@ -479,7 +460,6 @@ func TestEnrichProvidersDegradeStatesFault(t *testing.T) {
 		if d.Enrichment != EnrichmentDegraded {
 			t.Errorf("Enrichment = %v, want EnrichmentDegraded", d.Enrichment)
 		}
-		// The wording names the ids, not the model data this level never requested.
 		msg, ok := warningMsg(d.Warnings, WarnModelsUnreachable)
 		if !ok || msg != "provider ids unvalidated: models.dev is unreachable and not cached" {
 			t.Errorf("get unreachable warning = %q (present=%v)", msg, ok)
@@ -545,22 +525,21 @@ func TestGetCoverageVerdicts(t *testing.T) {
 		if d.ProviderEnv["GOOGLE_API_KEY"] != true || d.ProviderEnv["OPENAI_API_KEY"] != false {
 			t.Errorf("ProviderEnv = %v, want GOOGLE present, OPENAI absent", d.ProviderEnv)
 		}
-		// Newest release first: openai (2025-01-01) before google (2024-01-01).
+		// Newest first: openai (2025-01-01) before google (2024-01-01).
 		if len(d.Models) != 2 || d.Models[0].ID != "openai-model" {
 			t.Errorf("Models order = %v, want openai-model first", modelIDs(d.Models))
 		}
 		if d.Models[0].Provider != "openai" || d.Models[1].Provider != "google" {
 			t.Errorf("Models providers = %s/%s, want openai then google", d.Models[0].Provider, d.Models[1].Provider)
 		}
-		// Fixture agnostic map only has anthropic/claude-sonnet; multi-provider
-		// agent models must still carry empty CanonicalID on the agent path.
+		// Agnostic map only has anthropic/claude-sonnet; agent path keeps empty CanonicalID.
 		if d.Models[0].CanonicalID != "" || d.Models[1].CanonicalID != "" {
 			t.Errorf("gamma CanonicalIDs = %q/%q, want empty (not in agnostic map)", d.Models[0].CanonicalID, d.Models[1].CanonicalID)
 		}
 	})
 
 	t.Run("some present", func(t *testing.T) {
-		srv := modelsdevtest.Server(t, []string{"google"}) // openai absent
+		srv := modelsdevtest.Server(t, []string{"google"})
 		idx := openAgents(t, testCatalog,
 			WithSearchDirs(binDir(t, fixtureBinGamma)),
 			WithEnvLookup(envFn(t.TempDir(), "GOOGLE_API_KEY")),
@@ -585,7 +564,7 @@ func TestGetCoverageVerdicts(t *testing.T) {
 	})
 
 	t.Run("none present", func(t *testing.T) {
-		srv := modelsdevtest.Server(t, []string{"google"}) // alpha uses anthropic, absent
+		srv := modelsdevtest.Server(t, []string{"google"})
 		idx := openAgents(t, testCatalog,
 			WithSearchDirs(binDir(t, fixtureBinAlpha)),
 			WithEnvLookup(envFn(t.TempDir())),
@@ -607,7 +586,7 @@ func TestGetCoverageVerdicts(t *testing.T) {
 	})
 
 	t.Run("schema drift", func(t *testing.T) {
-		srv := modelsdevtest.Server(t, []string{"google"}, "anthropic") // anthropic malformed
+		srv := modelsdevtest.Server(t, []string{"google"}, "anthropic")
 		idx := openAgents(t, testCatalog,
 			WithSearchDirs(binDir(t, fixtureBinAlpha)),
 			WithEnvLookup(envFn(t.TempDir())),
@@ -642,8 +621,7 @@ func TestGetCoverageVerdicts(t *testing.T) {
 	})
 
 	t.Run("schema drift at EnrichProviders", func(t *testing.T) {
-		// Agnostic agent needs models.dev validation at EnrichProviders; drift
-		// must warn that ids went unvalidated, not that model data was omitted.
+		// Drift must warn unvalidated ids, not omitted model data.
 		srv := modelsdevtest.Server(t, nil, "google")
 		idx := openAgents(t, testCatalog,
 			WithSearchDirs(binDir(t, fixtureBinDelta)),
@@ -694,7 +672,6 @@ func TestGetCoverageVerdicts(t *testing.T) {
 func TestGetNotInstalledEnrichesLikeInstalled(t *testing.T) {
 	srv := modelsdevtest.Server(t, []string{"anthropic"})
 	idx := openAgents(t, testCatalog,
-		// alpha binary not installed.
 		WithSearchDirs(binDir(t)),
 		WithEnvLookup(envFn(t.TempDir(), "ANTHROPIC_API_KEY")),
 		WithModelsURL(srv.URL),
@@ -712,8 +689,7 @@ func TestGetNotInstalledEnrichesLikeInstalled(t *testing.T) {
 	if msg, _ := warningMsg(d.Warnings, WarnNotInstalled); msg != `agent "alpha-cli" is catalogued but not installed` {
 		t.Errorf("not-installed message = %q", msg)
 	}
-	// Enrichment does not depend on installation (R4): coverage, provider-env, and
-	// models are all filled for the absent binary.
+	// Enrichment does not depend on installation.
 	if d.Coverage.Status != CoverageAllPresent || d.Enrichment != EnrichmentApplied {
 		t.Errorf("Status=%v Enrichment=%v, want CoverageAllPresent EnrichmentApplied", d.Coverage.Status, d.Enrichment)
 	}
@@ -764,7 +740,7 @@ func TestGetUnknownAgentCarriesMessage(t *testing.T) {
 
 func TestListOrdersByIDAndNarrowsByInstalled(t *testing.T) {
 	idx := openAgents(t, testCatalog,
-		WithSearchDirs(binDir(t, fixtureBinAlpha, fixtureBinGamma)), // delta not installed
+		WithSearchDirs(binDir(t, fixtureBinAlpha, fixtureBinGamma)),
 		WithEnvLookup(envFn(t.TempDir())),
 		WithModelsURL(modelsdevtest.MustNotFetch(t)),
 	)
@@ -821,14 +797,12 @@ func TestListEnrichFullPerAgent(t *testing.T) {
 	if g := by["gamma-agent"]; g.Enrichment != EnrichmentApplied || g.ModelCount != 2 {
 		t.Errorf("gamma: Enrichment=%v ModelCount=%d", g.Enrichment, g.ModelCount)
 	}
-	// Agnostic row without a provider set is not-applicable and silent (R8).
 	if d := by["delta-agent"]; d.Enrichment != EnrichmentNotApplicable || len(d.Models) != 0 {
 		t.Errorf("delta: Enrichment=%v Models=%v, want not-applicable and empty", d.Enrichment, modelIDs(d.Models))
 	}
 	if hasWarning(res.Warnings, WarnProvidersRequired) {
 		t.Error("a listing must not raise the agnostic guidance warning")
 	}
-	// Multi-provider row: newest-first order and provider attribution.
 	if g := by["gamma-agent"]; g.Models[0].ID != "openai-model" || g.Models[0].Provider != "openai" {
 		t.Errorf("gamma Models[0] = %s/%s, want openai/openai-model", g.Models[0].Provider, g.Models[0].ID)
 	}
@@ -878,7 +852,7 @@ func TestListProviderValidationAtBoundary(t *testing.T) {
 	t.Run("unknown provider fails even when result is empty", func(t *testing.T) {
 		srv := modelsdevtest.Server(t, []string{"anthropic"})
 		idx := openAgents(t, testCatalog,
-			WithSearchDirs(binDir(t)), // nothing installed
+			WithSearchDirs(binDir(t)),
 			WithEnvLookup(envFn(t.TempDir())),
 			WithModelsURL(srv.URL),
 		)
@@ -941,7 +915,7 @@ agents: "beta-tool": {
 	if d.Detection.Config.Local != "" {
 		t.Errorf("Config.Local = %q, want empty", d.Detection.Config.Local)
 	}
-	// SkillsPaths holds slices, so compare field-by-field rather than ==.
+	// SkillsPaths has slices; compare field-by-field, not with ==.
 	if sk := d.Detection.Skills; !skillsPathsZero(sk) {
 		t.Errorf("Skills = %+v, want zero value for an agent with no skills", sk)
 	}
@@ -1054,7 +1028,6 @@ agents: "open-like": {
 }
 
 func TestGetSkillsPrimaryFromAlternativesOnly(t *testing.T) {
-	// Third primary branch: no agents, no native → first alternative.
 	body := fmt.Sprintf(`
 agents: "alt-only": {
 	name: "Alt Only"
@@ -1094,7 +1067,6 @@ agents: "alt-only": {
 }
 
 func TestGetSkillsPrimaryNativeOverAlternatives(t *testing.T) {
-	// Middle primary branch: no agents, native set → native beats alternatives.
 	body := fmt.Sprintf(`
 agents: "native-first": {
 	name: "Native First"
@@ -1164,8 +1136,6 @@ func TestGetHonoursCancelledContext(t *testing.T) {
 		t.Error("cancelled context should surface an error")
 	}
 }
-
-// helpers for asserting id/model ordering.
 
 func agentIDs(agents []Agent) []string {
 	out := make([]string, len(agents))

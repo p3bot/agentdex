@@ -8,13 +8,10 @@ import (
 )
 
 // WriteModule materialises a loadable CUE catalog module in a fresh temp
-// directory and returns its path, for loading through agentdex.WithCatalogDir. The
-// module bundles the repository's own catalog/schema.cue read from disk, so one
-// schema governs every fixture and a change to it cannot leave a stale copy
-// behind; agentsBody is the CUE body of agents.cue, appended after the package
-// clause, so a test declares only the entries it needs. A body the real schema
-// rejects fails at load time exactly as a published module would, which is the
-// point of validating fixtures by evaluation rather than checking them in.
+// directory and returns its path. It bundles the repository's catalog/schema.cue
+// so one schema governs every fixture; agentsBody is the agents.cue body after
+// the package clause. A body the real schema rejects fails at load time as a
+// published module would.
 func WriteModule(t *testing.T, agentsBody string) string {
 	t.Helper()
 	dir := t.TempDir()

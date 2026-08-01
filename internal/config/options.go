@@ -7,20 +7,17 @@ import (
 )
 
 // Flags carries the global flag values that feed into option mapping.
-// SearchDirs is the repeated values from --search-dir; BinPaths the parsed
-// id=path map from --bin-path. Both merge with their config.cue counterparts,
-// with the flag values taking precedence on a key collision.
+// SearchDirs is the repeated --search-dir values; BinPaths the parsed id=path
+// map from --bin-path. Both merge with config.cue counterparts; flags win on collision.
 type Flags struct {
 	SearchDirs []string
 	BinPaths   map[string]string
 }
 
 // Options builds the agentdex.Open options from the resolved configuration and
-// the global flags. The models.dev client is constructed inside the library, so
-// this maps the catalog source, cache, and models.dev settings into Open options
-// rather than building a client; force-refresh is owned by Index.Refresh. When
-// catalog.dir is set it is the sole catalog source (module is omitted); otherwise
-// catalog.module is used. The two are mutually exclusive in the library (R11).
+// the global flags. When catalog.dir is set it is the sole catalog source
+// (module omitted); otherwise catalog.module is used — the two are mutually
+// exclusive in the library. Force-refresh is owned by Index.Refresh.
 func (c *Config) Options(f Flags) []agentdex.Option {
 	opts := []agentdex.Option{
 		agentdex.WithCatalogTTL(c.CatalogTTL),
@@ -43,8 +40,8 @@ func (c *Config) Options(f Flags) []agentdex.Option {
 	return opts
 }
 
-// mergeSlices concatenates config values then flag values, preserving order and
-// dropping exact duplicates so a value given in both places is not searched twice.
+// mergeSlices concatenates config then flags, dropping exact duplicates so a
+// value given in both places is not searched twice.
 func mergeSlices(cfg, flags []string) []string {
 	out := make([]string, 0, len(cfg)+len(flags))
 	seen := make(map[string]struct{}, len(cfg)+len(flags))
@@ -60,8 +57,8 @@ func mergeSlices(cfg, flags []string) []string {
 	return out
 }
 
-// mergeBinPaths overlays flag overrides onto the config map, so an id given on
-// both the command line and in config.cue takes the command-line path.
+// mergeBinPaths overlays flag overrides onto the config map so command-line
+// paths win on id collision.
 func mergeBinPaths(cfg, flags map[string]string) map[string]string {
 	if len(cfg) == 0 && len(flags) == 0 {
 		return nil

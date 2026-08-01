@@ -2,8 +2,8 @@
 // Registry, validates it by evaluating the fetched module against its bundled
 // schema, caches the resolved module version, and decodes the catalog into an
 // internal representation. The root package agentdex maps each KnownAgent into
-// its public types (KnownAgent, Detection, Agent) at detect time; this package
-// never imports the root package, keeping the dependency one-way.
+// its public types at detect time; this package never imports the root package,
+// keeping the dependency one-way.
 package catalog
 
 // Catalog is the loaded set of known agents in this package's internal
@@ -29,7 +29,6 @@ type KnownAgent struct {
 }
 
 // PathPair is a catalog global/local directory pair before any expansion.
-// Config uses this shape.
 type PathPair struct {
 	Global string
 	Local  string

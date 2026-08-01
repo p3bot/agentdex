@@ -6,11 +6,9 @@ import (
 	"strings"
 )
 
-// List browses the models.dev providers, narrowed by a case-insensitive substring
-// over id and name, and returns them in the library's default order, by id (R14).
-// It loads no agent catalog. A stale models.dev fallback raises WarnModelsStale;
-// a models.dev outage is ErrModelsUnavailable and recognisable schema drift
-// propagates wrapping modelsdev.ErrModelsSchema (R7, R12).
+// List browses models.dev providers by id order, optionally filtered. Loads no
+// agent catalog. Stale fallback raises WarnModelsStale; outage is
+// ErrModelsUnavailable; schema drift propagates modelsdev.ErrModelsSchema.
 func (s ProviderService) List(ctx context.Context, q ProviderQuery) (Result[Provider], error) {
 	c := s.core
 	mc := c.modelsClient()
@@ -37,10 +35,8 @@ func (s ProviderService) List(ctx context.Context, q ProviderQuery) (Result[Prov
 	return Result[Provider]{Items: items, Warnings: warnings}, nil
 }
 
-// Get returns one models.dev provider selected exactly by its id, with the presence
-// of each of its API-key environment variables. An unknown id is ErrNotFound; an
-// outage is ErrModelsUnavailable and schema drift propagates (R7). It loads no
-// agent catalog, so it carries no warnings channel (R6).
+// Get returns one models.dev provider by id with API-key env presence.
+// Unknown id is ErrNotFound. Loads no agent catalog (no warnings channel).
 func (s ProviderService) Get(ctx context.Context, id string) (Provider, error) {
 	c := s.core
 	p, found, err := c.modelsClient().Provider(ctx, id)
@@ -54,11 +50,8 @@ func (s ProviderService) Get(ctx context.Context, id string) (Provider, error) {
 	return Provider{Provider: p, EnvPresent: c.envPresence(p.Env)}, nil
 }
 
-// envPresence reads whether each API-key variable is set, through the captured
-// boundary lookup, taking only presence and never the value (R10). The map is
-// non-nil even for a provider that declares no variables: a provider is always in
-// hand when this is called, so its env presence is a resolved fact, not the
-// "models.dev not consulted" nil an Agent's ProviderEnv carries.
+// Presence only, never the value. Non-nil even when env is empty (resolved fact,
+// not the Agent ProviderEnv nil that means models.dev was not consulted).
 func (c *core) envPresence(env []string) map[string]bool {
 	present := make(map[string]bool, len(env))
 	for _, name := range env {
@@ -68,8 +61,6 @@ func (c *core) envPresence(env []string) map[string]bool {
 	return present
 }
 
-// matchesFilter reports whether a case-insensitive needle occurs in an id or name.
-// The needle is expected pre-lowered; an empty needle is handled by the caller.
 func matchesFilter(id, name, needle string) bool {
 	return strings.Contains(strings.ToLower(id), needle) || strings.Contains(strings.ToLower(name), needle)
 }

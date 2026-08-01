@@ -11,9 +11,6 @@ import (
 	"github.com/start-cli/agentdex/modelsdev"
 )
 
-// ordered returns a copy of the field set with its default sort key and the set of
-// naturally descending keys declared. It is the single place a command states how
-// its rows are ordered when --order-by is absent.
 func (fs fieldSet) ordered(defaultKey string, descend ...string) fieldSet {
 	fs.defaultKey = defaultKey
 	fs.descend = make(map[string]bool, len(descend))
@@ -23,9 +20,7 @@ func (fs fieldSet) ordered(defaultKey string, descend ...string) fieldSet {
 	return fs
 }
 
-// value returns the typed JSON value the record carries for key, or nil when the
-// field is absent. It is the ordering surface: sorting compares typed values, not
-// the formatted text, so numbers and dates order correctly.
+// Sorting compares typed JSON values, not formatted text, so numbers and dates order correctly.
 func (r *record) value(key string) any {
 	if f, ok := r.present[key]; ok {
 		return f.val
@@ -33,20 +28,14 @@ func (r *record) value(key string) any {
 	return nil
 }
 
-// registerOrderFlags adds the shared --order-by and --reverse flags. Valid keys are
-// the command's field set (the same set --fields validates against); an unknown key
-// is a usage error surfaced at apply time, so the help never drifts from what is
-// accepted.
+// Unknown keys fail at apply time so help cannot drift from acceptance.
 func registerOrderFlags(cmd *cobra.Command, orderBy *string, reverse *bool) {
 	cmd.Flags().StringVar(orderBy, "order-by", "", "Sort rows by this field")
 	cmd.Flags().BoolVar(reverse, "reverse", false, "Reverse the sort direction")
 }
 
-// applyOrder stable-sorts recs by the effective sort key and reports that key so the
-// caller can pull its column leftmost. The key is --order-by when given, else the
-// field set's default key; --reverse flips whichever direction is in effect (a key's
-// natural direction is ascending unless the field set marks it descending). An
-// unknown --order-by key is a usage error.
+// Returns the effective key so the caller can pull its column leftmost.
+// --reverse flips the field's natural direction.
 func applyOrder(recs []*record, set fieldSet, orderBy string, reverse bool) (string, error) {
 	key := orderBy
 	if key == "" {
@@ -61,9 +50,7 @@ func applyOrder(recs []*record, set fieldSet, orderBy string, reverse bool) (str
 	return key, nil
 }
 
-// orderRecords stable-sorts recs by key in the given direction, breaking ties by id
-// so the order is deterministic. Records whose value for key is missing sink to the
-// end regardless of direction, matching how undated models and unknown prices trail.
+// Missing values sink last regardless of direction (undated models, unknown prices).
 func orderRecords(recs []*record, key string, descending bool) {
 	sort.SliceStable(recs, func(i, j int) bool {
 		if less, tie := lessByKey(recs[i], recs[j], key, descending); !tie {
@@ -74,15 +61,12 @@ func orderRecords(recs []*record, key string, descending bool) {
 }
 
 const (
-	orderMissing = iota // absent or empty value: always sorts last
+	orderMissing = iota // absent or empty: always sorts last
 	orderNum
 	orderStr
 )
 
-// lessByKey reports whether record a orders before b on key, and whether the two are
-// tied on that key (so the caller can break the tie deterministically). Missing
-// values always order last regardless of direction; present values compare by their
-// typed value, inverted when descending.
+// Missing always last; present values compare typed and invert when descending.
 func lessByKey(a, b *record, key string, descending bool) (less, tie bool) {
 	ak, an, as := orderKey(a.value(key))
 	bk, bn, bs := orderKey(b.value(key))
@@ -90,11 +74,11 @@ func lessByKey(a, b *record, key string, descending bool) (less, tie bool) {
 		if ak == bk {
 			return false, true
 		}
-		return bk == orderMissing, false // the non-missing record sorts first
+		return bk == orderMissing, false // non-missing sorts first
 	}
 	switch {
 	case ak != bk:
-		less = ak == orderNum // numbers before strings; mixed kinds per column should not occur
+		less = ak == orderNum // numbers before strings; mixed kinds should not occur
 	case ak == orderNum:
 		if an == bn {
 			return false, true
@@ -112,10 +96,7 @@ func lessByKey(a, b *record, key string, descending bool) (less, tie bool) {
 	return less, false
 }
 
-// orderKey reduces a field value to a comparable key: a numeric kind, a string kind,
-// or missing. A nil value or an empty string is missing and sorts last, mirroring the
-// undated-model and unknown-price rules. Slice and map values order by length, so
-// --order-by models ranks agents by model count.
+// Nil or empty string is missing. Slice/map values order by length so --order-by models ranks by count.
 func orderKey(v any) (kind int, num float64, str string) {
 	switch t := v.(type) {
 	case nil:
@@ -147,8 +128,6 @@ func orderKey(v any) (kind int, num float64, str string) {
 	}
 }
 
-// recordLess orders two records by their id for a stable tiebreak. Every list record
-// carries an id (the agent, model, or provider id), so this is always defined.
 func recordLess(a, b *record) bool {
 	return recordID(a) < recordID(b)
 }
@@ -160,9 +139,7 @@ func recordID(r *record) string {
 	return ""
 }
 
-// insertAfter returns cols with add placed immediately after the first occurrence of
-// anchor, leaving cols unchanged when anchor is absent or add is already present. It
-// copies rather than mutating the shared default slice it is given.
+// Without mutating the shared default slice.
 func insertAfter(cols []string, anchor, add string) []string {
 	if slices.Contains(cols, add) {
 		return cols
@@ -177,10 +154,7 @@ func insertAfter(cols []string, anchor, add string) []string {
 	return out
 }
 
-// orderColumns pulls the sort column to the leftmost position of the table columns so
-// the ordering is legible: it is prepended when absent and moved to the front when
-// already present. It applies only to the default and verbose column sets; an
-// explicit --fields selection is authoritative and never passed here.
+// Sort column leftmost so ordering is legible. Default/verbose only; never --fields.
 func orderColumns(cols []string, sortKey string) []string {
 	out := make([]string, 0, len(cols)+1)
 	out = append(out, sortKey)

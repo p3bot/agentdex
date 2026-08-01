@@ -12,16 +12,11 @@ import (
 	"cuelang.org/go/mod/modregistrytest"
 )
 
-// StartRegistry publishes the catalog-valid fixture module to an in-process OCI
-// registry and points CUE_REGISTRY and CUE_CACHE_DIR at it (via t.Setenv), so the
-// production loader resolves the default catalog module (…/catalog@v1, resolving to
-// v1.0.0) fully offline. It returns the registry and a once-guarded close, also
-// registered for cleanup, so a test can take the registry offline mid-run to
-// exercise the stale-fallback and cold-offline paths without a double close.
-//
-// This is the single home for the OCI registry harness shared by the loader tests,
-// the CLI end-to-end harness, and the root-package library tests, so the offline
-// guarantees are exercised through one setup rather than a copy per package.
+// StartRegistry publishes the catalog-valid fixture to an in-process OCI
+// registry and points CUE_REGISTRY and CUE_CACHE_DIR at it so the production
+// loader resolves …/catalog@v1 (to v1.0.0) offline. Returns the registry and a
+// once-guarded close (also t.Cleanup) so a test can take the registry offline
+// mid-run without double-close.
 func StartRegistry(t *testing.T) (*modregistrytest.Registry, func()) {
 	t.Helper()
 	dir := FixtureDir(t, "catalog-valid")
@@ -50,8 +45,8 @@ func StartRegistry(t *testing.T) (*modregistrytest.Registry, func()) {
 }
 
 // CueCacheDir returns a fresh CUE content-cache directory. CUE writes extracted
-// modules read-only, so t.TempDir's RemoveAll cannot unlink them; modcache.RemoveAll
-// handles the read-only tree.
+// modules read-only, so t.TempDir's RemoveAll cannot unlink them;
+// modcache.RemoveAll handles the read-only tree.
 func CueCacheDir(t *testing.T) string {
 	t.Helper()
 	dir, err := os.MkdirTemp("", "agentdex-cue-cache")

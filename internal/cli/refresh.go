@@ -10,18 +10,14 @@ import (
 	"github.com/start-cli/agentdex"
 )
 
-// refreshTargets are the caches refresh can force, in help-display order, each with
-// its one-line description and the note printed when it is refreshed. all refreshes
-// both. This slice is the single source for target validation, the unknown-target
-// error, the Targets help section, and the success note, so they cannot drift.
+// refreshTargets is the single source for target validation, unknown-target error,
+// Targets help, and success notes.
 var refreshTargets = []struct{ name, desc, note string }{
 	{"catalog", "Re-resolve the agentdex catalog version", "Refreshed agentdex catalog (agent data)"},
 	{"models.dev", "Refetch the models.dev catalog", "Refreshed models.dev catalog (provider and model data)"},
 	{"all", "Both (default)", ""},
 }
 
-// refreshTargetFor maps an accepted target name to the library Target. The name is
-// validated by validRefreshTarget before this is called, so the default is "all".
 func refreshTargetFor(name string) agentdex.Target {
 	switch name {
 	case "catalog":
@@ -33,7 +29,6 @@ func refreshTargetFor(name string) agentdex.Target {
 	}
 }
 
-// validRefreshTarget reports whether name is an accepted refresh target.
 func validRefreshTarget(name string) bool {
 	for _, t := range refreshTargets {
 		if t.name == name {
@@ -43,8 +38,6 @@ func validRefreshTarget(name string) bool {
 	return false
 }
 
-// refreshNote returns the success note for a refreshed target, drawn from
-// refreshTargets so the output cannot drift from the accepted targets.
 func refreshNote(name string) string {
 	for _, t := range refreshTargets {
 		if t.name == name {
@@ -54,9 +47,7 @@ func refreshNote(name string) string {
 	return ""
 }
 
-// refreshTargetList renders the accepted targets as an Oxford-style list ("a, b,
-// or c") for the unknown-target error, so the message reads naturally and stays in
-// step with the command's Short help while still deriving from refreshTargets.
+// Oxford-style list ("a, b, or c") for the unknown-target error.
 func refreshTargetList() string {
 	names := make([]string, len(refreshTargets))
 	for i, t := range refreshTargets {
@@ -95,11 +86,7 @@ func (a *app) newRefreshCmd() *cobra.Command {
 				return a.usage(cmd, fmt.Errorf("unknown refresh target %q: want %s", target, refreshTargetList()))
 			}
 
-			// The library owns the sequencing (catalog then models.dev under all, stop
-			// at the first failure) and reports which targets actually refreshed; the
-			// CLI maps the target name to the library Target and renders the outcome.
-			// A stale catalog fallback and a models.dev outage arrive as typed errors
-			// the exit-code table classifies (R13, R15).
+			// Library owns sequencing and which targets refreshed; CLI maps names and renders.
 			done, err := idx.Refresh(cmd.Context(), refreshTargetFor(target))
 			if err != nil {
 				return a.fail(cmd, codeFor(err), err)
@@ -120,9 +107,7 @@ func (a *app) newRefreshCmd() *cobra.Command {
 			})
 		},
 	}
-	// Mirror get/models' Fields section: list the accepted [target] values as their
-	// own help section, derived from refreshTargets so it cannot drift from what the
-	// command accepts.
+	// Targets help section, derived from refreshTargets so it cannot drift.
 	width := 0
 	for _, t := range refreshTargets {
 		if len(t.name) > width {

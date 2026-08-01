@@ -1,7 +1,6 @@
 // Package modelsdevtest provides shared models.dev test doubles: fixture
-// providers and the httptest servers that serve them, so the root-package library
-// tests and the CLI end-to-end tests exercise the same deterministic, network-free
-// models.dev rather than each copying its own.
+// providers and the httptest servers that serve them, so library and CLI tests
+// exercise the same deterministic, network-free models.dev.
 package modelsdevtest
 
 import (
@@ -15,8 +14,8 @@ import (
 	"github.com/start-cli/agentdex/modelsdev"
 )
 
-// CountingServer is Server with a fetch counter, so a test can assert that a
-// single operation fetches models.dev once however many goroutines it fans out.
+// CountingServer is Server with a fetch counter so a test can assert a single
+// operation fetches models.dev once however many goroutines it fans out.
 func CountingServer(t *testing.T, present []string) (*httptest.Server, *atomic.Int64) {
 	t.Helper()
 	data := catalogJSON(present, nil)
@@ -29,9 +28,7 @@ func CountingServer(t *testing.T, present []string) (*httptest.Server, *atomic.I
 	return srv, &n
 }
 
-// Server serves a tailored models.dev catalog.json. present lists the providers to
-// expose (each with one valid model); malformed lists providers exposed with a
-// model that fails validation, to trigger ErrModelsSchema.
+// present: one valid model each; malformed: model that fails validation.
 func Server(t *testing.T, present []string, malformed ...string) *httptest.Server {
 	t.Helper()
 	data := catalogJSON(present, malformed)
@@ -42,8 +39,7 @@ func Server(t *testing.T, present []string, malformed ...string) *httptest.Serve
 	return srv
 }
 
-// Closed returns the URL of a server that is already shut down, so a fetch against
-// it fails: the no-network, no-cache condition.
+// URL of a server that is already shut down so a fetch fails.
 func Closed(t *testing.T) string {
 	t.Helper()
 	srv := httptest.NewServer(http.NotFoundHandler())
@@ -53,7 +49,7 @@ func Closed(t *testing.T) string {
 }
 
 // MustNotFetch returns a models.dev URL whose any access fails the test: proof
-// that a code path is answered without touching models.dev.
+// that a code path stays offline.
 func MustNotFetch(t *testing.T) string {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -64,19 +60,17 @@ func MustNotFetch(t *testing.T) string {
 	return srv.URL
 }
 
-// ReleaseDates gives each fixture provider's model a distinct release date, so
-// newest-first ordering is observable across providers: openai's model is newer
-// than google's even though google sorts first by id.
+// ReleaseDates gives each fixture provider's model a distinct release date so
+// newest-first ordering is observable across providers.
 var ReleaseDates = map[string]string{
 	"anthropic": "2025-06-01",
 	"google":    "2024-01-01",
 	"openai":    "2025-01-01",
 }
 
-// Provider builds one fixture provider with a single model. anthropic carries the
-// "claude-sonnet" model so the canonical-id path resolves; other providers carry a
-// generic model. A malformed provider's model has an empty id, which fails the
-// per-model check.
+// Provider builds one fixture provider with a single model. anthropic carries
+// "claude-sonnet" so the canonical-id path resolves; others carry a generic
+// model. A malformed provider's model has an empty id.
 func Provider(pid string, malformed bool) modelsdev.Provider {
 	key, name := pid+"-model", pid+" model"
 	if pid == "anthropic" {
@@ -102,9 +96,7 @@ func Provider(pid string, malformed bool) modelsdev.Provider {
 	}
 }
 
-// catalogJSON marshals a models.dev catalog.json carrying the requested providers.
-// The agnostic map carries one canonical id so the top-level shape validates and
-// the canonical-id path resolves.
+// Agnostic map carries one canonical id so the top-level shape validates.
 func catalogJSON(present, malformed []string) []byte {
 	cat := modelsdev.Catalog{
 		Models: map[string]modelsdev.Model{

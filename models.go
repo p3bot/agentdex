@@ -8,16 +8,9 @@ import (
 	"github.com/start-cli/agentdex/modelsdev"
 )
 
-// List browses models across the scoped models.dev providers, narrowed by a
-// case-insensitive substring over model id and name, and returns them in the
-// library's default order, newest release first (R14). The scope comes from
-// ModelQuery.Scope: an --agent resolves to that agent's provider set by the
-// agnostic/home rules (R8), explicit Providers name a direct set, and an empty
-// scope spans every provider models.dev knows. Each returned Model carries its
-// provider and, when the composite is a key in the agnostic map, its canonical id
-// (R9). Stale-catalog warnings from an agent scope, and WarnModelsStale when this
-// listing consulted models.dev and the serve was a stale fallback, ride the
-// return, valid on the error path too (R6).
+// List browses models across the scoped providers, newest release first. Empty
+// scope spans every models.dev provider. Each Model carries its provider and
+// optional agnostic-map canonical id. Stale warnings ride the error path too.
 func (s ModelService) List(ctx context.Context, q ModelQuery) (Result[Model], error) {
 	c := s.core
 	mc := c.modelsClient()
@@ -45,12 +38,8 @@ func (s ModelService) List(ctx context.Context, q ModelQuery) (Result[Model], er
 	return Result[Model]{Items: items, Warnings: appendModelsStale(warnings, mc, modelsConsulted)}, nil
 }
 
-// Get returns one model selected exactly by its composite provider-id/model-id. The
-// composite splits on the first slash only: the prefix is the provider id, the whole
-// remainder is the model key, which may itself contain slashes (R9). A value with no
-// slash is ErrMalformedModelID; an unknown provider or model key is ErrNotFound; an
-// outage is ErrModelsUnavailable and schema drift propagates (R7). It loads no agent
-// catalog, so it carries no warnings channel (R6).
+// Get returns one model by composite provider-id/model-id. Splits on the first
+// slash only (model key may contain slashes). No agent catalog, no warnings channel.
 func (s ModelService) Get(ctx context.Context, composite string) (Model, error) {
 	c := s.core
 	pid, key, ok := strings.Cut(composite, "/")
@@ -81,14 +70,8 @@ func (s ModelService) Get(ctx context.Context, composite string) (Model, error) 
 	return Model{Model: m, Provider: pid, CanonicalID: canonical}, nil
 }
 
-// resolveModelScope resolves the provider set a listing spans from the scope,
-// enforcing the agnostic/home rules and validating caller-supplied ids in every
-// role they play (R8). A caller id models.dev does not know is ErrUnknownProvider; a
-// models.dev outage is not a rejection — validation is skipped and the outage
-// surfaces on the listing fetch as ErrModelsUnavailable — while recognisable schema
-// drift propagates. An agent scope resolves the catalog, so a stale fallback rides
-// the return, on the error path too (R6). The bool reports whether this call
-// consulted models.dev, so the listing can gate WarnModelsStale on real use.
+// resolveModelScope enforces agnostic/home rules. Unknown id is ErrUnknownProvider;
+// outage is not a rejection (listing fetch reports it). Bool is models.dev consulted.
 func (c *core) resolveModelScope(ctx context.Context, mc *modelsdev.Client, scope ModelScope) ([]string, []Warning, bool, error) {
 	caller := dedupeIDs(scope.Providers)
 
@@ -142,24 +125,17 @@ func (c *core) resolveModelScope(ctx context.Context, mc *modelsdev.Client, scop
 	return ids, nil, true, nil
 }
 
-// validateModelProviders rejects an unknown caller id and propagates recognisable
-// schema drift, but treats an outage as a non-rejection: on an unreachable models.dev
-// the ids stand and the listing fetch reports the outage instead (R8).
+// Unknown id and schema drift reject; outage is non-rejection (listing fetch reports it).
 func (c *core) validateModelProviders(ctx context.Context, mc *modelsdev.Client, ids []string) error {
 	switch kind, err := c.validateProviders(ctx, mc, ids); kind {
 	case provUnknown, provSchema:
 		return err
 	case provOK, provUnreachable:
-		// An outage is not a rejection: the ids stand and the listing fetch reports
-		// the outage instead (R8).
 	}
 	return nil
 }
 
-// modelsForProviders builds attributed models for the named providers, skipping
-// ids models.dev does not know. The same construction feeds Models.List and agent
-// EnrichFull so a short model id is never returned without its provider (R9).
-// The slice is unsorted; callers apply the library's newest-first order.
+// Unsorted; callers apply newest-first order. Unknown ids are skipped.
 func (c *core) modelsForProviders(ctx context.Context, mc *modelsdev.Client, providers []string) ([]Model, error) {
 	cat, err := mc.Catalog(ctx)
 	if err != nil {
@@ -188,8 +164,6 @@ func (c *core) modelsForProviders(ctx context.Context, mc *modelsdev.Client, pro
 	return out, nil
 }
 
-// canonicalID reports the composite when it names a key in the agnostic model map,
-// else "" — the agnostic-catalog key a model carries when it has one (R9).
 func canonicalID(agnostic *modelsdev.Catalog, composite string) string {
 	if _, ok := agnostic.Models[composite]; ok {
 		return composite

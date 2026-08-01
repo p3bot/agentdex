@@ -9,9 +9,7 @@ import (
 	"github.com/start-cli/agentdex/modelsdev"
 )
 
-// openProviders opens an Index configured only for models.dev: a provider surface
-// resolves no agent catalog, so no catalog source is supplied. present names the
-// env vars the injected lookup reports as set.
+// Models.dev only (no agent catalog). presentEnv names env vars reported set.
 func openProviders(t *testing.T, url string, presentEnv ...string) *Index {
 	t.Helper()
 	idx, err := Open(WithModelsURL(url),
@@ -80,7 +78,6 @@ func TestProvidersListFilterOnIDAndName(t *testing.T) {
 	srv := modelsdevtest.Server(t, []string{"anthropic", "google", "openai"})
 	idx := openProviders(t, srv.URL)
 
-	// "e" matches google and openai by id, and no others.
 	res, err := idx.Providers.List(context.Background(), ProviderQuery{Filter: "E"})
 	if err != nil {
 		t.Fatalf("List: %v", err)
@@ -103,9 +100,7 @@ func TestProvidersListUnreachableIsModelsUnavailable(t *testing.T) {
 }
 
 func TestProvidersListSchemaDriftPropagates(t *testing.T) {
-	// An empty top-level providers map is gross structural drift caught on the
-	// Catalog fetch, distinct from an outage so the CLI maps it to config not
-	// transient.
+	// Empty top-level maps: structural drift, not an outage.
 	srv := modelsdevtest.Server(t, nil)
 	idx := openProviders(t, srv.URL)
 
@@ -166,8 +161,6 @@ func TestProvidersGetUnreachableIsModelsUnavailable(t *testing.T) {
 }
 
 func TestProvidersGetSchemaDriftPropagates(t *testing.T) {
-	// A reachable models.dev serving a malformed provider model is a per-provider
-	// data fault surfaced on the exact fetch.
 	srv := modelsdevtest.Server(t, nil, "anthropic")
 	idx := openProviders(t, srv.URL)
 

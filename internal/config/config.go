@@ -25,14 +25,14 @@ import (
 const DefaultTTL = 24 * time.Hour
 
 // ErrConfig marks a configuration fault: a malformed config.cue, a value that
-// violates the schema, or an unparseable duration. The CLI maps it to exit 78.
+// violates the schema, or an unparseable duration.
 var ErrConfig = errors.New("invalid configuration")
 
 //go:embed schema.cue
 var schemaSrc string
 
 // Config is the resolved, typed configuration: defaults applied, durations
-// parsed into the per-cache TTLs. It is decoupled from config.cue's wire shape so
+// parsed into the per-cache TTLs. Decoupled from config.cue's wire shape so
 // callers never re-parse strings.
 type Config struct {
 	CatalogModule string
@@ -64,9 +64,8 @@ type raw struct {
 }
 
 // Path resolves the config.cue location from $XDG_CONFIG_HOME with the documented
-// home fallback, mirroring how the library resolves XDG paths rather than using a
-// platform-specific user-dir helper. It returns "" only when neither XDG_CONFIG_HOME
-// nor a home directory can be determined.
+// home fallback, not a platform-specific user-dir helper. Returns "" only when
+// neither XDG_CONFIG_HOME nor a home directory can be determined.
 func Path() string {
 	if dir := os.Getenv("XDG_CONFIG_HOME"); dir != "" {
 		return filepath.Join(dir, "agentdex", "config.cue")
@@ -88,8 +87,8 @@ func homeDir() string {
 }
 
 // Load reads, validates, and resolves config.cue at path. A missing file is a
-// clean, empty configuration: the schema defaults still materialise. A syntax
-// error, a schema violation, or an unparseable duration is an ErrConfig.
+// clean empty configuration: schema defaults still materialise. A syntax error,
+// schema violation, or unparseable duration is an ErrConfig.
 func Load(path string) (*Config, error) {
 	var data []byte
 	if path != "" {
@@ -98,7 +97,7 @@ func Load(path string) (*Config, error) {
 		case err == nil:
 			data = b
 		case errors.Is(err, os.ErrNotExist):
-			// A missing config is empty; defaults apply.
+			// Missing config is empty; defaults apply.
 		default:
 			return nil, fmt.Errorf("read config: %w", err)
 		}
@@ -112,13 +111,13 @@ func Load(path string) (*Config, error) {
 }
 
 // decode compiles the config bytes against the closed #Config schema, validating
-// types and rejecting unknown fields, and decodes the result with defaults
-// applied. Empty bytes yield the all-defaults configuration.
+// types and rejecting unknown fields, and decodes with defaults applied. Empty
+// bytes yield the all-defaults configuration.
 func decode(data []byte, filename string) (*raw, error) {
 	cuectx := cuecontext.New()
 	schema := cuectx.CompileString(schemaSrc, cue.Filename("schema.cue"))
 	if err := schema.Err(); err != nil {
-		// A broken embedded schema is a programmer error, not a user config fault.
+		// Broken embedded schema is a programmer error, not a user config fault.
 		return nil, fmt.Errorf("compile config schema: %w", err)
 	}
 	def := schema.LookupPath(cue.ParsePath("#Config"))
@@ -147,9 +146,8 @@ func filenameOr(name string) string {
 	return name
 }
 
-// resolve turns the decoded wire shape into the typed Config: it parses the
-// per-cache TTLs under the section-then-global-then-default rule and copies the
-// remaining fields through.
+// resolve turns the decoded wire shape into the typed Config: per-cache TTLs
+// under the section-then-global-then-default rule, remaining fields copied through.
 func resolve(r *raw) (*Config, error) {
 	catalogTTL, err := resolveTTL(r.Catalog.TTL, r.CacheTTL)
 	if err != nil {
@@ -171,8 +169,8 @@ func resolve(r *raw) (*Config, error) {
 	}, nil
 }
 
-// resolveTTL applies the per-cache rule: the section ttl, then cache_ttl, then the
-// built-in default. An unparseable duration at either level is an ErrConfig.
+// resolveTTL applies section ttl, then cache_ttl, then the built-in default.
+// An unparseable duration at either level is an ErrConfig.
 func resolveTTL(section, global string) (time.Duration, error) {
 	for _, s := range []string{section, global} {
 		if s == "" {

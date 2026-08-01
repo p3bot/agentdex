@@ -7,8 +7,7 @@ import (
 )
 
 func TestBareNounIsUsageFault(t *testing.T) {
-	// Every noun group invoked without a verb is a usage fault (exit 2). In text
-	// mode it prints the group help so the verbs are discoverable.
+	// Bare noun is usage (exit 2); text mode prints group help so verbs are discoverable.
 	newScenario(t, "", "alpha-cli")
 
 	for _, noun := range []string{"agents", "providers", "models"} {
@@ -16,7 +15,6 @@ func TestBareNounIsUsageFault(t *testing.T) {
 		if got.code != codeUsage {
 			t.Errorf("bare %q exit = %d, want 2; stderr=%q", noun, got.code, got.stderr)
 		}
-		// Text mode: the group help lists the two verbs.
 		if !strings.Contains(got.stdout, "list") || !strings.Contains(got.stdout, "get") {
 			t.Errorf("bare %q text should print group help naming list and get:\n%s", noun, got.stdout)
 		}
@@ -24,8 +22,7 @@ func TestBareNounIsUsageFault(t *testing.T) {
 }
 
 func TestBareNounJSONIsEnvelopeAlone(t *testing.T) {
-	// Under --json the bare-noun fault emits the error envelope alone on stdout,
-	// naming the missing verb, with no help text mixed in, so stdout parses as JSON.
+	// Under --json the envelope alone sits on stdout with no help text mixed in.
 	newScenario(t, "", "alpha-cli")
 
 	got := runCLI("--json", "agents")
@@ -42,7 +39,6 @@ func TestBareNounJSONIsEnvelopeAlone(t *testing.T) {
 }
 
 func TestSingularNounAliasIsSynonym(t *testing.T) {
-	// The singular alias selects the same operation as the plural.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL, "alpha-cli")
 
@@ -55,7 +51,6 @@ func TestSingularNounAliasIsSynonym(t *testing.T) {
 		t.Errorf("agent get differs from agents get:\nplural:\n%s\nsingular:\n%s", plural.stdout, singular.stdout)
 	}
 
-	// The other two nouns accept their singular alias too.
 	if got := runCLI("--json", "provider", "list"); got.code != codeOK {
 		t.Errorf("provider list exit = %d, want 0; stderr=%q", got.code, got.stderr)
 	}
@@ -65,13 +60,11 @@ func TestSingularNounAliasIsSynonym(t *testing.T) {
 }
 
 func TestRemovedFlatCommandsAreGone(t *testing.T) {
-	// The old flat commands are gone, split by failure mode. get/list were top-level
-	// commands and are now unknown (exit 2); providers/models are noun groups, so a
-	// bare or verbless invocation is the usage fault, never the old listing.
+	// Old flat get/list are unknown top-level commands; bare providers/models are
+	// noun usage faults, never the old listing.
 	srv := modelsServer(t, []string{"anthropic", "google", "openai"})
 	newScenario(t, srv.URL, "alpha-cli")
 
-	// Unknown top-level commands.
 	for _, args := range [][]string{{"get", "alpha-cli"}, {"list"}} {
 		got := runCLI(args...)
 		if got.code != codeUsage {
@@ -79,8 +72,6 @@ func TestRemovedFlatCommandsAreGone(t *testing.T) {
 		}
 	}
 
-	// "agentdex providers" no longer lists: it is the bare-noun usage fault, and no
-	// provider row is rendered.
 	prov := runCLI("providers")
 	if prov.code != codeUsage {
 		t.Errorf("providers exit = %d, want 2; stderr=%q", prov.code, prov.stderr)
@@ -89,8 +80,6 @@ func TestRemovedFlatCommandsAreGone(t *testing.T) {
 		t.Errorf("bare providers should not render the old listing:\n%s", prov.stdout)
 	}
 
-	// "agentdex models <id>" no longer lists an agent's models: it is the
-	// unknown-verb usage fault.
 	mod := runCLI("models", "alpha-cli")
 	if mod.code != codeUsage {
 		t.Errorf("models <id> exit = %d, want 2; stderr=%q", mod.code, mod.stderr)

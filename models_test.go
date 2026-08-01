@@ -10,8 +10,7 @@ import (
 	"github.com/start-cli/agentdex/modelsdev"
 )
 
-// openModels opens an Index over both a directory catalog and a models.dev double,
-// for the --agent-scoped model listings that resolve the agent catalog.
+// Directory catalog + models.dev double for agent-scoped model listings.
 func openModels(t *testing.T, body, url string, presentEnv ...string) *Index {
 	t.Helper()
 	dir := catalogtest.WriteModule(t, body)
@@ -42,7 +41,7 @@ func TestModelsListNoScopeSpansEveryProviderNewestFirst(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	// anthropic 2025-06-01, openai 2025-01-01, google 2024-01-01.
+	// Fixture release dates: anthropic 2025-06-01, openai 2025-01-01, google 2024-01-01.
 	if got, want := wrappedModelIDs(res.Items), []string{"claude-sonnet", "openai-model", "google-model"}; !equal(got, want) {
 		t.Fatalf("model order = %v, want newest-first %v", got, want)
 	}
@@ -89,8 +88,7 @@ func TestModelsListUnknownProviderIsUnknownProvider(t *testing.T) {
 }
 
 func TestModelsListUnreachableDoesNotRejectIDs(t *testing.T) {
-	// An outage is not an unknown-id verdict: the ids stand and the fetch reports
-	// the outage as ErrModelsUnavailable, never ErrUnknownProvider (R8).
+	// Outage is not unknown-id: fetch reports ErrModelsUnavailable, not ErrUnknownProvider.
 	idx := openProviders(t, modelsdevtest.Closed(t))
 
 	_, err := idx.Models.List(context.Background(), ModelQuery{Scope: ModelScope{Providers: []string{"anthropic"}}})
@@ -123,7 +121,6 @@ func TestModelsListAgentHomeProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	// gamma-agent's catalog providers are google+openai; anthropic is out of scope.
 	if got, want := wrappedModelIDs(res.Items), []string{"openai-model", "google-model"}; !equal(got, want) {
 		t.Errorf("agent-scoped ids = %v, want %v (openai newer than google)", got, want)
 	}
@@ -253,9 +250,7 @@ func TestModelsGetUnknownModelKey(t *testing.T) {
 }
 
 func TestModelsGetSplitsOnFirstSlash(t *testing.T) {
-	// A model key may contain slashes; the split takes the whole remainder as the
-	// key. anthropic exists, so a multi-slash remainder resolves the provider and
-	// then misses on the key — proving the split is first-slash, not last (R9).
+	// First slash only: multi-slash remainder misses on key, not on provider.
 	srv := modelsdevtest.Server(t, []string{"anthropic"})
 	idx := openProviders(t, srv.URL)
 

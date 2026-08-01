@@ -3,9 +3,8 @@ package modelsdev
 import "sort"
 
 // Newer reports whether a sorts before b in a newest-first listing: later
-// release date first (ISO dates compare lexically), undated models last, ties
-// broken by id so the order is deterministic. Shared presentation order for
-// agentdex model lists and the CLI; Client.Models remains sorted by id.
+// release date first (ISO dates compare lexically), undated last, ties broken
+// by id. Shared presentation order; Client.Models remains sorted by id.
 func Newer(a, b Model) bool {
 	if a.ReleaseDate != b.ReleaseDate {
 		if a.ReleaseDate == "" {
@@ -19,7 +18,7 @@ func Newer(a, b Model) bool {
 	return a.ID < b.ID
 }
 
-// SortByRelease orders models newest release first, in place.
+// SortByRelease orders models newest release first, in place, via Newer.
 func SortByRelease(models []Model) {
 	sort.SliceStable(models, func(i, j int) bool { return Newer(models[i], models[j]) })
 }

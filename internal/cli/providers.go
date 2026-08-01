@@ -12,8 +12,6 @@ import (
 	"github.com/start-cli/agentdex/modelsdev"
 )
 
-// newProvidersCmd is the providers noun group: a browse verb (list) and an exact
-// fetch verb (get) over the model providers models.dev knows.
 func (a *app) newProvidersCmd() *cobra.Command {
 	return a.newNounCmd(
 		"providers", "provider", "Model providers from models.dev and their API-key status",
@@ -57,10 +55,7 @@ func (a *app) newProvidersListCmd() *cobra.Command {
 	return cmd
 }
 
-// providersList browses providers through the library, which returns them ordered
-// by id with each API-key variable's presence resolved. It then applies the CLI's
-// arbitrary-field ordering and renders. A provider listing loads no agent catalog;
-// a stale models.dev fallback rides as WarnModelsStale through the envelope.
+// providersList loads no agent catalog; stale models.dev rides as WarnModelsStale.
 func (a *app) providersList(cmd *cobra.Command, idx *agentdex.Index, filter string, fields []string, orderBy string, reverse bool) error {
 	res, err := idx.Providers.List(cmd.Context(), agentdex.ProviderQuery{Filter: filter})
 	warnings := libWarnings(res.Warnings)
@@ -121,21 +116,14 @@ func (a *app) newProvidersGetCmd() *cobra.Command {
 	return cmd
 }
 
-// providersGet fetches one provider by exact id through the library and renders it
-// as a detail view structurally mirroring agents get: the provider's facts, a
-// symmetric-marker provider-env section, and its models as a count by default or the
-// full table under --models. An unknown id is not-found, with the CLI naming the
-// providers-list remedy the library does not own (R7).
 func (a *app) providersGet(cmd *cobra.Command, idx *agentdex.Index, id string, models bool, fields []string) error {
 	p, err := idx.Providers.Get(cmd.Context(), id)
 	if err != nil {
 		return a.fail(cmd, codeFor(err), providersGetError(err))
 	}
 	present := p.EnvPresent
-	// Unlike agents get, the models array is always carried in JSON: a provider's
-	// models are already in hand from this one fetch (no enrichment round-trip), so
-	// --models governs only the text view, and .data.models stays uniform with
-	// providers list.
+	// Unlike agents get, models are always in JSON: already in hand from this fetch,
+	// so --models governs only the text view and .data.models stays uniform with list.
 	r := providerRecord(p.Provider, present)
 	fs, err := r.resolve(fields)
 	if err != nil {
@@ -147,15 +135,13 @@ func (a *app) providersGet(cmd *cobra.Command, idx *agentdex.Index, id string, m
 			renderFields(w, fs)
 			return
 		}
-		// In the detail branch fields is empty, so fs is the full resolved record.
+		// Empty fields ⇒ full resolved record.
 		renderProviderDetail(w, fs, p.Provider, present, models)
 	})
 }
 
-// providersGetError appends the CLI's own remedy clause to a provider not-found
-// fault, naming a subcommand only the CLI has (R7). It is kept separate from
-// classification so codeFor reads the original ErrNotFound sentinel before this
-// wrapping — a plain errors.New would drop the wrap and misclassify the exit code.
+// providersGetError appends a CLI-only list remedy. Kept separate from classification
+// so codeFor still sees ErrNotFound before wrapping.
 func providersGetError(err error) error {
 	if errors.Is(err, agentdex.ErrNotFound) {
 		return errors.New(err.Error() + "; run \"agentdex providers list\" to see provider ids")
@@ -163,14 +149,9 @@ func providersGetError(err error) error {
 	return err
 }
 
-// providerFactFields are the scalar facts rendered inline in the provider detail
-// view; env, present, and models are rendered as their own sections below.
+// Scalars rendered inline; env/present/models are sections.
 var providerFactFields = map[string]bool{"id": true, "name": true, "doc": true, "npm": true, "api": true}
 
-// renderProviderDetail writes the provider detail view, mirroring the agent detail
-// structure: inline facts drawn from the already-resolved record, a Provider env
-// section with the symmetric (set)/(unset) markers get uses, then models as a count
-// line by default or the full table under showModels.
 func renderProviderDetail(w io.Writer, fs []field, p modelsdev.Provider, present map[string]bool, showModels bool) {
 	detail := make([]field, 0, len(fs))
 	for _, f := range fs {

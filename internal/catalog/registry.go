@@ -11,9 +11,8 @@ import (
 	"golang.org/x/mod/semver"
 )
 
-// Registry is the loader's boundary to the CUE module registry. It is the test
-// seam: production wires the modconfig-backed implementation, tests substitute
-// a stub serving a fixture source directory and canned outcomes. Nondeterministic
+// Registry is the loader's boundary to the CUE module registry. Production wires
+// the modconfig-backed implementation; tests substitute a stub. Nondeterministic
 // network access lives entirely behind this interface.
 type Registry interface {
 	// ResolveLatestVersion maps a major-version module path (…/catalog@v1) to a
@@ -25,15 +24,14 @@ type Registry interface {
 	Fetch(ctx context.Context, modulePath string) (sourceDir string, err error)
 }
 
-// modconfigRegistry is the production Registry, backed by modconfig. It honours
-// CUE_REGISTRY and cue login with no agentdex-specific auth settings.
+// modconfigRegistry is the production Registry. It honours CUE_REGISTRY and
+// cue login with no agentdex-specific auth settings.
 type modconfigRegistry struct {
 	reg modconfig.Registry
 }
 
 // NewRegistry constructs the production registry client. modconfig.NewRegistry
-// configures itself from the environment (CUE_REGISTRY, cue login, the standard
-// CUE cache directory).
+// configures itself from the environment (CUE_REGISTRY, cue login, CUE cache dir).
 func NewRegistry() (Registry, error) {
 	reg, err := modconfig.NewRegistry(nil)
 	if err != nil {
@@ -54,12 +52,9 @@ func (r *modconfigRegistry) ResolveLatestVersion(ctx context.Context, modulePath
 	return latest, nil
 }
 
-// latestVersion selects the version to load from those published. It prefers the
-// highest stable release, mirroring Go's @latest semantics so a published
-// pre-release never silently becomes the resolved version. It falls back to the
-// highest pre-release only when no stable release exists, so a registry that has
-// published only a release candidate still resolves. Invalid version strings are
-// ignored.
+// latestVersion prefers the highest stable release (Go @latest semantics) so a
+// pre-release never silently wins. Falls back to the highest pre-release only
+// when no stable exists. Invalid version strings are ignored.
 func latestVersion(versions []string) (string, error) {
 	var stable, latest string
 	for _, v := range versions {
@@ -102,8 +97,8 @@ func (r *modconfigRegistry) Fetch(ctx context.Context, modulePath string) (strin
 	return filepath.Join(root, loc.Dir), nil
 }
 
-// canonicalModulePath joins a major-version base path (…/catalog@v1) with a
-// resolved canonical version (v1.0.3) into the …/catalog@v1.0.3 form Fetch wants.
+// canonicalModulePath joins a major-version base path with a resolved version
+// into the …/catalog@v1.0.3 form Fetch wants.
 func canonicalModulePath(basePath, version string) (string, error) {
 	v, err := module.NewVersion(basePath, version)
 	if err != nil {

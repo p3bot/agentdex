@@ -1,9 +1,7 @@
-// #Config is the closed schema for $XDG_CONFIG_HOME/agentdex/config.cue. It is
-// closed so an unknown field is a load-time error rather than a silent typo, and
-// the fields with a built-in default (catalog.module, color) are non-optional
-// with a default so the default materialises on decode even when the user omits
-// the field. The remaining fields are optional: absent means "not set", and the
-// library or the per-cache TTL resolution supplies the effective value.
+// #Config is the closed schema for $XDG_CONFIG_HOME/agentdex/config.cue. Closed
+// so unknown fields are load-time errors. Fields with a built-in default
+// (catalog.module, color) are non-optional with a default so it materialises on
+// decode when omitted; remaining fields are optional (absent means "not set").
 #Config: {
 	cache_ttl?: string
 	catalog: {

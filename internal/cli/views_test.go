@@ -7,8 +7,7 @@ import (
 )
 
 func TestCostTextFullPrecision(t *testing.T) {
-	// Costs are per-1M-token USD prices; the text surface must not round cheap
-	// prices down to a misleading "$0.00" while keeping round numbers clean.
+	// Must not round cheap prices to a misleading "$0.00" while keeping round numbers clean.
 	for _, tc := range []struct {
 		name string
 		cost *modelsdev.Cost

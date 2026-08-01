@@ -13,16 +13,11 @@ import (
 	"github.com/start-cli/agentdex/modelsdev"
 )
 
-// This file is the CLI's observable-behaviour oracle: each test pins a
-// user-facing output contract that the library-surface suites do not assert, so
-// a change that regresses it fails here rather than passing silently. It guards
-// the rendered CLI behaviour directly — JSON envelope shapes, verbatim warning
-// and error wording, stream discipline, empty-state and stale-catalog handling,
-// and models rendering — none of which the typed API tests exercise.
+// This file pins user-facing CLI contracts the typed API tests do not exercise:
+// envelope shapes, verbatim warning/error wording, stream discipline, empty-state
+// and stale-catalog handling, and models rendering.
 
-// rawEnvelope decodes stdout as a generic JSON object so a test can assert which
-// envelope keys are present, distinguishing an absent (omitempty) key from an
-// empty value in a way the typed envelope struct cannot.
+// Generic map so tests can distinguish an absent (omitempty) key from an empty value.
 func rawEnvelope(t *testing.T, stdout string) map[string]any {
 	t.Helper()
 	var m map[string]any
@@ -32,10 +27,8 @@ func rawEnvelope(t *testing.T, stdout string) map[string]any {
 	return m
 }
 
-// staleScenario stands up a scenario whose catalog re-resolves on every load (a
-// zero catalog TTL) and then takes the registry offline, so the next catalog
-// load falls back to the last resolved version and reports stale. modelsURL wires
-// a reachable models.dev for the commands that need one.
+// staleScenario warms the catalog under a zero TTL then takes the registry offline
+// so the next load falls back to the last resolved version and reports stale.
 func staleScenario(t *testing.T, modelsURL string, bins ...string) *scenario {
 	t.Helper()
 	s := newScenario(t, modelsURL, bins...)
@@ -48,10 +41,8 @@ func staleScenario(t *testing.T, modelsURL string, bins ...string) *scenario {
 }
 
 func TestOracleFailureEnvelopeShapes(t *testing.T) {
-	// The --json failure envelope is asserted today only on usage (2) and not-found
-	// (3). Pin its shape on config (78), transient (75), and permission (4) too:
-	// status "error", a non-empty error, and the omitempty behaviour of the data and
-	// warnings keys.
+	// Pin failure envelope on config (78), transient (75), and permission (4):
+	// status "error", non-empty error, omitempty for data and warnings.
 	assertErrorEnvelope := func(t *testing.T, r result, wantCode int) {
 		t.Helper()
 		if r.code != wantCode {
@@ -117,9 +108,7 @@ func TestOracleFailureEnvelopeShapes(t *testing.T) {
 }
 
 func TestOracleWarningsSurviveFailureUnderJSON(t *testing.T) {
-	// A warning accumulated before a failure must still reach the JSON envelope. With
-	// a stale catalog, each failing command carries the stale-catalog warning
-	// alongside its error — the behaviour the warnings-on-error rule exists to keep.
+	// A warning accumulated before a failure must still reach the JSON envelope.
 	t.Run("agents get unknown id", func(t *testing.T) {
 		srv := modelsServer(t, []string{"anthropic"})
 		staleScenario(t, srv.URL, "alpha-cli")
@@ -169,21 +158,17 @@ func TestOracleWarningsSurviveFailureUnderJSON(t *testing.T) {
 	})
 }
 
-// warningsOf returns the warning slice a --json run carries in its envelope,
-// decoding it whether the run succeeded or failed.
 func warningsOf(t *testing.T, r result) []string {
 	t.Helper()
 	return r.envelope(t).Warnings
 }
 
-// hasExact reports whether ss carries s verbatim.
 func hasExact(ss []string, s string) bool {
 	return slices.Contains(ss, s)
 }
 
 func TestOracleWarningMessagesVerbatim(t *testing.T) {
-	// Warnings are asserted only by substring today, so a reworded message passes.
-	// Pin each by full-string equality so the verbatim wording is enforced.
+	// Full-string equality so reworded messages fail rather than substring-pass.
 	t.Run("stale catalog", func(t *testing.T) {
 		srv := modelsServer(t, []string{"anthropic"})
 		staleScenario(t, srv.URL, "alpha-cli")
@@ -248,8 +233,7 @@ func TestOracleWarningMessagesVerbatim(t *testing.T) {
 }
 
 func TestOracleGetDataFaultReportsAgentAndError(t *testing.T) {
-	// agents get on a coverage data fault asserts only exit 78 today. Assert that the
-	// agent payload is still reported on that fault and pin the error text each emits.
+	// Coverage data faults report the agent payload and pin the error text.
 	t.Run("none present", func(t *testing.T) {
 		srv := modelsServer(t, []string{"google"})
 		newScenario(t, srv.URL, "alpha-cli") // alpha uses anthropic, absent upstream
@@ -285,10 +269,7 @@ func TestOracleGetDataFaultReportsAgentAndError(t *testing.T) {
 	})
 
 	t.Run("none present not installed", func(t *testing.T) {
-		// Coverage is computed identically whether or not the binary is installed (R4,
-		// exception one): an uninstalled agent whose catalog provider is missing from
-		// models.dev reports the same data fault — exit 78 with the agent still reported —
-		// as an installed one. alpha-cli (anthropic) is left uninstalled here.
+		// Coverage is identical whether or not the binary is installed.
 		srv := modelsServer(t, []string{"google"})
 		newScenario(t, srv.URL) // alpha-cli not installed
 		got := runCLI("--json", "agents", "get", "alpha-cli")
@@ -306,8 +287,6 @@ func TestOracleGetDataFaultReportsAgentAndError(t *testing.T) {
 	})
 }
 
-// modelsCell returns the trailing MODELS-column cell for the row whose first
-// field is id, from a text listing whose last column is MODELS.
 func modelsCell(t *testing.T, stdout, id string) string {
 	t.Helper()
 	for line := range strings.SplitSeq(stdout, "\n") {
@@ -321,9 +300,7 @@ func modelsCell(t *testing.T, stdout, id string) string {
 }
 
 func TestOracleListModelsCellDistinction(t *testing.T) {
-	// The JSON null-versus-[] distinction is pinned; the text-cell distinction is
-	// not. An agnostic/not-applicable agent renders the "-" cell and a degraded
-	// agent renders "0", for both degrade causes.
+	// Text-cell distinction: not-applicable is "-", degrade is "0".
 	t.Run("agnostic renders dash", func(t *testing.T) {
 		srv := modelsServer(t, []string{"anthropic"})
 		newScenario(t, srv.URL, "delta-agent")
@@ -360,9 +337,7 @@ func TestOracleListModelsCellDistinction(t *testing.T) {
 	})
 }
 
-// emptyProviderModelsServer serves a valid models.dev catalog (non-empty top-level
-// maps) whose "empty" provider carries no models, so a scope to it lists nothing
-// without tripping schema validation.
+// emptyProviderModelsServer serves a valid catalog whose "empty" provider carries no models.
 func emptyProviderModelsServer(t *testing.T) string {
 	t.Helper()
 	cat := modelsdev.Catalog{
@@ -386,8 +361,6 @@ func emptyProviderModelsServer(t *testing.T) string {
 }
 
 func TestOracleGenuineEmptyState(t *testing.T) {
-	// Only the filter-matched-nothing empty-state line is asserted today. Assert the
-	// genuine-empty line (no filter) too.
 	t.Run("agents", func(t *testing.T) {
 		newScenario(t, "") // no binaries installed
 		got := runCLI("agents", "list", "--installed")
@@ -410,16 +383,12 @@ func TestOracleGenuineEmptyState(t *testing.T) {
 		}
 	})
 
-	// The providers genuine-empty line ("No providers.") is unreachable through a
-	// valid catalog: an empty top-level providers map is gross schema drift
-	// (exit 78), so a provider listing at exit 0 always carries at least one row.
-	// It is left unasserted deliberately rather than forced through an invalid
-	// fixture the loader would reject.
+	// Providers genuine-empty ("No providers.") is unreachable through a valid
+	// catalog: empty top-level providers is schema drift (exit 78). Left unasserted.
 }
 
 func TestOracleRefreshMalformedModelsIsConfig(t *testing.T) {
-	// refresh against a reachable but malformed models.dev is a data fault: exit 78
-	// (schema drift as config), matching the other model surfaces.
+	// Reachable but malformed models.dev is schema drift (exit 78), not transient.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"models":{},"providers":{}}`))
 	}))
@@ -433,9 +402,7 @@ func TestOracleRefreshMalformedModelsIsConfig(t *testing.T) {
 }
 
 func TestOracleRefreshReportsTargetIdentityAndWording(t *testing.T) {
-	// refresh all and the default target assert only that two caches refreshed, not
-	// which. Assert the identity of the refreshed targets and the success wording, so
-	// a refresh that silently drops one target fails.
+	// Assert which targets refreshed and the success wording, not only that two did.
 	for _, args := range [][]string{{"refresh", "all"}, {"refresh"}} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			srv := modelsServer(t, []string{"anthropic"})
@@ -468,8 +435,7 @@ func TestOracleRefreshReportsTargetIdentityAndWording(t *testing.T) {
 }
 
 func TestOracleGetSomePresentReportsSurvivingModels(t *testing.T) {
-	// some-present asserts the warning but not the surviving data. Assert that the
-	// present provider's models still populate.
+	// some-present keeps the present provider's models, not only the warning.
 	srv := modelsServer(t, []string{"google"}) // gamma uses [google, openai]; openai absent
 	newScenario(t, srv.URL, "gamma-agent")
 
@@ -491,9 +457,7 @@ func TestOracleGetSomePresentReportsSurvivingModels(t *testing.T) {
 }
 
 func TestOracleErrorMessagesVerbatim(t *testing.T) {
-	// The failures the library is about to own are asserted by exit code alone today.
-	// Pin each by full-string equality so the split between library text and
-	// CLI-appended remedy is reproduced verbatim by the rewrite.
+	// Pin full error strings so the library-text / CLI-remedy split is enforced.
 	cases := []struct {
 		name  string
 		bins  []string
@@ -559,11 +523,8 @@ func TestOracleErrorMessagesVerbatim(t *testing.T) {
 }
 
 func TestOracleModelsProviderColumnRowBased(t *testing.T) {
-	// The models table's provider column follows the returned rows (R15): shown when
-	// the rows span more than one distinct provider, absent otherwise. The first two
-	// cases agree with the old scope-based rule; the third is the one exception three
-	// inverts — a filter narrowing a multi-provider scope to one provider's rows now
-	// hides the column instead of repeating a single value.
+	// Provider column follows returned rows: shown when >1 distinct provider, hidden
+	// when a multi-provider scope is filter-narrowed to one provider's rows.
 	t.Run("multi-provider scope shows column", func(t *testing.T) {
 		srv := modelsServer(t, []string{"google", "openai"})
 		newScenario(t, srv.URL)
@@ -599,9 +560,7 @@ func TestOracleModelsProviderColumnRowBased(t *testing.T) {
 		if len(rows) != 1 {
 			t.Fatalf("filter should narrow to one provider's row, got %d", len(rows))
 		}
-		// Row-based rule (R15 exception three): the returned rows span one provider, so
-		// the column that would repeat a single value is dropped. The JSON payload is
-		// unaffected — provider stays a field of every model record.
+		// JSON is unaffected — provider stays a field of every model record.
 		if strings.Contains(got.stdout, "PROVIDER") {
 			t.Errorf("filter-narrowed single-provider rows should hide the PROVIDER column (row-based rule):\n%s", got.stdout)
 		}
@@ -609,9 +568,7 @@ func TestOracleModelsProviderColumnRowBased(t *testing.T) {
 }
 
 func TestOracleListProviderValidationInstalledAndDegrade(t *testing.T) {
-	// Listing-wide provider validation is asserted only where an agnostic agent is
-	// catalogued. Assert it holds with --installed narrowing the result to home
-	// providers, and that an unreachable models.dev degrades rather than rejects.
+	// Listing-wide provider validation holds under --installed; unreachable degrades, not rejects.
 	t.Run("installed unknown provider is usage", func(t *testing.T) {
 		srv := modelsServer(t, []string{"anthropic"})
 		newScenario(t, srv.URL, "alpha-cli")
@@ -637,9 +594,7 @@ func TestOracleListProviderValidationInstalledAndDegrade(t *testing.T) {
 }
 
 func TestOracleStreamDiscipline(t *testing.T) {
-	// Warnings-to-stderr in text mode is spot-checked on one command today. Assert the
-	// stream discipline across commands: warnings to stderr in text mode and into the
-	// envelope under --json, with data never mixed onto the wrong stream.
+	// Warnings to stderr in text mode; into the envelope under --json; never mixed.
 	assert := func(t *testing.T, textArgs []string, wantWarnSub string) {
 		t.Helper()
 		text := runCLI(textArgs...)
@@ -676,8 +631,6 @@ func TestOracleStreamDiscipline(t *testing.T) {
 	})
 }
 
-// modelIDsFromJSON extracts the "id" of each element of a JSON model array in order,
-// so a test can assert the order the array carries.
 func modelIDsFromJSON(t *testing.T, v any) []string {
 	t.Helper()
 	arr, ok := v.([]any)
@@ -692,10 +645,8 @@ func modelIDsFromJSON(t *testing.T, v any) []string {
 }
 
 func TestOracleAgentModelsNewestFirst(t *testing.T) {
-	// The library owns the one newest-release-first order for an agent's model array,
-	// and it reaches both agent surfaces (R14, exception four). gamma-agent spans
-	// google (2024-01-01) and openai (2025-01-01), so newest-first puts openai's model
-	// ahead of google's even though google sorts first by id.
+	// Newest-release-first reaches both agent list and get surfaces.
+	// gamma spans google (2024-01-01) and openai (2025-01-01).
 	srv := modelsServer(t, []string{"google", "openai"})
 	newScenario(t, srv.URL, "gamma-agent")
 	want := []string{"openai-model", "google-model"}
@@ -727,7 +678,6 @@ func TestOracleAgentModelsNewestFirst(t *testing.T) {
 	}
 }
 
-// hasExactOrder reports whether got equals want element-for-element.
 func hasExactOrder(got, want []string) bool {
 	if len(got) != len(want) {
 		return false

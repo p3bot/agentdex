@@ -10,9 +10,8 @@ import (
 	"github.com/start-cli/agentdex/modelsdev"
 )
 
-// pricedModelsServer serves one provider "acme" with three models whose combined
-// price and release date deliberately do not correlate, so --order-by total and the
-// default newest-first ordering produce visibly different orders.
+// pricedModelsServer serves three models whose combined price and release date
+// deliberately do not correlate, so --order-by total and newest-first differ.
 func pricedModelsServer(t *testing.T) string {
 	t.Helper()
 	models := map[string]modelsdev.Model{
@@ -37,7 +36,6 @@ func pricedModelsServer(t *testing.T) string {
 	return srv.URL
 }
 
-// modelIDOrder returns the id of each row in the JSON data array, in order.
 func modelIDOrder(t *testing.T, r result) []string {
 	t.Helper()
 	rows := r.envelope(t).Data.([]any)
@@ -61,8 +59,6 @@ func assertOrder(t *testing.T, got, want []string) {
 }
 
 func TestModelsListOrderByTotal(t *testing.T) {
-	// --order-by total sorts by combined input+output price, ascending by default;
-	// --reverse flips it. Neither matches the default newest-first order.
 	newScenario(t, pricedModelsServer(t))
 
 	asc := runCLI("--json", "models", "list", "--provider", "acme", "--order-by", "total")
@@ -79,7 +75,6 @@ func TestModelsListOrderByTotal(t *testing.T) {
 }
 
 func TestModelsListDefaultNewestFirst(t *testing.T) {
-	// With no --order-by the default remains newest release first.
 	newScenario(t, pricedModelsServer(t))
 
 	got := runCLI("--json", "models", "list", "--provider", "acme")
@@ -90,8 +85,7 @@ func TestModelsListDefaultNewestFirst(t *testing.T) {
 }
 
 func TestModelsListReverseFlipsDefault(t *testing.T) {
-	// --reverse with no --order-by flips the default newest-first order to oldest
-	// first, exercising the default-key path rather than an explicit --order-by.
+	// --reverse with no --order-by flips the default key path, not only explicit --order-by.
 	newScenario(t, pricedModelsServer(t))
 
 	got := runCLI("--json", "models", "list", "--provider", "acme", "--reverse")
@@ -102,8 +96,7 @@ func TestModelsListReverseFlipsDefault(t *testing.T) {
 }
 
 func TestModelsListDefaultSurfacesReleasedColumn(t *testing.T) {
-	// The default sort key (released) is pulled leftmost so the newest-first order is
-	// legible, fixing the "looks unordered" report.
+	// Default sort key is pulled leftmost so newest-first is legible.
 	newScenario(t, pricedModelsServer(t))
 
 	got := runCLI("models", "list", "--provider", "acme")
@@ -120,7 +113,6 @@ func TestModelsListDefaultSurfacesReleasedColumn(t *testing.T) {
 }
 
 func TestModelsListOrderByID(t *testing.T) {
-	// --order-by id replaces the newest-first default with a plain ascending id sort.
 	newScenario(t, pricedModelsServer(t))
 
 	got := runCLI("--json", "models", "list", "--provider", "acme", "--order-by", "id")
@@ -143,8 +135,7 @@ func TestModelsListUnknownOrderByIsUsage(t *testing.T) {
 }
 
 func TestModelsListFieldsAuthoritativeOverOrderColumn(t *testing.T) {
-	// An explicit --fields selection is authoritative: the sort column is not injected
-	// and columns are not reordered, though the rows still sort by --order-by.
+	// Explicit --fields is authoritative for columns; rows still sort by --order-by.
 	newScenario(t, pricedModelsServer(t))
 
 	got := runCLI("models", "list", "--provider", "acme", "--fields", "id,name", "--order-by", "total")
@@ -154,16 +145,13 @@ func TestModelsListFieldsAuthoritativeOverOrderColumn(t *testing.T) {
 	if strings.Contains(got.stdout, "TOTAL") || strings.Contains(got.stdout, "RELEASED") {
 		t.Errorf("--fields is authoritative; sort column must not be injected:\n%s", got.stdout)
 	}
-	// Rows still ordered by total ascending: cheap before pricey.
 	if strings.Index(got.stdout, "cheap") > strings.Index(got.stdout, "pricey") {
 		t.Errorf("rows should still order by total under --fields:\n%s", got.stdout)
 	}
 }
 
 func TestModelsListSurfacesProviderColumnAcrossProviders(t *testing.T) {
-	// Across more than one provider the browse listing shows PROVIDER so otherwise
-	// identical rows are distinguishable and the get composite is derivable; a
-	// single-provider scope omits the redundant column.
+	// Multi-provider listings show PROVIDER so rows are distinguishable; single-provider omits it.
 	srv := modelsServer(t, []string{"anthropic", "google", "openai"})
 	newScenario(t, srv.URL)
 
@@ -185,8 +173,6 @@ func TestModelsListSurfacesProviderColumnAcrossProviders(t *testing.T) {
 }
 
 func TestAgentsListDefaultGroupsFoundFirst(t *testing.T) {
-	// The default list places the not-found tail after detected agents; the default
-	// id ordering holds within each group, so the missing delta-agent trails.
 	newScenario(t, "", "alpha-cli", "beta-tool", "gamma-agent")
 
 	got := runCLI("--json", "agents", "list")
@@ -200,8 +186,7 @@ func TestAgentsListDefaultGroupsFoundFirst(t *testing.T) {
 }
 
 func TestAgentsListOrderByDropsFoundGrouping(t *testing.T) {
-	// An explicit --order-by is a pure field sort with no found-first grouping, so the
-	// missing delta-agent interleaves by id rather than trailing.
+	// Explicit --order-by is a pure field sort; missing agents interleave by id.
 	newScenario(t, "", "alpha-cli", "beta-tool", "gamma-agent")
 
 	got := runCLI("--json", "agents", "list", "--order-by", "id", "--reverse")

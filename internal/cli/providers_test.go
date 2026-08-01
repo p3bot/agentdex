@@ -11,9 +11,7 @@ import (
 )
 
 func TestProviderRecordEnvAndPresence(t *testing.T) {
-	// A set variable gains the (set) suffix in the env cell and an unset one stays
-	// bare; the structured present map carries the booleans without the suffix. The
-	// presence map is the library's Provider.EnvPresent, supplied here directly.
+	// Set vars gain "(set)" in the env cell; present map carries bare booleans.
 	p := modelsdev.Provider{
 		ID:   "acme",
 		Name: "Acme",
@@ -88,8 +86,7 @@ func TestProvidersListAllSortedByID(t *testing.T) {
 }
 
 func TestProvidersFilterNarrows(t *testing.T) {
-	// "E" matches google and openai (case-insensitive substring), not anthropic,
-	// and matching several lists all of them rather than reporting ambiguity.
+	// "E" matches google and openai (case-insensitive); matching several lists all of them.
 	srv := modelsServer(t, []string{"anthropic", "google", "openai"})
 	newScenario(t, srv.URL)
 
@@ -108,7 +105,7 @@ func TestProvidersFilterNarrows(t *testing.T) {
 }
 
 func TestProvidersFilterNoMatchIsEmptyExitZero(t *testing.T) {
-	// A filter matching nothing is a normal browse outcome, not not-found.
+	// No match is a normal browse outcome, not not-found.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL)
 
@@ -127,10 +124,7 @@ func TestProvidersFilterNoMatchIsEmptyExitZero(t *testing.T) {
 }
 
 func TestProvidersListWarnsOnStaleModels(t *testing.T) {
-	// providers list must forward WarnModelsStale the same way agents and models
-	// list forward library warnings. Seed the models.dev cache from a live server,
-	// then point config at a failing URL with TTL zero so the next list serves the
-	// cache as a stale fallback and both the JSON envelope and text stderr surface it.
+	// Seed cache, then point at a failing URL with TTL zero so list serves stale fallback.
 	good := modelsServer(t, []string{"anthropic", "google"})
 	s := newScenario(t, good.URL)
 
@@ -180,8 +174,7 @@ func TestProvidersJSONModelsIsArrayCellIsCount(t *testing.T) {
 		t.Fatalf("models field = %v, want a 1-element JSON array", row["models"])
 	}
 
-	// The MODELS cell renders the array length, so id,models isolates it from any
-	// incidental "1" elsewhere in the row.
+	// id,models isolates the MODELS cell from any incidental "1" elsewhere in the row.
 	text := runCLI("providers", "list", "anthropic", "--fields", "id,models")
 	if text.code != codeOK {
 		t.Fatalf("providers --fields id,models exit = %d, stderr=%q", text.code, text.stderr)
@@ -217,7 +210,7 @@ func TestProvidersFieldsSelectionAndValidation(t *testing.T) {
 		t.Errorf("--fields id,present should not carry name: %v", row)
 	}
 
-	// --fields drives the text table columns too, not just the JSON payload.
+	// --fields drives text table columns too, not just the JSON payload.
 	text := runCLI("providers", "list", "anthropic", "--fields", "id,present")
 	if text.code != codeOK {
 		t.Fatalf("providers --fields text exit = %d, stderr=%q", text.code, text.stderr)
@@ -238,8 +231,7 @@ func TestProvidersFieldsSelectionAndValidation(t *testing.T) {
 }
 
 func TestProvidersUnknownFieldRejectedOnEmptyResult(t *testing.T) {
-	// Field validation must not depend on result cardinality: a filter matching no
-	// provider still rejects an unknown --fields key as a usage fault, not exit 0.
+	// Validation must not depend on result cardinality.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL)
 
@@ -259,8 +251,7 @@ func TestProvidersTransientWhenUnreachable(t *testing.T) {
 }
 
 func TestProvidersSchemaDriftIsConfig(t *testing.T) {
-	// An empty top-level providers map is gross structural drift caught by
-	// Catalog's validateTopLevel; per-model faults are not this command's concern.
+	// Empty top-level providers map is gross structural drift (validateTopLevel).
 	srv := modelsServer(t, nil)
 	newScenario(t, srv.URL)
 
@@ -271,14 +262,10 @@ func TestProvidersSchemaDriftIsConfig(t *testing.T) {
 }
 
 func TestProvidersGetKnown(t *testing.T) {
-	// providers get is an exact fetch by provider id, rendering the provider's facts,
-	// a symmetric-marker provider-env section, and a model count by default (no full
-	// table). The models field stays array-typed in JSON.
+	// Default get: facts + symmetric env markers + model count (no full table).
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL)
-	// Deterministically unset the provider's key var so the symmetric marker is
-	// "(unset)" regardless of the host environment, distinguishing the get renderer
-	// from the folded browse cell (which shows a bare name when unset).
+	// Unset the key so the marker is "(unset)" regardless of host environment.
 	unsetEnv(t, "ANTHROPIC_API_KEY")
 
 	got := runCLI("--json", "providers", "get", "anthropic")
@@ -297,8 +284,6 @@ func TestProvidersGetKnown(t *testing.T) {
 		t.Errorf("models field = %v, want a 1-element JSON array", data["models"])
 	}
 
-	// Text detail: Provider, Provider env, and Models (a count) sections, with the
-	// symmetric (set)/(unset) marker rather than the folded browse cell.
 	text := runCLI("providers", "get", "anthropic")
 	if text.code != codeOK {
 		t.Fatalf("providers get text exit = %d, stderr=%q", text.code, text.stderr)
@@ -324,7 +309,6 @@ func TestProvidersGetUnknownIsNotFound(t *testing.T) {
 }
 
 func TestProvidersGetModelsFillsTable(t *testing.T) {
-	// --models fills the full model table under the Models section.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL)
 
@@ -335,7 +319,6 @@ func TestProvidersGetModelsFillsTable(t *testing.T) {
 	if !hasTextSection(text.stdout, "Models") {
 		t.Errorf("providers get --models should keep the Models section:\n%s", text.stdout)
 	}
-	// The full model table names the provider's model; the count-only default does not.
 	if !strings.Contains(text.stdout, "Claude Sonnet") {
 		t.Errorf("providers get --models should list the model row:\n%s", text.stdout)
 	}
@@ -354,9 +337,7 @@ func TestProvidersGetTransientWhenUnreachable(t *testing.T) {
 }
 
 func TestProvidersGetSchemaDriftIsConfig(t *testing.T) {
-	// A reachable models.dev serving gross structural drift (an empty top-level
-	// providers map) is a data fault (exit 78), not an outage: providers get must
-	// classify it as config like providers list does.
+	// Gross structural drift is config (78), not an outage.
 	srv := modelsServer(t, nil)
 	newScenario(t, srv.URL)
 

@@ -1,7 +1,5 @@
-// Command agentdex is the thin CLI over the agentdex detection library. Version,
-// commit, and build date are injected at build time via ldflags into the cli
-// package (-X github.com/start-cli/agentdex/internal/cli.Version=… and Commit, Date),
-// which the version command reports.
+// Command agentdex is the thin CLI over the agentdex detection library.
+// Version/commit/date are ldflags into internal/cli (Version, Commit, Date).
 package main
 
 import (

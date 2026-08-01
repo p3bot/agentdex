@@ -2,7 +2,7 @@ package catalog
 
 import "struct"
 
-// Mirrors catalog/schema.cue so fixtures validate the same contract.
+// Mirror of catalog/schema.cue so fixtures share the same contract.
 #KnownAgent: {
 	name:         string & !=""
 	bin:          string & !=""
@@ -27,7 +27,7 @@ import "struct"
 	homepage?: string
 }
 
-// alternatives is priority order (first is primary fallback).
+// alternatives is priority order; [0] is primary fallback when agents and native are unset.
 #SkillsScope: {
 	agents?:       string & !=""
 	native?:       string & !=""

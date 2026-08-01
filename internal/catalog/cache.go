@@ -12,18 +12,12 @@ import (
 	"time"
 )
 
-// resolutionCache persists the resolved version of a catalog module under the
-// cache directory, one file per module path so resolutions for different module
-// paths are fully independent — there is no shared slot to collide in, and the
-// resolution cached for one module is never served for another. This is
-// version-resolution caching layered over CUE's own module content cache, not a
-// snapshot of the catalog data.
+// resolutionCache is version-resolution caching over CUE's content cache (not a
+// catalog snapshot), one file per module path so resolutions never collide.
 type resolutionCache struct {
 	dir string
 }
 
-// resolution records the version resolved for a module path and when it was
-// resolved, so the loader can apply the TTL and keep-last-resolved behaviour.
 type resolution struct {
 	ModulePath string    `json:"module_path"`
 	Version    string    `json:"version"`
@@ -34,21 +28,17 @@ func newResolutionCache(dir string) *resolutionCache {
 	return &resolutionCache{dir: dir}
 }
 
-// fresh reports whether the resolution is still within the TTL relative to now.
 func (r resolution) fresh(now time.Time, ttl time.Duration) bool {
 	return now.Sub(r.ResolvedAt) < ttl
 }
 
-// path returns the cache file for a module path. The name is a hash of the
-// module path so registry coordinates (slashes, @) are filesystem-safe and each
-// module path maps to its own distinct file.
+// path hashes the module path so registry coordinates are filesystem-safe and
+// each path maps to its own file.
 func (c *resolutionCache) path(modulePath string) string {
 	sum := sha256.Sum256([]byte(modulePath))
 	return filepath.Join(c.dir, "catalog-resolution-"+hex.EncodeToString(sum[:8])+".json")
 }
 
-// read returns the cached resolution for modulePath. The bool is false when no
-// resolution is cached. A missing file is not an error.
 func (c *resolutionCache) read(modulePath string) (resolution, bool, error) {
 	data, err := os.ReadFile(c.path(modulePath))
 	if errors.Is(err, fs.ErrNotExist) {
@@ -59,23 +49,18 @@ func (c *resolutionCache) read(modulePath string) (resolution, bool, error) {
 	}
 	var res resolution
 	if err := json.Unmarshal(data, &res); err != nil {
-		// A corrupt entry is treated as absent rather than fatal: re-resolution
-		// will overwrite it.
+		// Corrupt entry is absent; re-resolution overwrites it.
 		return resolution{}, false, nil
 	}
-	// Guard against a hash collision serving another module's resolution.
+	// Reject a hash collision serving another module's resolution.
 	if res.ModulePath != modulePath {
 		return resolution{}, false, nil
 	}
 	return res, true, nil
 }
 
-// write persists a resolution, creating the cache directory if needed. It writes
-// to a uniquely-named temp file in the same directory and renames it over the
-// target, so a concurrent reader sees either the old or the new file, never a
-// torn one. fsync is intentionally skipped: the resolution cache is a
-// regenerable optimization, so a write lost to a crash costs one re-resolution,
-// not data, and is not worth the durability cost.
+// write uses temp+rename so concurrent readers never see a torn file. fsync is
+// skipped: a lost write costs one re-resolution, not data.
 func (c *resolutionCache) write(res resolution) error {
 	if err := os.MkdirAll(c.dir, 0o755); err != nil {
 		return fmt.Errorf("create cache dir: %w", err)
@@ -90,7 +75,7 @@ func (c *resolutionCache) write(res resolution) error {
 		return fmt.Errorf("create temp resolution file: %w", err)
 	}
 	tmpName := tmp.Name()
-	defer func() { _ = os.Remove(tmpName) }() // a no-op once the rename below succeeds
+	defer func() { _ = os.Remove(tmpName) }() // no-op once rename succeeds
 
 	if _, err := tmp.Write(data); err != nil {
 		_ = tmp.Close()

@@ -30,9 +30,7 @@ func TestRefreshModelsTransientWithoutNetwork(t *testing.T) {
 }
 
 func TestRefreshModelsWarmCacheOfflineIsTransient(t *testing.T) {
-	// The case the zero-TTL approach missed: a populated cache plus an unreachable
-	// network. A forced refresh must report failure rather than silently serving
-	// the warm cache and claiming success.
+	// Forced refresh must fail rather than silently serve a warm cache as success.
 	data := modelsCatalog([]string{"anthropic"}, nil)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write(data)
@@ -50,9 +48,7 @@ func TestRefreshModelsWarmCacheOfflineIsTransient(t *testing.T) {
 }
 
 func TestRefreshCatalogWarmCacheOfflineIsTransient(t *testing.T) {
-	// The catalog counterpart to the models honesty fix: once the version is
-	// resolved, a forced refresh that can no longer reach the registry must report
-	// transient rather than silently reusing the last resolved version.
+	// Forced refresh that cannot re-resolve must report transient, not reuse silently.
 	s := newScenario(t, "", "alpha-cli")
 
 	if got := runCLI("refresh", "catalog"); got.code != codeOK {
@@ -66,7 +62,6 @@ func TestRefreshCatalogWarmCacheOfflineIsTransient(t *testing.T) {
 }
 
 func TestRefreshDefaultTargetIsAll(t *testing.T) {
-	// With no target argument refresh defaults to "all", refreshing both caches.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL, "alpha-cli")
 

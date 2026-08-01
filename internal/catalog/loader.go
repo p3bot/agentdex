@@ -14,9 +14,8 @@ const DefaultModulePath = "github.com/start-cli/agentdex/catalog@v1"
 // DefaultTTL is the version-resolution cache lifetime.
 const DefaultTTL = 24 * time.Hour
 
-// Loader fetches, validates, and decodes the agent catalog. Its
-// nondeterministic inputs — the registry, the clock, and the cache directory —
-// are injected so the load and cache logic are testable from inputs.
+// Loader fetches, validates, and decodes the agent catalog. Registry, clock, and
+// cache directory are injected so load and cache logic are testable from inputs.
 type Loader struct {
 	registry   Registry
 	modulePath string
@@ -38,9 +37,8 @@ type Result struct {
 // Option configures a Loader.
 type Option func(*Loader)
 
-// WithModulePath overrides the source catalog module path. Because the
-// version-resolution cache is keyed by module path, switching the override is
-// simply a different cache key and needs no special invalidation.
+// WithModulePath overrides the source catalog module path. The resolution cache
+// is keyed by module path, so switching the override needs no special invalidation.
 func WithModulePath(modulePath string) Option {
 	return func(l *Loader) { l.modulePath = modulePath }
 }
@@ -81,9 +79,9 @@ func New(registry Registry, opts ...Option) *Loader {
 // fetches the module, validates it against its bundled schema, and decodes it.
 //
 // Version resolution requires the network; fetching a canonical module@version
-// is served from CUE's content cache offline. So after a first successful run
-// the catalog loads offline within the TTL, a failed re-resolution after the TTL
-// keeps the last resolved version (reported as stale), and a first run with no
+// is served from CUE's content cache offline. After a first successful run the
+// catalog loads offline within the TTL; a failed re-resolution after the TTL
+// keeps the last resolved version (reported as stale); a first run with no
 // network and no cached resolution fails with ErrUnavailable.
 func (l *Loader) Load(ctx context.Context) (*Result, error) {
 	version, stale, err := l.resolveVersion(ctx)
@@ -91,8 +89,7 @@ func (l *Loader) Load(ctx context.Context) (*Result, error) {
 		return nil, err
 	}
 
-	// A malformed coordinate is a deterministic internal/config fault, not the
-	// transient offline condition; surface it plainly rather than as ErrUnavailable.
+	// Malformed coordinate is a config fault, not the offline condition.
 	canonical, err := canonicalModulePath(l.modulePath, version)
 	if err != nil {
 		return nil, err
@@ -111,20 +108,12 @@ func (l *Loader) Load(ctx context.Context) (*Result, error) {
 	return &Result{Catalog: cat, Version: version, Stale: stale}, nil
 }
 
-// resolveVersion returns the module version to load, the stale flag, and any
-// fatal error. A within-TTL cached resolution is used directly without touching
-// the network. Otherwise it re-resolves: success refreshes the cache; failure
-// keeps the last resolved version (stale) when one exists, or fails with
-// ErrUnavailable on a first run with no cached resolution.
-//
-// The resolution cache is a regenerable optimization, so its I/O failures are
-// best-effort, never fatal: a read error is treated as a cache miss (the load
-// falls through to resolution), and a write error after a successful resolve is
-// discarded (the resolved version is still returned and used). Only the registry
-// being unreachable with no usable prior resolution yields ErrUnavailable.
+// Within-TTL cache hits skip the network. Otherwise re-resolve: success refreshes
+// the cache; failure keeps the last resolved version (stale) when one exists, or
+// fails with ErrUnavailable on a first run with no cache. Cache I/O is best-effort:
+// read errors are cache misses, write errors after a successful resolve are discarded.
 func (l *Loader) resolveVersion(ctx context.Context) (version string, stale bool, err error) {
-	// A read error returns ok=false, so a failed read degrades to a cache miss
-	// rather than aborting an otherwise-loadable catalog.
+	// ok=false on read error: degrade to cache miss rather than abort.
 	cached, ok, _ := l.cache.read(l.modulePath)
 	if ok && cached.fresh(l.now(), l.ttl) {
 		return cached.Version, false, nil
@@ -133,14 +122,12 @@ func (l *Loader) resolveVersion(ctx context.Context) (version string, stale bool
 	resolved, resolveErr := l.registry.ResolveLatestVersion(ctx, l.modulePath)
 	if resolveErr != nil {
 		if ok {
-			// Keep-last-resolved: re-resolution failed but a prior version exists.
 			return cached.Version, true, nil
 		}
 		return "", false, fmt.Errorf("%w: %w", ErrUnavailable, resolveErr)
 	}
 
-	// Caching the resolved version is best-effort: a failed write costs one
-	// re-resolution next run, not the load.
+	// Best-effort: a failed write costs one re-resolution next run.
 	_ = l.cache.write(resolution{
 		ModulePath: l.modulePath,
 		Version:    resolved,

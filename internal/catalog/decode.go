@@ -8,9 +8,8 @@ import (
 	"cuelang.org/go/cue/load"
 )
 
-// cueAgent mirrors the #KnownAgent schema for decoding. Optional schema fields
-// are pointers (skills, version) or omitempty scalars; CUE honours the json
-// tags when decoding.
+// cueAgent mirrors #KnownAgent for decoding. Optional fields are pointers or
+// omitempty; CUE honours the json tags.
 type cueAgent struct {
 	Name        string `json:"name"`
 	Bin         string `json:"bin"`
@@ -32,26 +31,19 @@ type cueAgent struct {
 	Homepage string   `json:"homepage,omitempty"`
 }
 
-// cueSkillsScope mirrors #SkillsScope for decoding.
 type cueSkillsScope struct {
 	Agents       string   `json:"agents,omitempty"`
 	Native       string   `json:"native,omitempty"`
 	Alternatives []string `json:"alternatives,omitempty"`
 }
 
-// loadCatalogModule loads the CUE catalog module rooted at sourceDir, validates
-// the agents map against the schema that travels with it, and decodes it into
-// the internal representation with each agent's ID set from its map key.
-//
-// Validation is by evaluation: the module bundles schema.cue, whose
-// `agents: [...]: #KnownAgent` constraint is unified with the data when the
-// package is built, so any contract violation surfaces here before decode. The
-// loader carries no schema of its own. SkipImports keeps the registry out of
-// this step; stdlib packages such as struct remain available.
+// loadCatalogModule loads the CUE catalog module at sourceDir, validates by
+// evaluation against the bundled schema (no schema of its own), and decodes
+// with each agent's ID set from its map key. SkipImports keeps the registry out;
+// stdlib packages such as struct remain available.
 func loadCatalogModule(sourceDir string) (*Catalog, error) {
-	// Package is left unset so load resolves the module root's single package by
-	// its unique context, rather than assuming a name; this keeps a fork selected
-	// via the module-path override loadable whatever it names its package.
+	// Package unset: load resolves the module root's package by unique context
+	// so a fork selected via module-path override stays loadable.
 	cfg := &load.Config{
 		Dir:         sourceDir,
 		SkipImports: true,
@@ -75,8 +67,7 @@ func loadCatalogModule(sourceDir string) (*Catalog, error) {
 	if err := agentsVal.Err(); err != nil {
 		return nil, fmt.Errorf("%w: no agents field: %w", ErrInvalidCatalog, err)
 	}
-	// Concrete validation surfaces both constraint violations (a bottom from,
-	// e.g., name failing !="" or MinFields) and missing required fields.
+	// Concrete validation surfaces constraint violations and missing required fields.
 	if err := agentsVal.Validate(cue.Concrete(true)); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidCatalog, err)
 	}
@@ -109,8 +100,6 @@ func loadCatalogModule(sourceDir string) (*Catalog, error) {
 	return &Catalog{Agents: agents}, nil
 }
 
-// mapSkills builds SkillsPaths from a decoded skills object. Emptiness is
-// already rejected by schema MinFields during evaluation.
 func mapSkills(global, local *cueSkillsScope) *SkillsPaths {
 	sk := &SkillsPaths{}
 	if global != nil {

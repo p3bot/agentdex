@@ -10,8 +10,6 @@ import (
 	"github.com/start-cli/agentdex"
 )
 
-// newModelsCmd is the models noun group: a browse verb (list) over models across
-// providers and an exact fetch verb (get) by composite provider-id/model-id.
 func (a *app) newModelsCmd() *cobra.Command {
 	return a.newNounCmd(
 		"models", "model", "Models available from models.dev providers",
@@ -60,12 +58,8 @@ func (a *app) newModelsListCmd() *cobra.Command {
 	return cmd
 }
 
-// modelsList browses models through the library, which owns scope resolution, the
-// agnostic/home rules, canonical-id assignment, and the newest-first order. The CLI
-// applies its arbitrary-field ordering, decides the provider column from the returned
-// rows (R15), and renders. Scope faults arrive as typed errors mapped to exit codes
-// with the CLI's own remedies (R7); stale-catalog and models.dev-stale warnings
-// ride the return.
+// modelsList applies CLI field ordering and provider-column policy on top of the
+// library browse. Scope faults get CLI remedy clauses; library warnings ride through.
 func (a *app) modelsList(cmd *cobra.Command, idx *agentdex.Index, agentID string, providers []string, filter string, fields []string, orderBy string, reverse bool) error {
 	q := agentdex.ModelQuery{
 		Scope:  agentdex.ModelScope{Agent: agentID, Providers: providers},
@@ -87,15 +81,11 @@ func (a *app) modelsList(cmd *cobra.Command, idx *agentdex.Index, agentID string
 		return a.usage(cmd, err)
 	}
 
-	// The text table shows the declared default columns unless --fields overrides,
-	// with the sort column pulled leftmost so the ordering is legible; the JSON
-	// payload carries the full model record (driven by --fields) regardless.
+	// Text: defaults (or --fields) with sort column leftmost. JSON is full record.
 	tableCols := fields
 	if len(tableCols) == 0 {
 		defaults := modelFieldSet.defaults
-		// The provider id disambiguates otherwise identical rows and forms the get
-		// composite, so surface it beside id when the returned rows span more than one
-		// provider — decided from the rows, not the requested scope (R15).
+		// Provider column when returned rows span >1 provider — from rows, not scope.
 		if distinctProviders(res.Items) > 1 {
 			defaults = insertAfter(defaults, "id", "provider")
 		}
@@ -115,8 +105,6 @@ func (a *app) modelsList(cmd *cobra.Command, idx *agentdex.Index, agentID string
 	})
 }
 
-// distinctProviders counts the distinct provider ids present in the returned model
-// rows, driving the models table's provider column (R15).
 func distinctProviders(models []agentdex.Model) int {
 	seen := make(map[string]struct{}, len(models))
 	for _, m := range models {
@@ -150,10 +138,6 @@ func (a *app) newModelsGetCmd() *cobra.Command {
 	return cmd
 }
 
-// modelsGet fetches one model by its composite id through the library, which owns
-// the first-slash split and canonical-id lookup (R9). A malformed composite is a
-// usage fault carrying the models-list remedy; the two composite not-found messages
-// are complete as the library sets them and are emitted verbatim (R7).
 func (a *app) modelsGet(cmd *cobra.Command, idx *agentdex.Index, composite string, fields []string) error {
 	m, err := idx.Models.Get(cmd.Context(), composite)
 	if err != nil {
@@ -177,10 +161,8 @@ func (a *app) modelsGet(cmd *cobra.Command, idx *agentdex.Index, composite strin
 	})
 }
 
-// modelGetError appends the CLI's own remedy clause to a malformed-composite fault,
-// naming a subcommand only the CLI has (R7). It is separate from classification: the
-// exit code is taken from the original sentinel by codeFor before this wrapping, so
-// the added clause does not disturb the code (a plain errors.New would drop the wrap).
+// modelGetError appends a CLI-only remedy for a malformed composite. Exit code is
+// taken from the sentinel before wrapping so the clause does not disturb classification.
 func modelGetError(err error) error {
 	if errors.Is(err, agentdex.ErrMalformedModelID) {
 		return errors.New(err.Error() + "; run \"agentdex models list\" to see model ids")
@@ -188,10 +170,7 @@ func modelGetError(err error) error {
 	return err
 }
 
-// modelScopeError appends the CLI's own remedy clause to the model-scope faults the
-// library owns, naming a flag or subcommand only the CLI has (R7). The exit code is
-// taken from the underlying sentinel before this wrapping, so the added clause does
-// not disturb classification.
+// modelScopeError appends CLI-only remedy clauses for model-scope faults.
 func modelScopeError(err error) error {
 	switch {
 	case errors.Is(err, agentdex.ErrProvidersRequired):

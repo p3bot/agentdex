@@ -30,8 +30,7 @@ func TestExtractVersion(t *testing.T) {
 func TestCappedBufferStopsAtCap(t *testing.T) {
 	b := &cappedBuffer{cap: 8}
 
-	// A single oversized write keeps only the first cap bytes.
-	n, err := b.Write([]byte("abcdefghij")) // 10 bytes into an 8-byte cap
+	n, err := b.Write([]byte("abcdefghij"))
 	if err != nil || n != 10 {
 		t.Fatalf("Write = %d, %v, want 10, nil (full write always reported)", n, err)
 	}
@@ -39,8 +38,6 @@ func TestCappedBufferStopsAtCap(t *testing.T) {
 		t.Errorf("buffer = %q, want first 8 bytes", b.String())
 	}
 
-	// Further writes past the cap are discarded but still reported as written, so
-	// the producing process is never blocked or faulted.
 	n, err = b.Write([]byte("klmno"))
 	if err != nil || n != 5 {
 		t.Fatalf("Write = %d, %v, want 5, nil", n, err)

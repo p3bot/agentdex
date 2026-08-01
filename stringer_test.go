@@ -5,12 +5,8 @@ import (
 	"testing"
 )
 
-// TestStringers pins each enum's String output to its constant identifier and the
-// out-of-range fallback to the Stringer-style form, so a mistyped return in a
-// switch case — which go vet does not catch — fails here. That a case exists for
-// every constant is the exhaustive linter's job, enforced across every enum switch
-// by .golangci.yml; this test covers what the linter cannot see, namely a case
-// returning the wrong identifier.
+// Pins String() to each constant name and the out-of-range fallback. Exhaustive
+// cases are the linter's job; this catches a case that returns the wrong identifier.
 func TestStringers(t *testing.T) {
 	t.Run("Enrich", func(t *testing.T) {
 		assertNames(t, "Enrich", []string{
@@ -69,15 +65,7 @@ func TestStringers(t *testing.T) {
 	})
 }
 
-// assertNames checks that each constant from zero upward stringifies to the
-// identifier listed at its index, then that the first value past the list falls
-// through to the Stringer-style fallback.
-//
-// That fallback probe is also the completeness check. A constant added to the enum
-// stringifies to its own identifier rather than the fallback, so this fails until
-// the identifier is listed in names — and listing it is where a case returning the
-// wrong text is caught. The linter forces the case to exist; this forces its text
-// to be stated.
+// Fallback probe is also completeness: a new constant fails until listed in names.
 func assertNames(t *testing.T, typeName string, names []string, str func(int) string) {
 	t.Helper()
 	for value, want := range names {

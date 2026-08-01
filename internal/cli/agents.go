@@ -14,20 +14,15 @@ import (
 	"github.com/start-cli/agentdex/internal/tui"
 )
 
-// newAgentsCmd is the agents noun group: a browse verb (list) and an exact fetch
-// verb (get). The group itself is not runnable; a bare invocation is a usage fault.
 func (a *app) newAgentsCmd() *cobra.Command {
 	cmd := a.newNounCmd(
 		"agents", "agent", "AI coding agents in the catalog and their local detection",
 		a.newAgentsListCmd(),
 		a.newAgentsGetCmd(),
 	)
-	// --search-dir and --bin-path steer agent binary resolution, so they belong to
-	// the agents group rather than the root, where they would surface on the provider
-	// and model commands that resolve no binary.
+	// Binary-resolution flags belong here, not root: providers/models resolve no binary.
 	f := cmd.PersistentFlags()
-	// StringArray, not StringSlice: a directory path can legally contain a comma, so
-	// values are taken literally rather than csv-split, matching --bin-path.
+	// StringArray, not StringSlice: paths may contain commas and must not be csv-split.
 	f.StringArrayVar(&a.searchDirs, "search-dir", nil, "Extra binary search locations (repeatable)")
 	f.StringArrayVar(&a.binPaths, "bin-path", nil, "Override an agent's binary path as id=path (repeatable)")
 	return cmd
@@ -66,11 +61,8 @@ func (a *app) newAgentsListCmd() *cobra.Command {
 			if len(args) == 1 {
 				filter = args[0]
 			}
-			// The listing always requests EnrichFull: its JSON payload carries each
-			// agent's full model array while the text column renders that array's
-			// length, so a lower level would change the models key's shape (R15). The
-			// library owns detection, enrichment, the agnostic/home rules, boundary
-			// provider validation, degrade classification, and the by-id order (R8, R14).
+			// Always EnrichFull: JSON carries each agent's full model array; a lower level
+			// would change the models key shape.
 			res, err := idx.Agents.List(cmd.Context(), agentdex.AgentQuery{
 				Filter:    filter,
 				Installed: installed,
@@ -88,7 +80,7 @@ func (a *app) newAgentsListCmd() *cobra.Command {
 				ag := &res.Items[i]
 				r := agentRecord(ag)
 				if ag.Enrichment == agentdex.EnrichmentNotApplicable {
-					// Not applicable: JSON null / text "-", not the degrade [] / 0 shape.
+					// Not-applicable is JSON null / text "-", not the degrade [] / 0 shape.
 					withModelsNA(r)
 				} else {
 					withAgentModels(r, ag.Models)
@@ -100,16 +92,13 @@ func (a *app) newAgentsListCmd() *cobra.Command {
 				return a.usage(cmd, err)
 			}
 			if orderBy == "" {
-				// The default view groups detected agents ahead of the not-found tail;
-				// the stable sort keeps the id ordering within each group. An explicit
-				// --order-by is a pure field sort with no such grouping (R14).
+				// Default view groups found ahead of missing; stable sort keeps id order
+				// within each group. Explicit --order-by is a pure field sort.
 				sort.SliceStable(recs, func(i, j int) bool { return recordFound(recs[i]) && !recordFound(recs[j]) })
 			}
 
-			// Compose the table columns: --verbose widens them, then the sort column is
-			// pulled leftmost so the ordering is legible. This is a text-table affordance
-			// only; the JSON payload always carries the full record (driven by the user's
-			// --fields selection), so it is unaffected. An explicit --fields wins over both.
+			// Text-table only: --verbose widens columns and sort key moves leftmost.
+			// JSON always carries the full record; explicit --fields wins over both.
 			tableCols := fields
 			if len(tableCols) == 0 {
 				base := agentFieldSet.defaults
@@ -142,8 +131,6 @@ func (a *app) newAgentsListCmd() *cobra.Command {
 	return cmd
 }
 
-// recordFound reports whether an agent record's found field is set, for the default
-// list grouping that leads with detected agents.
 func recordFound(r *record) bool {
 	found, _ := r.value("found").(bool)
 	return found
@@ -172,11 +159,6 @@ func (a *app) newAgentsGetCmd() *cobra.Command {
 			}
 			id := args[0]
 
-			// Map the requested output to the lowest enrichment level that can fill it,
-			// so a field selection never pays for data it does not show (R15). The
-			// library owns the agnostic/home rules, coverage, not-installed status, and
-			// the warnings; the CLI only translates its own flags into a level and maps
-			// the returned facts to exit codes and remedies.
 			detail, err := idx.Agents.Get(cmd.Context(), id, agentdex.AgentGetQuery{
 				Providers: flattenProviders(providers),
 				Enrich:    agentGetLevel(models, fields),
@@ -186,10 +168,8 @@ func (a *app) newAgentsGetCmd() *cobra.Command {
 				return a.fail(cmd, codeFor(err), agentGetError(err, id), warnings...)
 			}
 
-			// An agnostic agent resolved without a provider set is not-applicable. An
-			// unfiltered detail is a browse: emit the guidance warning and exit 0. A
-			// --fields or --models selection that names one of the unfillable fields is
-			// an explicit request the CLI cannot honour, so it is the usage fault (R15).
+			// Agnostic without providers: soft-path browse at exit 0. Naming an
+			// unfillable field/flag is a usage fault instead.
 			if detail.Enrichment == agentdex.EnrichmentNotApplicable {
 				if namedProviderField(models, fields) {
 					uerr := fmt.Errorf("%w: %q is provider-agnostic; supply --provider with models.dev provider ids", agentdex.ErrProvidersRequired, id)
@@ -198,10 +178,7 @@ func (a *app) newAgentsGetCmd() *cobra.Command {
 				return a.reportSoftPathAgent(cmd, &detail.Agent, warnings)
 			}
 
-			// Coverage data faults report the agent and then exit 78: the caller maps the
-			// verdict to policy, the library never fails on it (R5, R15). The none-present
-			// message is rebuilt from the resolved provider set; the drift message is the
-			// models.dev decode failure carried in Coverage.Err.
+			// Coverage data faults: report the agent then exit 78; the library never fails on them.
 			switch detail.Coverage.Status {
 			case agentdex.CoverageNonePresent:
 				cerr := fmt.Errorf("catalog data error: no provider of %q is present in models.dev (providers: %s)", id, strings.Join(detail.ResolvedProviders, ", "))
@@ -210,9 +187,8 @@ func (a *app) newAgentsGetCmd() *cobra.Command {
 				return a.reportAgentError(cmd, &detail.Agent, fields, codeConfig, detail.Coverage.Err, warnings)
 			case agentdex.CoverageNotProbed, agentdex.CoverageAllPresent,
 				agentdex.CoverageSomePresent, agentdex.CoverageUnreachable:
-				// Not data faults: not-probed means the level reached no models.dev,
-				// some-absent rides on the coverage data, and an outage is a warning.
-				// A new fault verdict must be classified here rather than exiting 0.
+				// Not data faults: not-probed skipped models.dev, some-absent rides on
+				// coverage data, outage is a warning. New fault verdicts must land here.
 			}
 			return a.reportAgent(cmd, &detail.Agent, fields, warnings)
 		},
@@ -224,11 +200,7 @@ func (a *app) newAgentsGetCmd() *cobra.Command {
 	return cmd
 }
 
-// agentGetLevel maps the requested output to the lowest enrichment level that fills
-// it (R15): --models or a selected models field needs the full model list; an
-// unfiltered detail or a selected provider_env needs the count level (provider-env
-// and coverage); providers alone is offline catalog data; anything else is offline
-// facts only.
+// Lowest enrichment that fills the demand so field selection never pays for unused data.
 func agentGetLevel(models bool, fields []string) agentdex.Enrich {
 	switch {
 	case models || containsField(fields, "models"):
@@ -242,22 +214,19 @@ func agentGetLevel(models bool, fields []string) agentdex.Enrich {
 	}
 }
 
-// namedProviderField reports whether the requested output explicitly names a field
-// the not-applicable state leaves empty — providers, provider_env, or models, or the
-// --models flag. An unfiltered detail names none, so it is a browse (R15).
+// namedProviderField is true when output explicitly names a not-applicable empty
+// field (providers, provider_env, models, or --models). Unfiltered detail names none.
 func namedProviderField(models bool, fields []string) bool {
 	return models || containsField(fields, "providers") ||
 		containsField(fields, "provider_env") || containsField(fields, "models")
 }
 
-// containsField reports whether fields names key.
 func containsField(fields []string, key string) bool {
 	return slices.Contains(fields, key)
 }
 
-// agentGetError appends the CLI's own remedy clause to the get faults the library
-// owns, naming a subcommand or flag only the CLI has (R7). The exit code is taken
-// from the underlying sentinel before this wrapping.
+// agentGetError appends CLI-only remedy clauses (subcommand/flag names the library
+// does not own). Exit code is taken from the sentinel before wrapping.
 func agentGetError(err error, id string) error {
 	switch {
 	case errors.Is(err, agentdex.ErrAgentUnknown):
@@ -269,8 +238,6 @@ func agentGetError(err error, id string) error {
 	}
 }
 
-// reportAgent renders an agent at exit 0: the JSON record under --json, selected
-// fields for scripting under --fields, otherwise the full detail view.
 func (a *app) reportAgent(cmd *cobra.Command, agent *agentdex.Agent, fields, warnings []string) error {
 	r := agentReportRecord(agent)
 	fs, err := r.resolve(fields)
@@ -286,8 +253,7 @@ func (a *app) reportAgent(cmd *cobra.Command, agent *agentdex.Agent, fields, war
 	})
 }
 
-// reportAgentError reports the agent and then fails: the data-fault rows that
-// surface the agent and still exit non-zero.
+// Data-fault rows that surface the agent and still exit non-zero.
 func (a *app) reportAgentError(cmd *cobra.Command, agent *agentdex.Agent, fields []string, code int, cause error, warnings []string) error {
 	r := agentReportRecord(agent)
 	fs, ferr := r.resolve(fields)
@@ -303,8 +269,6 @@ func (a *app) reportAgentError(cmd *cobra.Command, agent *agentdex.Agent, fields
 	}, warnings)
 }
 
-// agentReportRecord builds the get record, including provider-env and the enriched
-// models list when they were populated.
 func agentReportRecord(agent *agentdex.Agent) *record {
 	r := agentRecord(agent)
 	withProviderEnv(r, agent.ProviderEnv)
@@ -314,9 +278,8 @@ func agentReportRecord(agent *agentdex.Agent) *record {
 	return r
 }
 
-// reportSoftPathAgent renders the not-applicable (agnostic, no provider set) payload
-// at exit 0: the without-providers record, so the three provider-related keys are
-// absent.
+// Not-applicable (agnostic, no provider) at exit 0: without-providers record so
+// the three provider-related keys are absent.
 func (a *app) reportSoftPathAgent(cmd *cobra.Command, agent *agentdex.Agent, warnings []string) error {
 	r := agentRecordWithoutProviders(agent)
 	fs, _ := r.resolve(nil)
@@ -326,26 +289,17 @@ func (a *app) reportSoftPathAgent(cmd *cobra.Command, agent *agentdex.Agent, war
 	})
 }
 
-// detailSections are the record fields rendered as their own labelled sections
-// below the inline scalar fields, rather than as inline detail lines. Every other
-// field flows into the inline detail straight from the record.
 var detailSections = map[string]bool{"skills": true, "provider_env": true, "models": true}
 
-// pathFields are the detail fields whose value is a filesystem path, styled with
-// tui.Path in the text view. Colour lives here, not in the record text, so table
-// cells and --fields output stay plain.
+// pathFields get tui.Path styling in the text detail only so table/--fields stay plain.
 var pathFields = map[string]bool{
 	"bin": true, "config_dir": true, "config_local_dir": true,
 	"skills_dir": true, "skills_local_dir": true,
 }
 
-// renderAgentDetailFields writes the Agent heading and the inline scalar fields
-// of the given agent record. Fields are driven from the record in its declared
-// order, so a field added or renamed on the record reaches this view without a
-// second list to maintain; section fields (detailSections) are skipped for their
-// own rendering by the caller. found is shown only under verbose (a plain get
-// detail renders only a found agent, so it is implied); under verbose the
-// resolved config and skills paths are annotated with on-disk existence.
+// renderAgentDetailFields writes the Agent heading and inline scalars from the
+// record in declared order. found is verbose-only (implied on a found agent);
+// under verbose, path fields gain on-disk existence notes.
 func renderAgentDetailFields(w io.Writer, r *record, agent *agentdex.Agent, verbose bool) {
 	fs, _ := r.resolve(nil)
 	detail := make([]field, 0, len(fs))
@@ -362,9 +316,7 @@ func renderAgentDetailFields(w io.Writer, r *record, agent *agentdex.Agent, verb
 		if f.key == "homepage" && f.text != "-" {
 			f.text = tui.URL.Sprint(f.text)
 		}
-		// The bin line always states presence, mirroring provider env's (set)/(unset):
-		// a found agent shows the path with "(found)", a not-installed one already
-		// reads "missing" from the record.
+		// Bin always states presence, mirroring provider env's (set)/(unset).
 		if f.key == "bin" {
 			if agent.Detection.Found {
 				f.text += " " + styledState("found", true)
@@ -379,15 +331,12 @@ func renderAgentDetailFields(w io.Writer, r *record, agent *agentdex.Agent, verb
 		}
 		detail = append(detail, f)
 	}
-	// A leading blank line sets the first heading off from the shell prompt,
-	// matching every heading-topped text surface.
+	// Leading blank line sets the first heading off from the shell prompt.
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, tui.Header.Sprint("Agent"))
 	renderDetail(w, detail)
 }
 
-// renderAgentDetail writes the full text detail view: the inline fields of the
-// report record, then the skills, provider_env, and models sections when populated.
 func renderAgentDetail(w io.Writer, agent *agentdex.Agent, verbose bool) {
 	renderAgentDetailFields(w, agentReportRecord(agent), agent, verbose)
 	renderSkillsSection(w, agent.Detection.Skills)
@@ -410,9 +359,8 @@ func renderAgentDetail(w io.Writer, agent *agentdex.Agent, verbose bool) {
 	}
 }
 
-// renderSkillsSection writes the Skills detail section: roles per scope with
-// existence markers. Primary is omitted here — it is already skills_dir /
-// skills_local_dir on the Agent block. No section when the agent has no skills.
+// renderSkillsSection lists roles per scope. Primary is omitted — it is already
+// skills_dir / skills_local_dir on the Agent block.
 func renderSkillsSection(w io.Writer, sp agentdex.SkillsPaths) {
 	payload, _ := skillsField(sp)
 	if payload == nil {
@@ -459,9 +407,7 @@ func renderSkillsScopeBlock(w io.Writer, scope string, s *skillsScopePayload) {
 	}
 }
 
-// existenceNote reports the on-disk existence of a resolved path field for the
-// verbose detail view, or "" for a field that names no directory or carries no
-// path (so an absent-concept "-" is not annotated as a missing directory).
+// "" when the field has no path so an absent-concept "-" is not marked missing.
 func existenceNote(key string, agent *agentdex.Agent) string {
 	d := agent.Detection
 	var path string

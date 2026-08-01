@@ -12,7 +12,6 @@ var FixtureBins = map[string]string{
 	"delta-agent": "agentdex-fixture-delta",
 }
 
-// FixtureBin returns the fixture binary name for agentID, or fails the test.
 func FixtureBin(t *testing.T, agentID string) string {
 	t.Helper()
 	name, ok := FixtureBins[agentID]

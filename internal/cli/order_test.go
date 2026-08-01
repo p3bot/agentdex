@@ -6,8 +6,6 @@ import (
 	"github.com/start-cli/agentdex/modelsdev"
 )
 
-// orderTestSet is a throwaway field set for exercising the ordering primitives
-// directly, independent of any command's real schema.
 var orderTestSet = newFieldSet(
 	[]string{"id", "name", "context", "price", "flag", "tags"},
 	nil,
@@ -139,8 +137,7 @@ func TestOrderRecords(t *testing.T) {
 }
 
 func TestApplyOrderDefaultAndReverse(t *testing.T) {
-	// The default key sorts by the field's natural direction; price is declared
-	// descending, so the default is most-expensive first and --reverse flips it.
+	// price is declared descending: default is most-expensive first; --reverse flips it.
 	build := func() []*record {
 		return []*record{
 			orderRec("a", map[string]any{"price": 1.0}),
@@ -171,7 +168,6 @@ func TestApplyOrderDefaultAndReverse(t *testing.T) {
 }
 
 func TestApplyOrderReverseFlipsAscending(t *testing.T) {
-	// id is naturally ascending; --reverse makes it descending.
 	recs := []*record{orderRec("a", nil), orderRec("b", nil), orderRec("c", nil)}
 	if _, err := applyOrder(recs, orderTestSet, "id", true); err != nil {
 		t.Fatalf("applyOrder: %v", err)

@@ -13,13 +13,9 @@ import (
 
 // TestProductionRegistryAgainstLocalOCI exercises the real modconfig-backed
 // Registry against an in-process OCI registry — the only coverage of the code
-// the stub replaces. The fixture catalog module is published to a local
-// registry selected via CUE_REGISTRY, and resolve, fetch, the on-disk sourceDir
-// contract, and a full loader.Load all run through the production implementation
-// with no public registry. It then closes the server to prove the offline
-// guarantees the cache design rests on: a within-TTL load is served entirely
-// from CUE's content cache with no network, while a first run with no resolved
-// version fails with ErrUnavailable.
+// the stub replaces. After warming caches it closes the server to prove offline
+// guarantees: within-TTL load from CUE content cache, first run fails with
+// ErrUnavailable.
 func TestProductionRegistryAgainstLocalOCI(t *testing.T) {
 	_, closeServer := catalogtest.StartRegistry(t)
 
@@ -48,7 +44,6 @@ func TestProductionRegistryAgainstLocalOCI(t *testing.T) {
 		}
 	}
 
-	// A first load warms both the resolution cache and CUE's content cache.
 	resCacheDir := t.TempDir()
 	loader := catalog.New(prod,
 		catalog.WithModulePath(mainPath),
@@ -63,7 +58,6 @@ func TestProductionRegistryAgainstLocalOCI(t *testing.T) {
 	}
 	assertFixtureAgents(t, res.Catalog)
 
-	// Take the registry offline. The within-TTL load below must not touch it.
 	closeServer()
 
 	offlineRes, err := loader.Load(ctx)
@@ -79,7 +73,6 @@ func TestProductionRegistryAgainstLocalOCI(t *testing.T) {
 		t.Error("ResolveLatestVersion succeeded with the registry offline; it requires the network")
 	}
 
-	// A first run with no resolved version and no network fails clearly.
 	fresh := catalog.New(prod,
 		catalog.WithModulePath(mainPath),
 		catalog.WithCacheDir(t.TempDir()),

@@ -6,19 +6,15 @@ import (
 	"github.com/start-cli/agentdex/modelsdev"
 )
 
-// Result is the symmetric return of every List operation: the ordered items and
-// any warnings the operation raised. Warnings are valid on the error return too,
-// so a caller reads Warnings unconditionally and Items only when the error is nil.
+// Result is the symmetric return of every List: ordered items and warnings.
+// Warnings are valid on the error return; read Items only when err is nil.
 type Result[T any] struct {
 	Items    []T
 	Warnings []Warning
 }
 
-// AgentQuery narrows and enriches an Agents.List. Filter is a case-insensitive
-// substring over id and name; "" matches all. Installed narrows to agents whose
-// binary is detected on this machine. Providers is the listing-wide enrichment
-// set applied to provider-agnostic rows and validated at the boundary (R8). Enrich
-// selects how much provider and models.dev data to attach (R4).
+// AgentQuery narrows and enriches an Agents.List. Providers is the listing-wide
+// set for agnostic rows, validated at the boundary.
 type AgentQuery struct {
 	Filter    string
 	Installed bool
@@ -26,38 +22,32 @@ type AgentQuery struct {
 	Enrich    Enrich
 }
 
-// AgentGetQuery selects the enrichment level and the agnostic provider set for an
-// Agents.Get.
+// AgentGetQuery selects enrichment level and the agnostic provider set for Agents.Get.
 type AgentGetQuery struct {
 	Providers []string
 	Enrich    Enrich
 }
 
-// ProviderQuery narrows a Providers.List by a case-insensitive substring over id
-// and name.
+// ProviderQuery narrows a Providers.List by case-insensitive id/name substring.
 type ProviderQuery struct {
 	Filter string
 }
 
-// ModelQuery scopes and narrows a Models.List. Filter is a case-insensitive
-// substring over model id and name.
+// ModelQuery scopes and narrows a Models.List.
 type ModelQuery struct {
 	Scope  ModelScope
 	Filter string
 }
 
-// ModelScope selects the provider set a model listing spans. Agent scopes to a
-// catalogued agent's providers ("" means not scoped by agent); Providers names
-// explicit provider ids, and is also the enrichment set for an agnostic Agent.
+// ModelScope selects the provider set a model listing spans. Providers is also
+// the enrichment set for an agnostic Agent.
 type ModelScope struct {
 	Agent     string
 	Providers []string
 }
 
-// KnownAgent is one catalog entry slimmed to identity and capability: the static
-// facts an agent is known by, with no resolved path or version. ID is the catalog
-// map key, the single source of identity. CatalogProviders is the models.dev
-// provider ids the catalog pins to this agent; empty when Agnostic is true.
+// KnownAgent is one catalog entry as identity and capability (no resolved paths).
+// ID is the catalog map key. CatalogProviders is empty when Agnostic is true.
 type KnownAgent struct {
 	ID               string
 	Name             string
@@ -68,9 +58,8 @@ type KnownAgent struct {
 	Agnostic         bool
 }
 
-// ResolvedPaths is a catalog directory pair after tilde, environment, and
-// working-directory expansion, with existence recorded per scope. Local is "" when
-// the catalog defines no local scope. Used for config, which is a single pair.
+// ResolvedPaths is a catalog directory pair after expansion, with existence per scope.
+// Local is "" when the catalog defines no local scope.
 type ResolvedPaths struct {
 	Global       string
 	GlobalExists bool
@@ -78,16 +67,15 @@ type ResolvedPaths struct {
 	LocalExists  bool
 }
 
-// PathEntry is one expanded catalog path with on-disk existence recorded.
+// PathEntry is one expanded catalog path with on-disk existence.
 // Path is "" when that role is unsupported for the agent/scope.
 type PathEntry struct {
 	Path   string
 	Exists bool
 }
 
-// SkillsScope is one scope's (global or local) classified skill roots after
-// expansion. Primary is derived: agents if set, else native if set, else
-// Alternatives[0] if any, else empty. Alternatives is priority order.
+// SkillsScope is one scope's classified skill roots after expansion.
+// Primary: agents else native else Alternatives[0]. Alternatives is priority order.
 type SkillsScope struct {
 	Agents       PathEntry
 	Native       PathEntry
@@ -95,17 +83,14 @@ type SkillsScope struct {
 	Primary      PathEntry
 }
 
-// SkillsPaths is the resolved skills layout by scope. The zero value means the
-// agent has no skills concept (catalog omits skills).
+// SkillsPaths is resolved skills by scope. Zero means the agent has no skills concept.
 type SkillsPaths struct {
 	Global SkillsScope
 	Local  SkillsScope
 }
 
-// Detection is what locating an agent found on this machine: its binary, version,
-// and the resolved config and skills paths. Found gates only BinaryPath and
-// Version; paths and providers resolve identically whether or not the binary is
-// installed (R4).
+// Detection is what locating an agent found on this machine. Found gates only
+// BinaryPath and Version; paths resolve the same whether or not the binary is installed.
 type Detection struct {
 	Found      bool
 	BinaryPath string
@@ -114,41 +99,34 @@ type Detection struct {
 	Skills     SkillsPaths
 }
 
-// Agent is the catalog's static facts joined with what detection found and, from
-// EnrichProviders upward, the resolved provider set and models.dev data.
-// ResolvedProviders is the provider id set this operation used for enrichment
-// (catalog list for a non-agnostic agent, or the caller's set for an agnostic
-// one). It is empty below EnrichProviders and when an agnostic agent has no set.
+// Agent is catalog facts joined with detection and, from EnrichProviders upward,
+// the resolved provider set and models.dev data. ResolvedProviders is empty below
+// EnrichProviders and when an agnostic agent has no set.
 type Agent struct {
 	KnownAgent
 	Detection         Detection
 	ResolvedProviders []string
-	ProviderEnv       map[string]bool // API-key env var -> present; nil when models.dev was not consulted
+	ProviderEnv       map[string]bool // API-key env -> present; nil when models.dev not consulted
 	Enrichment        EnrichmentState
 	ModelCount        int     // meaningful when Enrichment == EnrichmentApplied
-	Models            []Model // populated when Enrich == EnrichFull; newest release first
+	Models            []Model // EnrichFull only; newest release first
 }
 
-// AgentDetail is the exact-fetch result: an Agent with the per-provider coverage
-// verdict and the warnings this fetch raised (stale catalog, models.dev stale
-// when enrichment consulted models.dev, not-installed, coverage degrade,
-// agnostic guidance).
+// AgentDetail is Agents.Get: Agent plus coverage verdict and this fetch's warnings.
 type AgentDetail struct {
 	Agent
 	Coverage ProviderCoverage
 	Warnings []Warning
 }
 
-// Provider is a models.dev provider with the presence of each of its API-key
-// environment variables.
+// Provider is a models.dev provider with API-key env presence.
 type Provider struct {
 	modelsdev.Provider
 	EnvPresent map[string]bool
 }
 
-// Model is a models.dev model with the provider it was resolved within and its
-// agnostic-catalog key when it has one, else "". Every library surface that
-// returns models uses this type so a short id is never detached from its provider.
+// Model is a models.dev model with its provider and optional agnostic-catalog key.
+// Every surface returns this type so a short id is never detached from its provider.
 type Model struct {
 	modelsdev.Model
 	Provider    string `json:"provider"`
@@ -206,13 +184,12 @@ func (s CatalogSource) String() string {
 	}
 }
 
-// CatalogInfo is the identity of the loaded agent catalog: where it came from,
-// which module and version when registry-backed, and whether the resolution is a
-// stale fallback. A directory source has no version and is never stale.
+// CatalogInfo is the identity of the loaded agent catalog. A directory source
+// has no version and is never stale.
 type CatalogInfo struct {
 	Source  CatalogSource
-	Dir     string // absolute or as configured; set when Source is CatalogSourceDir
-	Module  string // major-line module path when Source is CatalogSourceRegistry
-	Version string // resolved module version when Source is CatalogSourceRegistry
+	Dir     string // set when Source is CatalogSourceDir
+	Module  string // major-line path when Source is CatalogSourceRegistry
+	Version string // resolved version when Source is CatalogSourceRegistry
 	Stale   bool
 }

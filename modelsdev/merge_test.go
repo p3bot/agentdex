@@ -14,8 +14,8 @@ func TestMergeAttachesAgnosticDataOnRealKeys(t *testing.T) {
 		Providers: map[string]Provider{
 			"anthropic": {ID: "anthropic", Models: map[string]Model{"claude-x": {ID: "claude-x", Limit: Limit{Context: 1}}}},
 			"xai":       {ID: "xai", Models: map[string]Model{"grok-4": {ID: "grok-4", Limit: Limit{Context: 1}}}},
-			// An aggregator re-exposes xai's model under a path-bearing key. No
-			// agnostic id decomposes to (requesty, "xai/grok-4"), so it gets nothing.
+			// Aggregator re-exposes xai's model under a path-bearing key; no agnostic
+			// id decomposes to (requesty, "xai/grok-4"), so it gets nothing.
 			"requesty": {ID: "requesty", Models: map[string]Model{"xai/grok-4": {ID: "xai/grok-4", Limit: Limit{Context: 1}}}},
 		},
 	}
@@ -42,15 +42,13 @@ func TestMergeAttachesAgnosticDataOnRealKeys(t *testing.T) {
 		t.Errorf("aggregator Model.ID changed: got %q", aggregator.ID)
 	}
 
-	// The agnostic map keeps its own source ids untouched.
 	if cat.Models["anthropic/claude-x"].ID != "anthropic/claude-x" {
 		t.Errorf("agnostic Model.ID changed: got %q", cat.Models["anthropic/claude-x"].ID)
 	}
 }
 
 func TestMergeIgnoresNonDecomposableIDs(t *testing.T) {
-	// A bare id with no slash and a provider with no matching model must not panic
-	// or mint anything.
+	// Bare id with no slash and a provider with no matching model must not panic.
 	cat := &Catalog{
 		Models: map[string]Model{
 			"noslash":          {ID: "noslash", Benchmarks: []Benchmark{{Name: "X"}}},
@@ -103,8 +101,7 @@ func TestValidateProvider(t *testing.T) {
 		{"well formed", Model{ID: "m", Limit: good}, false},
 		{"empty id", Model{ID: "", Limit: good}, true},
 		// Media-generation models legitimately carry a zero limit; upstream serves
-		// limit {context:0, output:0} for them. gpt-image-1.5 keeps cost data,
-		// openai-gpt-image-2 has none — neither is malformed.
+		// limit {context:0, output:0}. Neither with nor without cost is malformed.
 		{"limitless image model with cost", Model{ID: "gpt-image-1.5", Limit: Limit{}, Cost: &Cost{Input: 5, Output: 32}}, false},
 		{"limitless image model no cost", Model{ID: "openai-gpt-image-2", Limit: Limit{}}, false},
 	}

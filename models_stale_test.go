@@ -13,8 +13,7 @@ import (
 	"github.com/start-cli/agentdex/modelsdev"
 )
 
-// seedModelsCache populates the models.dev on-disk cache under dir from a live
-// catalog so a later client with TTL zero can fall back when its fetch fails.
+// Warm on-disk models.dev cache so TTL-zero + failed fetch can fall back.
 func seedModelsCache(t *testing.T, dir string, present ...string) {
 	t.Helper()
 	if len(present) == 0 {
@@ -27,7 +26,6 @@ func seedModelsCache(t *testing.T, dir string, present ...string) {
 	}
 }
 
-// failingModelsURL returns a models.dev URL that always responds 500.
 func failingModelsURL(t *testing.T) string {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -37,8 +35,7 @@ func failingModelsURL(t *testing.T) string {
 	return srv.URL
 }
 
-// openStaleModels opens an Index whose models.dev client will serve the seeded
-// cache as a stale fallback (TTL zero + failing URL over a warm cache dir).
+// TTL zero + failing URL over a warm cache: stale models.dev fallback.
 func openStaleModels(t *testing.T, body string, opts ...Option) *Index {
 	t.Helper()
 	cache := t.TempDir()
@@ -71,7 +68,6 @@ func TestModelsStaleFreshThenStaleWithWarningInjection(t *testing.T) {
 	cache := t.TempDir()
 	good := modelsdevtest.Server(t, []string{"anthropic", "google", "openai"})
 
-	// Warm path: a live models.dev is not stale and raises no models-stale warning.
 	warm := openAgents(t, testCatalog,
 		WithCacheDir(cache),
 		WithModelsURL(good.URL),
@@ -91,7 +87,6 @@ func TestModelsStaleFreshThenStaleWithWarningInjection(t *testing.T) {
 		t.Errorf("fresh providers listing carried WarnModelsStale: %v", pres.Warnings)
 	}
 
-	// Stale path: same cache, TTL zero, failing endpoint — serve falls back.
 	idx := openAgents(t, testCatalog,
 		WithCacheDir(cache),
 		WithModelsURL(failingModelsURL(t)),
@@ -103,7 +98,6 @@ func TestModelsStaleFreshThenStaleWithWarningInjection(t *testing.T) {
 
 	const wantMsg = "models.dev catalog is stale: refetch failed, using the cached copy"
 
-	// Providers.List always consults models.dev.
 	staleProviders, err := idx.Providers.List(ctx, ProviderQuery{})
 	if err != nil {
 		t.Fatalf("stale Providers.List: %v", err)
@@ -117,7 +111,6 @@ func TestModelsStaleFreshThenStaleWithWarningInjection(t *testing.T) {
 		t.Error("stale Providers.List returned no items; fallback data must still serve")
 	}
 
-	// Models.List always consults models.dev on a successful empty-scope listing.
 	staleModels, err := idx.Models.List(ctx, ModelQuery{})
 	if err != nil {
 		t.Fatalf("stale Models.List: %v", err)
@@ -126,7 +119,6 @@ func TestModelsStaleFreshThenStaleWithWarningInjection(t *testing.T) {
 		t.Errorf("stale Models.List missing WarnModelsStale, got %v", staleModels.Warnings)
 	}
 
-	// Agents.List at EnrichCount consults models.dev for the listing-wide probe.
 	staleAgents, err := idx.Agents.List(ctx, AgentQuery{Enrich: EnrichCount})
 	if err != nil {
 		t.Fatalf("stale Agents.List: %v", err)
@@ -134,7 +126,7 @@ func TestModelsStaleFreshThenStaleWithWarningInjection(t *testing.T) {
 	if !hasWarning(staleAgents.Warnings, WarnModelsStale) {
 		t.Errorf("stale Agents.List missing WarnModelsStale, got %v", staleAgents.Warnings)
 	}
-	// Exactly one models-stale warning at the operation level, not per agent.
+	// Operation-level warning once, not per agent.
 	n := 0
 	for _, w := range staleAgents.Warnings {
 		if w.Kind == WarnModelsStale {
@@ -145,7 +137,6 @@ func TestModelsStaleFreshThenStaleWithWarningInjection(t *testing.T) {
 		t.Errorf("Agents.List WarnModelsStale count = %d, want 1", n)
 	}
 
-	// Agents.Get at EnrichFull for a home-provider agent consults models.dev.
 	d, err := idx.Agents.Get(ctx, "alpha-cli", AgentGetQuery{Enrich: EnrichFull})
 	if err != nil {
 		t.Fatalf("stale Agents.Get: %v", err)
@@ -154,7 +145,6 @@ func TestModelsStaleFreshThenStaleWithWarningInjection(t *testing.T) {
 		t.Errorf("stale Agents.Get missing WarnModelsStale, got %v", d.Warnings)
 	}
 
-	// Agnostic Get at EnrichProviders with a provider set validates against models.dev.
 	dAgn, err := idx.Agents.Get(ctx, "delta-agent", AgentGetQuery{
 		Enrich:    EnrichProviders,
 		Providers: []string{"anthropic"},
@@ -169,14 +159,12 @@ func TestModelsStaleFreshThenStaleWithWarningInjection(t *testing.T) {
 
 func TestModelsStaleWarningOmittedWhenNotConsulted(t *testing.T) {
 	ctx := context.Background()
-	// Pre-load models.dev as stale on the shared client, then exercise paths that
-	// must not emit WarnModelsStale even though the client bit is true.
+	// Stale client bit set; paths below must not emit WarnModelsStale.
 	idx := openStaleModels(t, testCatalog)
 	if s, err := idx.ModelsStale(ctx); err != nil || !s {
 		t.Fatalf("precondition ModelsStale = (%v, %v), want (true, nil)", s, err)
 	}
 
-	// EnrichNone with no provider filter never reaches models.dev.
 	res, err := idx.Agents.List(ctx, AgentQuery{Enrich: EnrichNone})
 	if err != nil {
 		t.Fatalf("EnrichNone List: %v", err)
@@ -185,7 +173,6 @@ func TestModelsStaleWarningOmittedWhenNotConsulted(t *testing.T) {
 		t.Errorf("EnrichNone List must not warn about models.dev staleness: %v", res.Warnings)
 	}
 
-	// Home-provider agent at EnrichProviders is offline catalog data only.
 	d, err := idx.Agents.Get(ctx, "alpha-cli", AgentGetQuery{Enrich: EnrichProviders})
 	if err != nil {
 		t.Fatalf("home EnrichProviders Get: %v", err)
@@ -194,7 +181,6 @@ func TestModelsStaleWarningOmittedWhenNotConsulted(t *testing.T) {
 		t.Errorf("home EnrichProviders Get must not warn about models.dev staleness: %v", d.Warnings)
 	}
 
-	// Agnostic with no provider set is not-applicable and never touches models.dev.
 	dAgn, err := idx.Agents.Get(ctx, "delta-agent", AgentGetQuery{Enrich: EnrichFull})
 	if err != nil {
 		t.Fatalf("agnostic no-providers Get: %v", err)
@@ -208,7 +194,6 @@ func TestModelsStaleWarningOmittedWhenNotConsulted(t *testing.T) {
 }
 
 func TestModelsStaleWarningOnProviderFilterAtAnyEnrich(t *testing.T) {
-	// A non-empty provider filter validates against models.dev even at EnrichNone.
 	ctx := context.Background()
 	idx := openStaleModels(t, testCatalog)
 
@@ -225,8 +210,7 @@ func TestModelsStaleWarningOnProviderFilterAtAnyEnrich(t *testing.T) {
 }
 
 func TestModelsStaleWarningOnErrorPathAfterConsultation(t *testing.T) {
-	// An unknown provider id is rejected only after models.dev was consulted, so
-	// the stale warning rides the error return (R6).
+	// Unknown id is rejected after consultation; stale warning rides the error.
 	ctx := context.Background()
 	idx := openStaleModels(t, testCatalog)
 
@@ -243,9 +227,7 @@ func TestModelsStaleWarningOnErrorPathAfterConsultation(t *testing.T) {
 }
 
 func TestModelsListOmitsModelsStaleWhenScopeNeverConsults(t *testing.T) {
-	// Pre-load a stale models.dev serve, then fail Models.List in resolveModelScope
-	// before any models.dev call: the shared client's bit must not leak onto a path
-	// that never consulted it.
+	// Fail in resolveModelScope before models.dev; client stale bit must not leak.
 	ctx := context.Background()
 	idx := openStaleModels(t, testCatalog)
 	if s, err := idx.ModelsStale(ctx); err != nil || !s {
@@ -270,8 +252,6 @@ func TestModelsListOmitsModelsStaleWhenScopeNeverConsults(t *testing.T) {
 }
 
 func TestRefreshModelsClearsModelsStale(t *testing.T) {
-	// A successful models refresh installs a force-fetched client, so ModelsStale
-	// and WarnModelsStale must clear the way CatalogStale does after a catalog refresh.
 	ctx := context.Background()
 	cache := t.TempDir()
 	seedModelsCache(t, cache)

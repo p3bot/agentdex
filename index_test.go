@@ -14,10 +14,8 @@ import (
 	"github.com/start-cli/agentdex/modelsdev"
 )
 
-// openRegistry opens an Index backed by the in-process OCI registry, sharing one
-// resolution-cache directory so a second Index can reuse a prior resolution. It
-// returns the Index, the resolution-cache dir, and the registry closer so a test
-// can take the registry offline mid-run to reach the stale and cold-offline paths.
+// In-process OCI registry; resCache is shared so a second Index can reuse a resolution.
+// Closer takes the registry offline for stale/cold-offline paths.
 func openRegistry(t *testing.T, resCache string, opts ...Option) (*Index, func()) {
 	t.Helper()
 	_, closeReg := catalogtest.StartRegistry(t)
@@ -29,8 +27,7 @@ func openRegistry(t *testing.T, resCache string, opts ...Option) (*Index, func()
 	return idx, closeReg
 }
 
-// modelsCatalogJSON marshals a models.dev catalog.json exposing the named providers,
-// with one canonical id so the top-level shape validates.
+// One canonical id so the top-level models.dev shape validates.
 func modelsCatalogJSON(t *testing.T, present ...string) []byte {
 	t.Helper()
 	cat := modelsdev.Catalog{
@@ -49,9 +46,7 @@ func modelsCatalogJSON(t *testing.T, present ...string) []byte {
 	return data
 }
 
-// mutableModelsServer serves a models.dev catalog.json whose provider set the test
-// can swap at runtime, so a refresh can be proved to serve fresh data through the
-// same Index. set must be called before the first fetch.
+// Provider set swappable at runtime; set before the first fetch.
 func mutableModelsServer(t *testing.T) (url string, set func(present ...string)) {
 	t.Helper()
 	var mu sync.Mutex
@@ -89,8 +84,7 @@ func TestOpenRejectsDirAndModuleTogether(t *testing.T) {
 }
 
 func TestCatalogStaleColdOfflineIsErrCatalogUnavailable(t *testing.T) {
-	// Registry up only long enough to point CUE at it, then offline with no prior
-	// resolution: the first catalog-touching call must fail clearly (R2, R12).
+	// Registry offline with no prior resolution: first catalog touch must fail.
 	idx, closeReg := openRegistry(t, t.TempDir())
 	closeReg()
 
@@ -180,8 +174,6 @@ func TestCatalogInfoHonoursModuleOverride(t *testing.T) {
 	ctx := context.Background()
 	const module = "github.com/start-cli/agentdex/catalog@v1"
 
-	// Explicit override of the published path: identity must report that path, not
-	// an empty module, proving WithCatalogModule feeds CatalogInfo.Module.
 	idx, closeReg := openRegistry(t, t.TempDir(), WithCatalogModule(module))
 	t.Cleanup(closeReg)
 	info, err := idx.CatalogInfo(ctx)
@@ -195,8 +187,7 @@ func TestCatalogInfoHonoursModuleOverride(t *testing.T) {
 		t.Errorf("override load incomplete: %+v", info)
 	}
 
-	// A module the registry does not publish fails the load; the override is what
-	// was contacted (default path would succeed against the same registry).
+	// Unpublished override fails; default path would succeed on the same registry.
 	bad, closeBad := openRegistry(t, t.TempDir(), WithCatalogModule("example.com/not/a/catalog@v1"))
 	t.Cleanup(closeBad)
 	info, err = bad.CatalogInfo(ctx)
@@ -217,8 +208,7 @@ func TestCatalogInfoMemoisedAfterLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first CatalogInfo: %v", err)
 	}
-	// A second call must return the same published identity without re-resolving
-	// (and without requiring the network after the first success).
+	// Memoised: same identity without re-resolving after the registry is closed.
 	closeReg()
 	second, err := idx.CatalogInfo(ctx)
 	if err != nil {
@@ -233,8 +223,6 @@ func TestCatalogStaleFreshThenStaleWithWarningInjection(t *testing.T) {
 	ctx := context.Background()
 	resCache := t.TempDir()
 
-	// Warm the resolution and content caches through one Index while the registry
-	// is reachable; the resolution is fresh, so no stale warning.
 	warm, closeReg := openRegistry(t, resCache)
 	stale, err := warm.CatalogStale(ctx)
 	if err != nil {
@@ -251,9 +239,7 @@ func TestCatalogStaleFreshThenStaleWithWarningInjection(t *testing.T) {
 		t.Error("fresh catalog listing carried a stale warning")
 	}
 
-	// Take the registry offline, then force re-resolution through a second Index over
-	// the same resolution cache: re-resolution fails, the last resolved version is
-	// reused, and the catalog is stale.
+	// Offline + TTL 0: re-resolution fails, last version reused as stale.
 	closeReg()
 	idx, err := Open(WithCacheDir(resCache),
 		WithCatalogTTL(0),
@@ -286,8 +272,7 @@ func TestCatalogStaleFreshThenStaleWithWarningInjection(t *testing.T) {
 		t.Errorf("stale CatalogInfo = %+v, want Stale registry with a version", info)
 	}
 
-	// The warning rides the error return too: an unknown agent id under a stale
-	// catalog still carries it (R6).
+	// Stale warning rides the error return.
 	d, err := idx.Agents.Get(ctx, "no-such-agent", AgentGetQuery{Enrich: EnrichNone})
 	if !errors.Is(err, ErrAgentUnknown) {
 		t.Fatalf("Get unknown error = %v, want ErrAgentUnknown", err)
@@ -296,7 +281,6 @@ func TestCatalogStaleFreshThenStaleWithWarningInjection(t *testing.T) {
 		t.Errorf("error return dropped the stale warning, got %v", d.Warnings)
 	}
 
-	// And on Models.List scoped to an agnostic agent with no providers (R6).
 	mres, err := idx.Models.List(ctx, ModelQuery{Scope: ModelScope{Agent: "delta-agent"}})
 	if !errors.Is(err, ErrProvidersRequired) {
 		t.Fatalf("Models.List agnostic error = %v, want ErrProvidersRequired", err)
@@ -340,7 +324,6 @@ func TestRefreshCatalogSuccess(t *testing.T) {
 	if after.Version == "" || after.Stale || after.Dir != "" {
 		t.Errorf("post-refresh CatalogInfo = %+v, want non-stale registry version", after)
 	}
-	// Same registry content: version should still be the resolved coordinate.
 	if after.Version != before.Version {
 		t.Errorf("Version after refresh = %q, want %q", after.Version, before.Version)
 	}
@@ -351,7 +334,6 @@ func TestRefreshCatalogStaleFallbackIsErrorAndKeepsState(t *testing.T) {
 	resCache := t.TempDir()
 	idx, closeReg := openRegistry(t, resCache)
 
-	// Warm so a prior resolution exists to fall back on.
 	before, err := idx.Agents.List(ctx, AgentQuery{Enrich: EnrichNone})
 	if err != nil {
 		t.Fatalf("warm List: %v", err)
@@ -373,8 +355,7 @@ func TestRefreshCatalogStaleFallbackIsErrorAndKeepsState(t *testing.T) {
 		t.Error("Refreshed.Catalog = true on a stale-fallback refresh")
 	}
 
-	// A failed refresh leaves the index serving what it served before, without a
-	// stale warning, because the prior state was untouched (R13).
+	// Failed refresh leaves prior state untouched (no stale warning).
 	after, err := idx.Agents.List(ctx, AgentQuery{Enrich: EnrichNone})
 	if err != nil {
 		t.Fatalf("post-failure List: %v", err)
@@ -414,8 +395,7 @@ func TestRefreshModelsServesFreshDataThroughSameIndex(t *testing.T) {
 		t.Fatalf("first listing = %v, want [anthropic]", providerIDs(first.Items))
 	}
 
-	// Swap the source. The memoised client must keep serving the old set until a
-	// refresh installs a fresh client — this is the trap R13 exists to close.
+	// Memoised client keeps the old set until Refresh installs a fresh client.
 	set("anthropic", "openai")
 	stillOld, err := idx.Providers.List(ctx, ProviderQuery{})
 	if err != nil {
@@ -456,8 +436,7 @@ func TestRefreshModelsUnreachableIsError(t *testing.T) {
 
 func TestRefreshModelsSchemaDriftIsError(t *testing.T) {
 	ctx := context.Background()
-	// A reachable models.dev serving gross drift (empty top-level maps): a data
-	// fault, not an outage (R13).
+	// Gross drift (empty maps): data fault, not an outage.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"models":{},"providers":{}}`))
 	}))
@@ -492,7 +471,6 @@ func TestRefreshDirectoryCatalogNotRefreshed(t *testing.T) {
 		t.Error("a directory catalog reported as refreshed; it has no version to re-resolve")
 	}
 
-	// TargetAll over a directory catalog still refreshes models.dev.
 	all, err := idx.Refresh(ctx, TargetAll)
 	if err != nil {
 		t.Fatalf("Refresh all over directory catalog: %v", err)
@@ -508,8 +486,7 @@ func TestRefreshDirectoryCatalogNotRefreshed(t *testing.T) {
 func TestRefreshAllStopsAtFirstCatalogFailure(t *testing.T) {
 	ctx := context.Background()
 	resCache := t.TempDir()
-	// MustNotFetch models.dev proves models is never attempted once the catalog
-	// target fails (R13).
+	// openRegistry uses MustNotFetch; models must not be attempted after catalog fails.
 	idx, closeReg := openRegistry(t, resCache)
 	if _, err := idx.CatalogStale(ctx); err != nil {
 		t.Fatalf("warm CatalogStale: %v", err)
@@ -553,7 +530,6 @@ func TestIndexConcurrentUseUnderRace(t *testing.T) {
 			return err
 		})
 	}
-	// Refreshes land mid-flight, replacing the state other goroutines read.
 	work(func() error {
 		_, err := idx.Refresh(ctx, TargetModels)
 		return err

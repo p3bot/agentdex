@@ -12,31 +12,21 @@ import (
 	"github.com/start-cli/agentdex/modelsdev"
 )
 
-// agentFieldSet is the declared field authority for a detected agent: every valid
-// --fields key in canonical order, and the subset shown as default list columns.
-// It governs --fields validation and the get text-detail ordering, so both
-// surfaces stay in step when a field is added or renamed.
 var agentFieldSet = newFieldSet(
 	[]string{"id", "name", "version", "bin", "found", "config_dir", "config_local_dir", "skills_dir", "skills_local_dir", "skills", "providers", "homepage", "provider_env", "models"},
 	[]string{"id", "name", "version", "providers", "models", "bin"},
 ).ordered("id")
 
-// agentVerboseFields are the list table columns under --verbose: the default
-// columns widened with the global config dir. models sits between providers and
-// bin in both sets; bin stays last, the widest, most variable column, whose
-// "missing" cell is the list detection signal.
+// agentVerboseFields widens the default list columns with config_dir. bin stays last
+// as the widest column whose "missing" cell is the detection signal.
 var agentVerboseFields = []string{"id", "name", "version", "config_dir", "providers", "models", "bin"}
 
-// skillsPathPayload is one expanded skill root in the structured skills field:
-// path plus on-disk existence, matching library PathEntry.
 type skillsPathPayload struct {
 	Path   string `json:"path"`
 	Exists bool   `json:"exists"`
 }
 
-// skillsScopePayload is one scope in the structured skills field (JSON).
-// Role entries carry path and exists; primary stays a bare path string (the
-// fast product answer — same value as skills_dir / skills_local_dir).
+// primary is a bare path (same value as skills_dir / skills_local_dir); roles carry path+exists.
 type skillsScopePayload struct {
 	Agents       *skillsPathPayload  `json:"agents,omitempty"`
 	Native       *skillsPathPayload  `json:"native,omitempty"`
@@ -44,21 +34,17 @@ type skillsScopePayload struct {
 	Primary      string              `json:"primary,omitempty"`
 }
 
-// skillsPayload is the full skills matrix for CLI JSON: roles plus derived primary.
 type skillsPayload struct {
 	Global *skillsScopePayload `json:"global,omitempty"`
 	Local  *skillsScopePayload `json:"local,omitempty"`
 }
 
-// agentRecord builds the field values for one detected agent. Optional fields that
-// are absent (no local config, no skills concept, no enrichment) are simply not
-// added; they remain valid to select per agentFieldSet and resolve to a blank.
+// Optional absent fields are not added; they remain valid to select and resolve blank.
 func agentRecord(a *agentdex.Agent) *record {
 	return buildAgentRecord(a, true)
 }
 
-// agentRecordWithoutProviders is the agnostic soft-path record: outside facts
-// only, omitting the providers field (and never adding provider_env / models).
+// Agnostic soft-path: outside facts only (no provider-related keys).
 func agentRecordWithoutProviders(a *agentdex.Agent) *record {
 	return buildAgentRecord(a, false)
 }
@@ -69,8 +55,7 @@ func buildAgentRecord(a *agentdex.Agent, includeProviders bool) *record {
 	r.add("id", a.ID, a.ID)
 	r.add("name", a.Name, a.Name)
 	r.add("version", d.Version, orDash(d.Version))
-	// A not-found agent renders "missing" in the bin cell (the list detection
-	// signal); the JSON value stays blank with found carrying the fact.
+	// Not-found bin cell is "missing"; JSON value stays blank with found carrying the fact.
 	binText := orDash(d.BinaryPath)
 	if !d.Found {
 		binText = "missing"
@@ -78,13 +63,11 @@ func buildAgentRecord(a *agentdex.Agent, includeProviders bool) *record {
 	r.add("bin", d.BinaryPath, binText)
 	r.add("found", d.Found, fmt.Sprintf("%t", d.Found))
 	r.add("config_dir", d.Config.Global, orDash(d.Config.Global))
-	// config_local_dir and skills paths are added here, in their declared position,
-	// so the add order matches agentFieldSet.all and the text detail view order.
+	// Add order matches agentFieldSet.all so text detail order stays aligned.
 	if d.Config.Local != "" {
 		r.add("config_local_dir", d.Config.Local, d.Config.Local)
 	}
-	// skills_dir / skills_local_dir are the derived primary for each scope
-	// (fast product answer). skills is the full agents/native/alternatives matrix.
+	// skills_dir/skills_local_dir are derived primaries; skills is the full matrix.
 	if d.Skills.Global.Primary.Path != "" {
 		r.add("skills_dir", d.Skills.Global.Primary.Path, d.Skills.Global.Primary.Path)
 	}
@@ -101,8 +84,6 @@ func buildAgentRecord(a *agentdex.Agent, includeProviders bool) *record {
 	return r
 }
 
-// skillsField builds the structured skills matrix for JSON and plain text.
-// Omitted when the agent has no skills concept (both scopes empty).
 func skillsField(sp agentdex.SkillsPaths) (*skillsPayload, string) {
 	g := skillsScopePayloadOf(sp.Global)
 	l := skillsScopePayloadOf(sp.Local)
@@ -138,10 +119,8 @@ func skillsPathPayloadOf(e agentdex.PathEntry) *skillsPathPayload {
 	return &skillsPathPayload{Path: e.Path, Exists: e.Exists}
 }
 
-// formatSkillsText is a compact one-line rendering of the skills matrix for
-// --fields and other plain-text surfaces. Full get detail uses the Skills
-// section instead (renderSkillsSection). Path colour stays on skills_dir /
-// skills_local_dir scalars only; role lines carry (exists)/(missing) inline.
+// Compact one-line --fields form; full get detail uses renderSkillsSection.
+// Path colour stays on skills_dir scalars only.
 func formatSkillsText(p *skillsPayload) string {
 	var parts []string
 	if p.Global != nil {
@@ -184,14 +163,13 @@ func formatSkillsPathText(p *skillsPathPayload) string {
 	return p.Path + " (missing)"
 }
 
-// withModelsNA marks models as not applicable (agnostic agent without --provider):
-// JSON null and text "-", distinct from withModels's nil→[] degrade shape.
+// withModelsNA marks models not-applicable: JSON null and text "-", distinct from
+// withModels's nil→[] degrade shape.
 func withModelsNA(r *record) {
 	r.add("models", nil, "-")
 }
 
-// withProviderEnv adds the provider-env field to an agent record. Provider-env is
-// shown whenever a client was consulted, independent of Models fill.
+// Present whenever a client was consulted, independent of Models fill.
 func withProviderEnv(r *record, env map[string]bool) {
 	if env == nil {
 		return
@@ -199,11 +177,7 @@ func withProviderEnv(r *record, env map[string]bool) {
 	r.add("provider_env", env, formatProviderEnv(env))
 }
 
-// withModels adds a bare models.dev model list as the models field (provider
-// detail): typed list for JSON and a count for the table cell. A nil list is
-// normalised to an empty slice so the JSON carries [] to match the "0" count
-// cell, rather than a null that disagrees with the text and breaks
-// `jq '.models|length'`.
+// nil becomes [] so JSON matches the "0" cell and `jq '.models|length'` works.
 func withModels(r *record, models []modelsdev.Model) {
 	if models == nil {
 		models = []modelsdev.Model{}
@@ -211,8 +185,6 @@ func withModels(r *record, models []modelsdev.Model) {
 	r.add("models", models, fmt.Sprintf("%d", len(models)))
 }
 
-// withAgentModels adds an attributed agent model list (provider + canonical id
-// on each row) for agents list/get JSON and the models count cell.
 func withAgentModels(r *record, models []agentdex.Model) {
 	if models == nil {
 		models = []agentdex.Model{}
@@ -220,17 +192,12 @@ func withAgentModels(r *record, models []agentdex.Model) {
 	r.add("models", models, fmt.Sprintf("%d", len(models)))
 }
 
-// modelFieldSet is the declared field authority for a model: every valid --fields
-// key in canonical order, and the subset shown as default models-table columns.
 var modelFieldSet = newFieldSet(
 	[]string{"id", "provider", "name", "family", "context", "input", "output", "total", "reasoning", "tool_call", "attachment", "released", "canonical_id"},
 	[]string{"id", "name", "context", "input", "output"},
 ).ordered("released", "released")
 
-// modelRecord builds the field values for one model. canonical_id is added only
-// when non-empty (the model has a real models.dev agnostic id); it remains valid
-// to select per modelFieldSet, so --fields canonical_id yields a blank for a model
-// without one rather than an unknown-field error.
+// canonical_id is added only when non-empty; selecting it still yields a blank.
 func modelRecord(m modelsdev.Model, providerID, canonicalID string) *record {
 	r := newRecord(modelFieldSet)
 	r.add("id", m.ID, m.ID)
@@ -251,29 +218,19 @@ func modelRecord(m modelsdev.Model, providerID, canonicalID string) *record {
 	return r
 }
 
-// providerFieldSet is the declared field authority for a models.dev provider: the
-// full ordered set of valid --fields keys and the default listing columns. env is
-// the terse presence-folded column; present is the structured per-variable presence
-// map, selectable but not a default column, so scripts read booleans without
-// parsing the env text's (set) suffix. models stays array-typed (rendered as a
-// count) so a caller reads .data[].models uniformly across commands.
+// providerFieldSet: env is presence-folded text; present is the structured map so
+// scripts avoid parsing "(set)". models stays array-typed (cell is the count).
 var providerFieldSet = newFieldSet(
 	[]string{"id", "name", "env", "present", "models", "doc", "npm", "api"},
 	[]string{"id", "name", "env", "models"},
 ).ordered("id")
 
-// providerRecord builds the field values for one provider. present maps each of the
-// provider's API-key variable names to whether it is set in the environment; the
-// library resolves it at the boundary and passes it in (as Provider.EnvPresent), so
-// the record builder is testable from inputs. env carries the sorted names for JSON
-// and the presence-folded cell for text; present carries the map itself.
+// present is resolved at the library boundary so the builder is testable from inputs.
 func providerRecord(p modelsdev.Provider, present map[string]bool) *record {
 	r := newRecord(providerFieldSet)
 	r.add("id", p.ID, p.ID)
 	r.add("name", p.Name, p.Name)
-	// The declared API-key variables come from p.Env, the source of truth; present
-	// only supplies the (set) markers. A copy keeps the [] JSON shape for a
-	// no-env provider rather than a null.
+	// Copy p.Env so a no-env provider keeps [] rather than null in JSON.
 	envNames := make([]string, len(p.Env))
 	copy(envNames, p.Env)
 	sort.Strings(envNames)
@@ -290,11 +247,8 @@ func providerRecord(p modelsdev.Provider, present map[string]bool) *record {
 	return r
 }
 
-// providerEnvCell renders the presence-folded ENV column over names (already
-// sorted): a set variable suffixed "(set)" and an unset one left bare, so a bare
-// name means unset. A provider with no declared variable renders blank. The terse
-// divergence from get's symmetric (set)/(unset) markers keeps the wide browse
-// listing legible.
+// providerEnvCell folds presence for the browse ENV column: set vars get "(set)",
+// unset stay bare. Differs from get's symmetric (set)/(unset) to keep wide listings legible.
 func providerEnvCell(names []string, present map[string]bool) string {
 	parts := make([]string, 0, len(names))
 	for _, k := range names {
@@ -314,8 +268,6 @@ const (
 	costOutput
 )
 
-// costFor returns the per-1M-token price for the given kind and whether pricing is
-// known. A nil Cost means models.dev carried no pricing for the model.
 func costFor(c *modelsdev.Cost, kind costKind) (float64, bool) {
 	if c == nil {
 		return 0, false
@@ -326,8 +278,7 @@ func costFor(c *modelsdev.Cost, kind costKind) (float64, bool) {
 	return c.Input, true
 }
 
-// costValue returns the per-1M-token price for JSON, or nil when pricing is
-// unknown so the field is null rather than a misleading zero.
+// costValue is nil when pricing is unknown so JSON is null rather than a misleading zero.
 func costValue(c *modelsdev.Cost, kind costKind) any {
 	v, ok := costFor(c, kind)
 	if !ok {
@@ -336,9 +287,7 @@ func costValue(c *modelsdev.Cost, kind costKind) any {
 	return v
 }
 
-// costText renders the per-1M-token price at full precision with trailing zeros
-// trimmed ("$3", "$0.075", "$0.0001"), so cheap sub-cent prices stay truthful
-// rather than rounding to a misleading "$0.00".
+// costText keeps full precision with trailing zeros trimmed so sub-cent prices stay truthful.
 func costText(c *modelsdev.Cost, kind costKind) string {
 	v, ok := costFor(c, kind)
 	if !ok {
@@ -347,10 +296,8 @@ func costText(c *modelsdev.Cost, kind costKind) string {
 	return "$" + strconv.FormatFloat(v, 'f', -1, 64)
 }
 
-// combinedCost sums the input and output price per 1M tokens, rounding away the
-// binary floating-point artifact the addition can introduce (0.05+0.025 lands at
-// 0.07500000000000001) at nano-dollar precision, well below any realistic price so
-// no genuine value is distorted. The bool is false when pricing is unknown.
+// combinedCost rounds away binary float artifacts (0.05+0.025 → 0.07500000000000001)
+// at nano-dollar precision, well below any realistic price.
 func combinedCost(c *modelsdev.Cost) (float64, bool) {
 	if c == nil {
 		return 0, false
@@ -358,10 +305,8 @@ func combinedCost(c *modelsdev.Cost) (float64, bool) {
 	return math.Round((c.Input+c.Output)*1e9) / 1e9, true
 }
 
-// totalValue is the combined input+output price per 1M tokens for JSON, or nil when
-// pricing is unknown so the field is null and sorts last rather than a misleading
-// zero. It is a rough comparison signal, not a workload cost: real usage rarely
-// splits input and output tokens evenly.
+// totalValue is a rough comparison signal (null when unknown so it sorts last), not
+// a workload cost: real usage rarely splits input and output evenly.
 func totalValue(c *modelsdev.Cost) any {
 	v, ok := combinedCost(c)
 	if !ok {
@@ -370,8 +315,6 @@ func totalValue(c *modelsdev.Cost) any {
 	return v
 }
 
-// totalText renders the combined price with the same "$" trimming as costText, or a
-// dash when pricing is unknown.
 func totalText(c *modelsdev.Cost) string {
 	v, ok := combinedCost(c)
 	if !ok {
@@ -387,15 +330,12 @@ func orDash(s string) string {
 	return s
 }
 
-// formatProviderEnv renders the provider-env map deterministically as
-// "VAR (set|unset)" entries in sorted key order. It stays plain so record text,
-// table cells, and --fields output carry no colour codes.
+// Plain for table/--fields (no colour codes).
 func formatProviderEnv(env map[string]bool) string {
 	return providerEnvText(env, plainState)
 }
 
-// styledProviderEnv is formatProviderEnv with the state markers coloured for the
-// detail section: (set) green, (unset) yellow.
+// Detail section: (set) green, (unset) yellow.
 func styledProviderEnv(env map[string]bool) string {
 	return providerEnvText(env, styledState)
 }
@@ -424,9 +364,7 @@ func plainState(state string, _ bool) string {
 	return "(" + state + ")"
 }
 
-// styledState renders a bracketed state marker per the start terminal colour
-// standard: cyan delimiters, with the state text green when positive and yellow
-// when negative.
+// Cyan delimiters with green/yellow state text per the start colour standard.
 func styledState(state string, good bool) string {
 	inner := tui.Warn
 	if good {

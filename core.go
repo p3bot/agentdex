@@ -16,11 +16,9 @@ import (
 )
 
 // Open constructs an *Index over the configured catalog source and models.dev
-// client. It performs no network I/O and takes no context: the agent catalog and
-// the models.dev catalog are resolved lazily, once, on the first operation that
-// needs each, under that operation's context (R12). The returned Index is safe
-// for concurrent use. WithCatalogDir and WithCatalogModule are mutually exclusive;
-// setting both returns an error.
+// client. No network I/O and no context: both catalogs resolve lazily once under
+// the first needing operation's context. Safe for concurrent use.
+// WithCatalogDir and WithCatalogModule are mutually exclusive.
 func Open(opts ...Option) (*Index, error) {
 	o := &options{}
 	for _, opt := range opts {
@@ -38,10 +36,7 @@ func Open(opts ...Option) (*Index, error) {
 	}, nil
 }
 
-// core holds the boundary-captured inputs and the lazily resolved catalog and
-// models.dev client behind the two guards the concurrent detection fan-out and
-// Refresh require (R12, R13). The captured inputs are immutable for the Index's
-// lifetime; only the guarded resolved values change, under their own mutex.
+// Boundary inputs (immutable) and lazily resolved catalog/models.dev behind mutexes.
 type core struct {
 	envLookup  func(string) (string, bool)
 	lookPath   func(string) (string, error)
@@ -70,10 +65,7 @@ type core struct {
 	md   *modelsdev.Client
 }
 
-// newCore captures every nondeterministic boundary input once, at Open, so the
-// per-operation logic downstream is a pure function of these values (R10). The
-// environment lookup, PATH search, working directory, and home directory default
-// to the process only when the caller supplies no override.
+// Capture boundary inputs once so per-operation logic is pure of them.
 func newCore(o *options) *core {
 	lookup := o.envLookup
 	if lookup == nil {
@@ -113,10 +105,7 @@ func newCore(o *options) *core {
 	}
 }
 
-// resolveHome resolves the home directory for tilde expansion from the injected
-// lookup's HOME, keeping the os.UserHomeDir fallback for the case where HOME is
-// unset. Platforms are Linux, macOS, and WSL (Linux-native), so HOME is
-// authoritative; no platform-specific user-dir helper is used.
+// Injected HOME, then os.UserHomeDir; no platform user-dir helper.
 func resolveHome(lookup func(string) (string, bool)) string {
 	if h, ok := lookup("HOME"); ok && h != "" {
 		return h
@@ -127,10 +116,7 @@ func resolveHome(lookup func(string) (string, bool)) string {
 	return ""
 }
 
-// resolveCatalog returns the loaded catalog and its identity, loading it once
-// under the guard and publishing the result to every later reader. A failed load
-// is not memoised: the next operation retries, so a caller recovers from a
-// transient outage without reopening the Index (R12).
+// Load once under the guard. Failures are not memoised so a transient outage recovers without reopening.
 func (c *core) resolveCatalog(ctx context.Context) (*catalog.Catalog, CatalogInfo, error) {
 	c.catMu.Lock()
 	defer c.catMu.Unlock()
@@ -146,7 +132,6 @@ func (c *core) resolveCatalog(ctx context.Context) (*catalog.Catalog, CatalogInf
 	return cat, info, nil
 }
 
-// catalogModulePath is the major-line module coordinate the registry loader uses.
 func (c *core) catalogModulePath() string {
 	if c.catalogModule != "" {
 		return c.catalogModule
@@ -154,11 +139,7 @@ func (c *core) catalogModulePath() string {
 	return catalog.DefaultModulePath
 }
 
-// loadCatalog loads the catalog from whichever source is configured. A directory
-// source (WithCatalogDir) evaluates a local CUE module with no registry contact,
-// so it is never stale; otherwise the registry loader resolves a version and may
-// report the last resolved version as stale. Loader faults are mapped to the
-// public sentinels (R7).
+// Dir source is never stale; registry may report a stale fallback.
 func (c *core) loadCatalog(ctx context.Context, force bool) (*catalog.Catalog, CatalogInfo, error) {
 	if c.catalogDir != "" {
 		cat, err := catalog.LoadDir(c.catalogDir)
@@ -182,8 +163,7 @@ func (c *core) loadCatalog(ctx context.Context, force bool) (*catalog.Catalog, C
 	}
 	switch {
 	case force:
-		// A zero TTL treats any cached resolution as expired, forcing re-resolution
-		// past it (R13).
+		// Zero TTL forces re-resolution past any cached resolution.
 		lopts = append(lopts, catalog.WithTTL(0))
 	case c.catalogTTLSet:
 		lopts = append(lopts, catalog.WithTTL(c.catalogTTL))
@@ -209,11 +189,7 @@ func (c *core) loadCatalog(ctx context.Context, force bool) (*catalog.Catalog, C
 	return res.Catalog, info, nil
 }
 
-// mapCatalogErr translates the loader's internal sentinels into the public ones:
-// ErrCatalogUnavailable for a cold-offline load with no fallback, ErrCatalogInvalid
-// for a module that loaded but failed schema evaluation. Both keep the loader's
-// wrapped message — the CUE diagnostic naming the offending entry and field — so a
-// caller reads it verbatim (R7). Any other error passes through unwrapped.
+// mapCatalogErr keeps the loader's CUE diagnostic under the public sentinels.
 func mapCatalogErr(err error) error {
 	switch {
 	case errors.Is(err, catalog.ErrUnavailable):
@@ -225,12 +201,8 @@ func mapCatalogErr(err error) error {
 	}
 }
 
-// mapModelsErr translates a models.dev fetch fault on a Providers or Models
-// operation into the public sentinels: recognisable schema drift propagates
-// unchanged so errors.Is(err, modelsdev.ErrModelsSchema) resolves it and the CLI
-// maps it to a config fault, while any other fetch failure — unreachable and
-// uncached — becomes ErrModelsUnavailable, the models.dev analog of
-// ErrCatalogUnavailable (R7). Agent operations degrade rather than calling this.
+// Schema drift propagates unchanged; other fetch faults become ErrModelsUnavailable.
+// Agent ops degrade rather than calling this.
 func mapModelsErr(err error) error {
 	switch {
 	case err == nil:
@@ -242,11 +214,8 @@ func mapModelsErr(err error) error {
 	}
 }
 
-// modelsClient returns the shared models.dev client, constructing it once under
-// the guard so the concurrent detection fan-out reaches one client and pays one
-// fetch: the client single-flights and memoises within its own lifetime, so two
-// clients would produce two independent fetches (R12, R13). Construction does no
-// network I/O; the fetch happens on the client's first query.
+// modelsClient is shared under the guard so concurrent work pays one fetch;
+// two clients would each fetch independently.
 func (c *core) modelsClient() *modelsdev.Client {
 	c.mdMu.Lock()
 	defer c.mdMu.Unlock()
@@ -256,9 +225,7 @@ func (c *core) modelsClient() *modelsdev.Client {
 	return c.md
 }
 
-// newModelsClient builds a models.dev client from the captured source settings.
-// extra carries per-call client options (the force-refresh mode Refresh installs,
-// R13); the base settings are applied first so extra can override them.
+// extra is applied last so force-refresh and similar can override base settings.
 func (c *core) newModelsClient(extra ...modelsdev.ClientOption) *modelsdev.Client {
 	var opts []modelsdev.ClientOption
 	if c.modelsTTLSet {
@@ -277,13 +244,8 @@ func (c *core) newModelsClient(extra ...modelsdev.ClientOption) *modelsdev.Clien
 	return modelsdev.New(opts...)
 }
 
-// refreshCatalog forces re-resolution of the registry catalog past the cache and
-// publishes the fresh result under the guard, so the operations a caller makes next
-// serve it (R13). A directory source has no version to re-resolve and is always
-// current, so it reports not-refreshed with no error, leaving the models.dev half of
-// a TargetAll refresh to run. A re-resolution that fails and falls back to the last
-// resolved version is not a refresh: it is reported as ErrCatalogUnavailable and the
-// installed state is left untouched.
+// Dir source always current (not-refreshed, no error). Stale fallback is
+// ErrCatalogUnavailable and leaves installed state untouched.
 func (c *core) refreshCatalog(ctx context.Context) (bool, error) {
 	if c.catalogDir != "" {
 		c.logger.LogAttrs(ctx, slog.LevelDebug, "catalog refresh skipped",
@@ -306,14 +268,8 @@ func (c *core) refreshCatalog(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-// refreshModels refetches the models.dev catalog past its cache through a
-// force-refresh client and installs that client in place of the old one, so the
-// operations a caller makes next serve the refetched data (R13). The existing client
-// memoises its merged catalog for its lifetime, so a refetch through a throwaway
-// client would leave the Index serving the pre-refresh answers; swapping the fresh
-// client in is what makes the refresh visible. A fetch failure is an error — schema
-// drift wrapping modelsdev.ErrModelsSchema, any other fault ErrModelsUnavailable —
-// and the existing client is left in place.
+// refreshModels swaps in a force-refresh client; a throwaway fetch would leave
+// the Index on pre-refresh answers. Failure leaves the existing client in place.
 func (c *core) refreshModels(ctx context.Context) error {
 	fresh := c.newModelsClient(modelsdev.WithForceRefresh())
 	if _, err := fresh.Catalog(ctx); err != nil {

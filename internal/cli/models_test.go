@@ -10,10 +10,8 @@ import (
 	"github.com/start-cli/agentdex/modelsdev"
 )
 
-// slashKeyModelsServer serves a models.dev catalog whose one provider carries a
-// model whose key contains slashes, so a test can prove the composite splits on the
-// first slash only. The agnostic map carries the full composite so canonical_id
-// resolves.
+// slashKeyModelsServer serves a provider whose model key contains slashes so
+// tests prove the composite splits on the first slash only.
 func slashKeyModelsServer(t *testing.T) string {
 	t.Helper()
 	const pid, key = "mixlayer", "qwen/qwen3.5-122b"
@@ -37,9 +35,7 @@ func slashKeyModelsServer(t *testing.T) string {
 }
 
 func TestModelsGetSplitsOnFirstSlashOnly(t *testing.T) {
-	// The composite splits on the first slash: everything after it is the model key,
-	// slashes and all. mixlayer/qwen/qwen3.5-122b is provider "mixlayer", key
-	// "qwen/qwen3.5-122b" — not provider "mixlayer/qwen" or a truncated key.
+	// Everything after the first slash is the model key, slashes and all.
 	newScenario(t, slashKeyModelsServer(t))
 
 	got := runCLI("--json", "models", "get", "mixlayer/qwen/qwen3.5-122b")
@@ -59,8 +55,7 @@ func TestModelsGetSplitsOnFirstSlashOnly(t *testing.T) {
 }
 
 func TestModelsGetCompositeHit(t *testing.T) {
-	// models get takes the composite provider-id/model-id and fetches it exactly:
-	// the short source id stays the id field, the composite is the canonical id.
+	// Short source id stays in id; composite is canonical_id.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL)
 
@@ -94,8 +89,6 @@ func TestModelsGetCanonicalIDFieldIsBareValue(t *testing.T) {
 }
 
 func TestModelsGetMissingSlashIsUsage(t *testing.T) {
-	// A value with no slash is not a composite id: usage error pointing at the
-	// browse verb.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL)
 
@@ -119,7 +112,6 @@ func TestModelsGetUnknownProviderIsNotFound(t *testing.T) {
 }
 
 func TestModelsGetUnknownModelKeyIsNotFound(t *testing.T) {
-	// The provider exists but carries no such model key: still exact-miss not-found.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL)
 
@@ -143,7 +135,6 @@ func TestModelsGetPriceFooter(t *testing.T) {
 }
 
 func TestModelsListGlobalAcrossProviders(t *testing.T) {
-	// With no scope models list spans every provider models.dev knows.
 	srv := modelsServer(t, []string{"anthropic", "google", "openai"})
 	newScenario(t, srv.URL)
 
@@ -181,8 +172,6 @@ func TestModelsListProviderScope(t *testing.T) {
 }
 
 func TestModelsListFilterComposesWithScope(t *testing.T) {
-	// The positional filter narrows over model id and name and composes with the
-	// provider scope. Under --provider anthropic, "claude" matches, "gemini" does not.
 	srv := modelsServer(t, []string{"anthropic", "google", "openai"})
 	newScenario(t, srv.URL)
 
@@ -209,7 +198,6 @@ func TestModelsListFilterComposesWithScope(t *testing.T) {
 }
 
 func TestModelsListAgentScope(t *testing.T) {
-	// --agent scopes to a home-provider agent's catalog providers.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL, "alpha-cli")
 
@@ -234,8 +222,7 @@ func TestModelsListUnknownAgentIsNotFound(t *testing.T) {
 }
 
 func TestModelsListUnknownProviderIsUsageDirectScope(t *testing.T) {
-	// An unknown --provider id is a usage fault in the standalone direct-scope role,
-	// validated against a reachable models.dev, never a silent empty listing.
+	// Unknown --provider is usage, never a silent empty listing.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL)
 
@@ -249,8 +236,7 @@ func TestModelsListUnknownProviderIsUsageDirectScope(t *testing.T) {
 }
 
 func TestModelsListJSONCarriesFullRecord(t *testing.T) {
-	// models list --json without --fields carries the full model record, including
-	// the capability fields absent from the default table columns.
+	// --json without --fields includes capability fields absent from default columns.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL)
 
@@ -267,8 +253,7 @@ func TestModelsListJSONCarriesFullRecord(t *testing.T) {
 }
 
 func TestModelsListNewestFirst(t *testing.T) {
-	// openai's fixture model is newer than google's, so it lists first even though
-	// google-model sorts first by id. JSON follows the same order.
+	// openai fixture is newer than google; lists first even though google-model sorts first by id.
 	srv := modelsServer(t, []string{"google", "openai"})
 	newScenario(t, srv.URL)
 
@@ -288,8 +273,7 @@ func TestModelsListNewestFirst(t *testing.T) {
 }
 
 func TestModelsListPriceFooter(t *testing.T) {
-	// A table showing price columns carries the unit footer; a --fields selection
-	// without a price column stays footer-free (it is the scripting surface).
+	// Footer only when price columns show; --fields without prices stays footer-free.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL)
 
@@ -308,8 +292,7 @@ func TestModelsListPriceFooter(t *testing.T) {
 }
 
 func TestModelsListUnknownFieldRejectedOnEmptyResult(t *testing.T) {
-	// --fields validation must not depend on result cardinality. A filter matching
-	// no model still rejects an unknown --fields key as a usage fault, not exit 0.
+	// Validation must not depend on result cardinality.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL)
 

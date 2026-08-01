@@ -36,8 +36,7 @@ func TestGetAllPresent(t *testing.T) {
 		t.Errorf("unfiltered get should omit models: %v", data["models"])
 	}
 
-	// Text surface: Models section absent; Provider env present. Match whole
-	// lines only — temp paths can embed the test name substring "Models".
+	// Whole-line match only — temp paths can embed the test name substring "Models".
 	text := runCLI("agents", "get", "alpha-cli")
 	if text.code != codeOK {
 		t.Fatalf("get text exit = %d, stderr=%q", text.code, text.stderr)
@@ -90,9 +89,7 @@ func TestGetFieldsModelsDemandsFill(t *testing.T) {
 }
 
 func TestGetFieldsOmitModelsKey(t *testing.T) {
-	// Presentation only: field selection drops models from the record either
-	// way. Demand skip for non-models fields is TestModelsDemand ("fields
-	// other") and unfiltered omit is TestGetAllPresent.
+	// Presentation only: field selection drops models from the record either way.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL, "alpha-cli")
 
@@ -108,8 +105,7 @@ func TestGetFieldsOmitModelsKey(t *testing.T) {
 }
 
 func TestGetSkillsPrimaryJSON(t *testing.T) {
-	// gamma's primary is the agents slot; skills_dir / skills_local_dir are
-	// scalar primary paths, not the full role object.
+	// gamma's primary is the agents slot; skills_dir is a scalar path, not a role object.
 	newScenario(t, mustNotFetchModelsServer(t), "gamma-agent")
 
 	got := runCLI("--json", "agents", "get", "gamma-agent", "--fields", "skills_dir,skills_local_dir")
@@ -119,7 +115,6 @@ func TestGetSkillsPrimaryJSON(t *testing.T) {
 	data := got.envelope(t).Data.(map[string]any)
 	assertSkillsPrimaryPath(t, data["skills_dir"])
 	assertSkillsPrimaryPath(t, data["skills_local_dir"])
-	// Primary is shared agents for gamma (not a list or nested object).
 	if p, ok := data["skills_dir"].(string); !ok || !strings.Contains(p, ".agents") {
 		t.Errorf("skills_dir = %v, want a path containing .agents", data["skills_dir"])
 	}
@@ -161,8 +156,6 @@ func TestGetSkillsStructuredJSON(t *testing.T) {
 	assertSkillsPathEntry(t, local["agents"], ".agents")
 }
 
-// assertSkillsPathEntry checks a skills role JSON value is {path, exists} with
-// path containing substr. Returns the path string.
 func assertSkillsPathEntry(t *testing.T, raw any, substr string) string {
 	t.Helper()
 	obj, ok := raw.(map[string]any)
@@ -179,7 +172,6 @@ func assertSkillsPathEntry(t *testing.T, raw any, substr string) string {
 	return path
 }
 
-// assertSkillsPrimaryPath checks skills_dir / skills_local_dir JSON is a non-empty path string.
 func assertSkillsPrimaryPath(t *testing.T, raw any) {
 	t.Helper()
 	p, ok := raw.(string)
@@ -189,9 +181,7 @@ func assertSkillsPrimaryPath(t *testing.T, raw any) {
 }
 
 func TestGetModelsFlagFieldsOmitPresentation(t *testing.T) {
-	// Demand that --models still fills when fields omit models is covered by
-	// TestModelsDemand ("flag and omit fields"). This integration test only
-	// checks presentation: selected skills, models key absent from output.
+	// Presentation only: --models fill with fields omit models is covered elsewhere.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL, "alpha-cli")
 
@@ -206,9 +196,7 @@ func TestGetModelsFlagFieldsOmitPresentation(t *testing.T) {
 	assertSkillsPrimaryPath(t, data["skills_dir"])
 }
 
-// hasTextSection reports whether stdout contains a whole-line section header
-// equal to title. Substring search is unsafe: t.TempDir paths include the test
-// name and can embed words like "Models".
+// Whole-line section headers only: t.TempDir paths can embed words like "Models".
 func hasTextSection(stdout, title string) bool {
 	for line := range strings.SplitSeq(stdout, "\n") {
 		if strings.TrimSpace(line) == title {
@@ -243,7 +231,7 @@ func TestGetSomePresentWarns(t *testing.T) {
 }
 
 func TestGetNonePresentIsDataError(t *testing.T) {
-	// alpha-cli uses anthropic, which is absent from this models.dev.
+	// alpha-cli uses anthropic, absent from this models.dev.
 	srv := modelsServer(t, []string{"google"})
 	newScenario(t, srv.URL, "alpha-cli")
 
@@ -253,8 +241,7 @@ func TestGetNonePresentIsDataError(t *testing.T) {
 	}
 }
 
-// mustNotFetchModelsServer returns a models.dev URL whose any access fails the
-// test: proof that a code path is answered without touching models.dev.
+// Any models.dev access fails the test: proof of offline paths.
 func mustNotFetchModelsServer(t *testing.T) string {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -266,10 +253,8 @@ func mustNotFetchModelsServer(t *testing.T) string {
 }
 
 func TestGetNonModelsFieldsSkipModelsDevAndRollup(t *testing.T) {
-	// The second demand gate: a --fields selection that demands neither
-	// provider_env nor models is answered offline — no models.dev fetch, no
-	// coverage rollup, exit 0 even when every catalog provider would be absent
-	// (which an unfiltered get reports as exit 78).
+	// --fields that demand neither provider_env nor models stay offline: no models.dev
+	// fetch, no coverage rollup, exit 0 even when unfiltered get would be exit 78.
 	newScenario(t, mustNotFetchModelsServer(t), "alpha-cli")
 
 	got := runCLI("--json", "agents", "get", "alpha-cli", "--fields", "skills_dir")
@@ -283,8 +268,8 @@ func TestGetNonModelsFieldsSkipModelsDevAndRollup(t *testing.T) {
 }
 
 func TestGetFieldsProvidersIsOfflineCatalogData(t *testing.T) {
-	// providers alone is catalog data: filled with no models.dev fetch and no
-	// rollup, so absent-upstream providers cannot turn it into exit 78.
+	// providers alone is catalog data: filled with no models.dev fetch, so absent
+	// upstream providers cannot turn it into exit 78.
 	newScenario(t, mustNotFetchModelsServer(t), "alpha-cli")
 
 	got := runCLI("--json", "agents", "get", "alpha-cli", "--fields", "providers")
@@ -309,9 +294,8 @@ func TestGetSchemaIsDataError(t *testing.T) {
 }
 
 func TestGetTopLevelSchemaIsDataErrorNotOutage(t *testing.T) {
-	// A reachable models.dev whose whole document fails validation (empty maps) is a
-	// data fault (exit 78), not an outage: the rollup must not degrade it to exit 0
-	// with a misleading "unreachable" warning.
+	// Reachable models.dev with whole-document validation failure is config (78),
+	// not an outage degraded to exit 0 with an "unreachable" warning.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`{"models":{},"providers":{}}`))
 	}))
@@ -325,11 +309,8 @@ func TestGetTopLevelSchemaIsDataErrorNotOutage(t *testing.T) {
 }
 
 func TestGetNotInstalled(t *testing.T) {
-	// A catalogued agent is found in the catalog whether or not its binary is
-	// installed, so get is a success (exit 0): it renders everything the catalog
-	// knows with a "missing" bin, and warns that the agent is not installed
-	// rather than failing. Under --json the envelope carries data with the
-	// warning and no error.
+	// Catalogued but not installed is success (exit 0): renders "missing" bin and
+	// warns, rather than failing.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL) // no binaries installed
 
@@ -364,10 +345,8 @@ func TestGetNotInstalled(t *testing.T) {
 }
 
 func TestGetNotInstalledStillEnriches(t *testing.T) {
-	// Enrichment no longer depends on installation (R4). --models on a not-installed
-	// agent fills the same model list an installed one fills, and the not-installed
-	// warning is the bare status with no omission suffix (R6, exception one). A purely
-	// offline field selection still warns not-installed and carries no omission note.
+	// Enrichment does not depend on installation. --models on a not-installed agent
+	// fills the same model list; the warning is bare status with no omission suffix.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL) // no binaries installed
 
@@ -401,8 +380,7 @@ func TestGetNotInstalledStillEnriches(t *testing.T) {
 }
 
 func TestGetUnknownIDIsNotFound(t *testing.T) {
-	// An id that names no catalogued agent is exact-miss not-found (exit 3), with no
-	// candidate list. The get verb never fuzzy-resolves.
+	// Exact miss is exit 3 with no candidate list; get never fuzzy-resolves.
 	srv := modelsServer(t, []string{"google"})
 	newScenario(t, srv.URL, "alpha-cli")
 
@@ -410,17 +388,14 @@ func TestGetUnknownIDIsNotFound(t *testing.T) {
 	if got.code != codeNotFound {
 		t.Fatalf("unknown id exit = %d, want 3; stderr=%q", got.code, got.stderr)
 	}
-	// No candidate list: the error must not enumerate the catalog ids.
 	if strings.Contains(got.stderr, "alpha-cli") {
 		t.Errorf("get miss should not list candidates: %q", got.stderr)
 	}
 }
 
 func TestGetProviderQueryIsNotFoundNoFallthrough(t *testing.T) {
-	// "google" is a models.dev provider but not a catalogued agent. With the
-	// fallthrough removed, get treats it as a plain exact miss: exit 3 not-found,
-	// no provider payload reclassified onto the agent surface. Provider discovery
-	// now lives in providers get.
+	// "google" is a models.dev provider, not a catalogued agent: exact miss, no
+	// provider payload reclassified onto the agent surface.
 	srv := modelsServer(t, []string{"google"})
 	newScenario(t, srv.URL, "alpha-cli")
 
@@ -455,8 +430,7 @@ func TestGetDegradesWhenModelsUnreachable(t *testing.T) {
 }
 
 func TestGetProbesVersionOnce(t *testing.T) {
-	// A successful get must exec the agent's version probe exactly once: the
-	// enriched detection skips the exec and carries the version from the first.
+	// Enriched detection must not re-exec the version probe.
 	srv := modelsServer(t, []string{"anthropic"})
 	s := newScenario(t, srv.URL)
 	counter := filepath.Join(s.home, "probe-count")
@@ -475,8 +449,7 @@ func TestGetProbesVersionOnce(t *testing.T) {
 }
 
 func TestGetVerboseAddsDetail(t *testing.T) {
-	// --verbose surfaces the found field and annotates resolved paths with on-disk
-	// existence; plain get shows neither. --json is unaffected.
+	// --verbose surfaces found and path existence; plain get shows neither. --json unaffected.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL, "alpha-cli")
 
@@ -484,8 +457,7 @@ func TestGetVerboseAddsDetail(t *testing.T) {
 	if plain.code != codeOK {
 		t.Fatalf("get exit = %d, stderr=%q", plain.code, plain.stderr)
 	}
-	// The found field key sits at the start of its detail line; the bin line's
-	// "(found)" presence annotation is a different, always-on surface.
+	// found field key at line start; bin line's "(found)" is a different always-on surface.
 	if strings.Contains(plain.stdout, "\nfound") {
 		t.Errorf("plain get should not show the found field:\n%s", plain.stdout)
 	}
@@ -504,7 +476,6 @@ func TestGetVerboseAddsDetail(t *testing.T) {
 		t.Errorf("get --verbose should annotate paths with existence:\n%s", verbose.stdout)
 	}
 
-	// --json is identical with and without --verbose: verbose is text-only.
 	jsonPlain := runCLI("--json", "agents", "get", "alpha-cli")
 	jsonVerbose := runCLI("--json", "agents", "get", "alpha-cli", "--verbose")
 	if jsonPlain.stdout != jsonVerbose.stdout {
@@ -513,9 +484,8 @@ func TestGetVerboseAddsDetail(t *testing.T) {
 }
 
 func TestGetTextDetailDrivenByRecord(t *testing.T) {
-	// The text detail must show every inline scalar field the record carries, in
-	// declared order, so it cannot drift from the JSON/--fields surfaces. found,
-	// skills, provider_env, and models are section fields (not inline labels).
+	// Text detail must show every inline scalar the record carries so it cannot
+	// drift from JSON/--fields. found, skills, provider_env, models are sections.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL, "alpha-cli")
 
@@ -537,7 +507,7 @@ func TestGetTextDetailDrivenByRecord(t *testing.T) {
 	if !hasTextSection(got.stdout, "Skills") {
 		t.Errorf("text detail missing Skills section:\n%s", got.stdout)
 	}
-	// alpha-cli skills are native-only; section should list the role, not a dense one-liner.
+	// alpha-cli skills are native-only; section lists the role, not a dense one-liner.
 	if !strings.Contains(got.stdout, "native") {
 		t.Errorf("Skills section missing native role:\n%s", got.stdout)
 	}
@@ -547,8 +517,7 @@ func TestGetTextDetailDrivenByRecord(t *testing.T) {
 }
 
 func TestGetSkillsTextSection(t *testing.T) {
-	// gamma has agents + alternatives; the Skills section lists roles per scope
-	// without repeating primary (that stays on skills_dir / skills_local_dir).
+	// gamma has agents + alternatives; primary stays on skills_dir, not repeated in section.
 	srv := modelsServer(t, []string{"google", "openai"})
 	newScenario(t, srv.URL, "gamma-agent")
 
@@ -564,7 +533,6 @@ func TestGetSkillsTextSection(t *testing.T) {
 			t.Errorf("Skills section missing %q:\n%s", want, got.stdout)
 		}
 	}
-	// Lean section: no primary rows (primaries are skills_dir / skills_local_dir).
 	for line := range strings.SplitSeq(got.stdout, "\n") {
 		trim := strings.TrimSpace(line)
 		if strings.HasPrefix(trim, "primary") {
@@ -574,10 +542,8 @@ func TestGetSkillsTextSection(t *testing.T) {
 }
 
 func TestAgentGetLevel(t *testing.T) {
-	// agents get maps its requested output to the lowest enrichment level that can
-	// fill it (R15): --models or a selected models field needs the full model list;
-	// an unfiltered detail or a selected provider_env needs the count level; providers
-	// alone is offline catalog data; anything else is offline facts only.
+	// Lowest enrichment that fills the requested output: full for models, count for
+	// unfiltered/provider_env, providers alone offline, else facts only.
 	cases := []struct {
 		name   string
 		flag   bool

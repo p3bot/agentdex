@@ -5,12 +5,10 @@ import (
 	"testing"
 )
 
-// delta-agent is the fixture's provider-agnostic agent: agnostic:true, no catalog
-// provider list. The caller supplies the models.dev provider set via --provider.
+// delta-agent is the fixture's provider-agnostic agent: agnostic:true, no catalog provider list.
 
 func TestGetAgnosticSoftPathOmitsProviderFields(t *testing.T) {
-	// Unfiltered get on an agnostic agent without --provider reports outside facts
-	// only, omits providers / provider_env / models, and warns how to enrich.
+	// Unfiltered get without --provider: outside facts only, omits provider fields, warns how to enrich.
 	newScenario(t, "", "delta-agent")
 
 	got := runCLI("--json", "agents", "get", "delta-agent")
@@ -30,7 +28,6 @@ func TestGetAgnosticSoftPathOmitsProviderFields(t *testing.T) {
 }
 
 func TestGetAgnosticModelsWithoutProviderIsUsage(t *testing.T) {
-	// Demanding models from an agnostic agent without --provider is a usage fault.
 	newScenario(t, "", "delta-agent")
 
 	got := runCLI("agents", "get", "delta-agent", "--models")
@@ -43,7 +40,6 @@ func TestGetAgnosticModelsWithoutProviderIsUsage(t *testing.T) {
 }
 
 func TestGetAgnosticEnrichesWithProvider(t *testing.T) {
-	// With --provider the agnostic agent enriches against the caller-supplied set.
 	newScenario(t, "", "delta-agent")
 
 	got := runCLI("--json", "agents", "get", "delta-agent", "--models", "--provider", "anthropic")
@@ -73,8 +69,7 @@ func TestGetAgnosticUnknownProviderIsUsage(t *testing.T) {
 }
 
 func TestGetProviderRejectedOnHomeProviderAgent(t *testing.T) {
-	// --provider is only meaningful for agnostic agents; a home-provider agent
-	// rejects it as a usage error rather than silently ignoring it.
+	// --provider is only for agnostic agents; home-provider rejects rather than ignoring.
 	newScenario(t, "", "alpha-cli")
 
 	got := runCLI("agents", "get", "alpha-cli", "--provider", "anthropic")
@@ -84,9 +79,7 @@ func TestGetProviderRejectedOnHomeProviderAgent(t *testing.T) {
 }
 
 func TestGetProviderNameQueryIsNotFound(t *testing.T) {
-	// A query matching no catalogued agent is an exact miss (exit 3) whether or not
-	// --provider is supplied: the fallthrough that once reclassified it as a
-	// models.dev provider is gone.
+	// Exact miss whether or not --provider is supplied; no provider fallthrough.
 	newScenario(t, "")
 
 	got := runCLI("agents", "get", "anthropic", "--provider", "openai")
@@ -121,8 +114,7 @@ func TestModelsAgnosticAgentWithProviderLists(t *testing.T) {
 }
 
 func TestModelsAgnosticAgentUnknownProviderIsUsage(t *testing.T) {
-	// The agnostic-enrichment role of --provider is validated too: an unknown id is
-	// a usage fault, not a silent empty listing.
+	// Unknown --provider is usage, not a silent empty listing.
 	newScenario(t, "", "delta-agent")
 
 	got := runCLI("models", "list", "--agent", "delta-agent", "--provider", "bogus")
@@ -144,9 +136,7 @@ func TestModelsProviderRejectedOnHomeProviderAgent(t *testing.T) {
 }
 
 func TestGetAgnosticSoftPathNotInstalled(t *testing.T) {
-	// Not installed is a status, not a miss: exit 0 with the soft-path shape —
-	// outside facts, the three provider fields omitted, the agnostic warning, and
-	// an added not-installed warning rather than an error.
+	// Not installed is status, not miss: exit 0 with soft-path shape plus not-installed warning.
 	newScenario(t, "") // delta binary not installed
 
 	got := runCLI("--json", "agents", "get", "delta-agent")
@@ -175,11 +165,8 @@ func TestGetAgnosticSoftPathNotInstalled(t *testing.T) {
 }
 
 func TestGetAgnosticProviderNotInstalled(t *testing.T) {
-	// Enrichment no longer depends on installation (R4, exception one): with --provider
-	// and not Found, the agent enriches exactly as an installed agnostic agent does —
-	// exit 0 with a not-installed warning, providers carries the caller ids, provider_env
-	// is filled (an unfiltered detail maps to the count level), models stays omitted
-	// without --models, and no soft-path warning since the caller supplied providers.
+	// Enrichment does not depend on installation: --provider fills like an installed
+	// agnostic agent; no soft-path warning once providers are supplied.
 	newScenario(t, "") // delta binary not installed
 
 	got := runCLI("--json", "agents", "get", "delta-agent", "--provider", "anthropic")
@@ -210,8 +197,7 @@ func TestGetAgnosticProviderNotInstalled(t *testing.T) {
 }
 
 func TestGetAgnosticBareProviderKeepsProviderEnvOmitsModels(t *testing.T) {
-	// Bare --provider without Models demand: provider-env is filled (a client is
-	// attached), Models stays omitted per the OR rule.
+	// Bare --provider attaches a client (provider-env filled); Models stays opt-in.
 	newScenario(t, "", "delta-agent")
 
 	got := runCLI("--json", "agents", "get", "delta-agent", "--provider", "anthropic")
@@ -228,8 +214,7 @@ func TestGetAgnosticBareProviderKeepsProviderEnvOmitsModels(t *testing.T) {
 }
 
 func TestGetAgnosticNonProviderFieldsStayOffline(t *testing.T) {
-	// A --fields selection with no provider-related field is answered from the
-	// catalog alone: no models.dev fetch, no agnostic warning, exit 0.
+	// No provider-related field: catalog alone, no models.dev fetch, no agnostic warning.
 	newScenario(t, mustNotFetchModelsServer(t), "delta-agent")
 
 	got := runCLI("--json", "agents", "get", "delta-agent", "--fields", "skills_dir")
@@ -244,8 +229,7 @@ func TestGetAgnosticNonProviderFieldsStayOffline(t *testing.T) {
 }
 
 func TestGetAgnosticFieldsProvidersValidatesCallerIds(t *testing.T) {
-	// providers is caller input on an agnostic agent, not catalog truth: selecting
-	// it with --provider validates the ids rather than echoing them at exit 0.
+	// On agnostic agents providers is caller input, not catalog truth: validated with --provider.
 	newScenario(t, "", "delta-agent")
 
 	got := runCLI("agents", "get", "delta-agent", "--fields", "providers", "--provider", "bogus")
@@ -268,9 +252,7 @@ func TestGetAgnosticFieldsProvidersValidatesCallerIds(t *testing.T) {
 }
 
 func TestGetAgnosticNonProviderFieldsWithProviderStaysOffline(t *testing.T) {
-	// A selection with no provider-related field stays offline even when
-	// --provider is supplied: nothing caller-provided is reported, so nothing
-	// needs validating.
+	// Nothing caller-provided is reported, so nothing needs validating — stays offline.
 	newScenario(t, mustNotFetchModelsServer(t), "delta-agent")
 
 	got := runCLI("--json", "agents", "get", "delta-agent", "--fields", "skills_dir", "--provider", "anthropic")
@@ -281,8 +263,6 @@ func TestGetAgnosticNonProviderFieldsWithProviderStaysOffline(t *testing.T) {
 }
 
 func TestModelsListDuplicateProviderDeduplicates(t *testing.T) {
-	// A repeated --provider id is deduplicated by flattenProviders, so the scoped
-	// listing carries each model once rather than twice.
 	newScenario(t, "", "delta-agent")
 
 	list := runCLI("--json", "models", "list", "--agent", "delta-agent", "--provider", "anthropic,anthropic")
@@ -295,9 +275,7 @@ func TestModelsListDuplicateProviderDeduplicates(t *testing.T) {
 }
 
 func TestGetAgnosticProviderDegradesWithWarningWhenUnreachable(t *testing.T) {
-	// An unreachable-and-uncached models.dev degrades the --provider enrichment
-	// exactly like the home-provider path: exit 0, provider_env and models
-	// omitted, and a warning so the silence reads as an outage.
+	// Unreachable+uncached degrades like home-provider: exit 0, omit provider_env/models, warn.
 	newScenario(t, closedModelsServer(t), "delta-agent")
 
 	got := runCLI("--json", "agents", "get", "delta-agent", "--provider", "anthropic")
@@ -317,8 +295,7 @@ func TestGetAgnosticProviderDegradesWithWarningWhenUnreachable(t *testing.T) {
 }
 
 func TestListAgnosticProviderShowsCount(t *testing.T) {
-	// With --provider, an agnostic row matches the home-provider shape: a real
-	// model array in JSON, a count in text, not the null/- marker.
+	// With --provider, agnostic row matches home-provider shape: array/count, not null/-.
 	newScenario(t, "", "delta-agent")
 
 	got := runCLI("--json", "agents", "list", "--installed", "--provider", "anthropic")
@@ -337,8 +314,7 @@ func TestListAgnosticProviderShowsCount(t *testing.T) {
 }
 
 func TestListAgnosticUnknownProviderIsUsage(t *testing.T) {
-	// An unknown caller-supplied id fails the listing as a usage fault, unlike the
-	// missing-provider case, which soft-skips enrichment and keeps listing.
+	// Unknown id fails the listing; missing-provider soft-skips enrichment instead.
 	newScenario(t, "", "delta-agent")
 
 	got := runCLI("agents", "list", "--provider", "bogus")
@@ -351,9 +327,7 @@ func TestListAgnosticUnknownProviderIsUsage(t *testing.T) {
 }
 
 func TestListUnknownProviderIsUsageWithoutAgnosticInstalled(t *testing.T) {
-	// --provider is validated at the boundary: an unknown id fails as usage even
-	// when no agnostic agent is installed to enrich against it, so the outcome does
-	// not depend on which binaries happen to be present.
+	// --provider is validated at the boundary even with no agnostic agent present.
 	newScenario(t, "", "alpha-cli") // only a home-provider agent installed; delta absent
 
 	got := runCLI("agents", "list", "--provider", "bogus")

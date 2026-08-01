@@ -7,14 +7,11 @@ import (
 	"time"
 )
 
-// Option configures Open. Every nondeterministic input that shapes a reported
-// value enters here, save for the process defaults that R10 still names and
-// defends: the default cache directory and the clock. PATH search is injectable
-// via WithLookPath (defaulting to exec.LookPath).
+// Option configures Open. Nondeterministic inputs that shape reported values
+// enter here (except process cache dir and clock). PATH search via WithLookPath.
 type Option func(*options)
 
-// options is the resolved settings Open reads. The two catalog sources are
-// mutually exclusive: Open rejects both catalogDir and catalogModule set.
+// Open rejects both catalogDir and catalogModule set.
 type options struct {
 	catalogModule string
 	catalogDir    string
@@ -34,22 +31,19 @@ type options struct {
 	logger        *slog.Logger
 }
 
-// WithCatalogModule overrides the catalog module path resolved from the registry.
-// It is mutually exclusive with WithCatalogDir; Open rejects both.
+// WithCatalogModule overrides the registry catalog module path.
+// Mutually exclusive with WithCatalogDir.
 func WithCatalogModule(path string) Option {
 	return func(o *options) { o.catalogModule = path }
 }
 
-// WithCatalogDir loads the catalog by evaluating a local CUE module directory,
-// bypassing the registry entirely. It is never stale and needs no network. It is
-// mutually exclusive with WithCatalogModule; Open rejects both. An entry the
-// schema rejects fails with ErrCatalogInvalid.
+// WithCatalogDir evaluates a local CUE module (never stale, no network).
+// Mutually exclusive with WithCatalogModule; schema reject is ErrCatalogInvalid.
 func WithCatalogDir(dir string) Option {
 	return func(o *options) { o.catalogDir = dir }
 }
 
-// WithCatalogTTL sets the catalog version-resolution cache TTL. Inert under
-// WithCatalogDir.
+// WithCatalogTTL sets the catalog version-resolution cache TTL. Inert under WithCatalogDir.
 func WithCatalogTTL(d time.Duration) Option {
 	return func(o *options) {
 		o.catalogTTL = d
@@ -57,9 +51,8 @@ func WithCatalogTTL(d time.Duration) Option {
 	}
 }
 
-// WithCacheDir sets the cache directory for the catalog resolution cache and
-// models.dev. The models.dev half honours it; the clock stays on the process
-// (R10).
+// WithCacheDir sets the catalog resolution and models.dev cache directory.
+// The clock stays on the process.
 func WithCacheDir(dir string) Option {
 	return func(o *options) { o.cacheDir = dir }
 }
@@ -82,9 +75,8 @@ func WithSearchDirs(dirs ...string) Option {
 	return func(o *options) { o.searchDirs = append(o.searchDirs, dirs...) }
 }
 
-// WithBinPaths overrides specific agents' binary paths by id. An override is a
-// filesystem path, made absolute against the working directory when relative; it
-// is not PATH-resolved and is the binary used for the version exec.
+// WithBinPaths overrides agents' binary paths by id (filesystem path, not PATH-
+// resolved; relative roots at working directory; used for the version exec).
 func WithBinPaths(m map[string]string) Option {
 	return func(o *options) {
 		if o.binPaths == nil {
@@ -94,26 +86,21 @@ func WithBinPaths(m map[string]string) Option {
 	}
 }
 
-// WithLookPath supplies the PATH search used to locate agent binaries by name. It
-// defaults to exec.LookPath. A successful hit must still name an executable file;
-// a non-executable or failed result falls through to WithSearchDirs the same way
-// a miss does. Callers (and tests) inject a closed or fixture-scoped function so
-// host PATH never leaks into detection (R10).
+// WithLookPath supplies PATH search for agent binaries (default exec.LookPath).
+// Non-executable or failed hits fall through to WithSearchDirs. Inject a closed
+// or fixture-scoped function so host PATH never leaks into detection.
 func WithLookPath(fn func(string) (string, error)) Option {
 	return func(o *options) { o.lookPath = fn }
 }
 
-// WithEnvLookup supplies the environment source for the library's own data-shaping
-// reads: provider-env presence and catalog path expansion ($VAR and ~). It
-// defaults to os.LookupEnv. Only presence is ever taken from a variable, never its
-// value.
+// WithEnvLookup supplies env for provider-env presence and path expansion ($VAR, ~).
+// Default os.LookupEnv. Only presence is taken from a variable, never its value.
 func WithEnvLookup(fn func(string) (string, bool)) Option {
 	return func(o *options) { o.envLookup = fn }
 }
 
-// WithWorkingDir sets the base a relative local config, skills, or binary path
-// resolves against. It defaults to os.Getwd, so two callers in different
-// directories are told different things about the same agent only when they say so.
+// WithWorkingDir sets the base for relative local config, skills, or binary paths.
+// Default os.Getwd.
 func WithWorkingDir(dir string) Option {
 	return func(o *options) {
 		o.workingDir = dir
@@ -126,9 +113,8 @@ func WithHTTPClient(hc *http.Client) Option {
 	return func(o *options) { o.httpClient = hc }
 }
 
-// WithLogger threads a structured logger through the library's decision points. It
-// defaults to a logger over a discard handler, so the library is silent unless a
-// caller opts in and never writes to a stream it was not given (R19).
+// WithLogger threads a structured logger through decision points. Default is
+// discard so the library is silent unless a caller opts in.
 func WithLogger(l *slog.Logger) Option {
 	return func(o *options) { o.logger = l }
 }

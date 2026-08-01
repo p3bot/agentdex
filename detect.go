@@ -9,17 +9,11 @@ import (
 	"github.com/start-cli/agentdex/internal/catalog"
 )
 
-// maxConcurrentDetections bounds how many catalog entries are detected at once.
-// Each detection may exec a binary for its version probe, so an unbounded fan-out
-// would spawn one child process per entry. The work is I/O-bound (subprocess and
-// filesystem waits), so a fixed cap above GOMAXPROCS keeps healthy parallelism
-// while bounding process count as the catalog grows.
+// Caps concurrent version-probe execs; work is I/O-bound so above GOMAXPROCS is fine.
 const maxConcurrentDetections = 16
 
-// detect resolves one catalog entry's outside facts: its binary and version, and
-// its config and skills paths, expanded against the boundary inputs captured at
-// Open. It performs no enrichment and reads no models.dev — Found gates only the
-// binary path and version, never the provider set or paths (R4).
+// detect resolves outside facts only. Found gates binary path and version, never
+// provider set or paths.
 func (c *core) detect(ctx context.Context, ka catalog.KnownAgent) Agent {
 	a := Agent{
 		KnownAgent: KnownAgent{
@@ -43,15 +37,9 @@ func (c *core) detect(ctx context.Context, ka catalog.KnownAgent) Agent {
 	return a
 }
 
-// locateBinary resolves an agent's binary. An explicit per-agent override wins
-// outright — it is the sole candidate, still verified to exist and be executable
-// so Found reflects reality — otherwise PATH is searched via the boundary
-// lookPath (default exec.LookPath), then the extra search dirs. Every candidate
-// path, including a lookPath hit, must be executable before Found is true; a
-// non-executable lookPath result falls through to search dirs the same way a
-// failed PATH search does. Making the located path absolute uses the captured
-// working directory, so BinaryPath and the local config and skills paths all
-// root a relative value the same way.
+// locateBinary: binPaths override is sole candidate; else lookPath then search
+// dirs. Every hit must be executable; non-executable lookPath falls through.
+// Relative paths root at the captured working directory.
 func (c *core) locateBinary(id, bin string) (string, bool) {
 	if override, ok := c.binPaths[id]; ok && override != "" {
 		if isExecutable(override) {
@@ -71,10 +59,7 @@ func (c *core) locateBinary(id, bin string) (string, bool) {
 	return "", false
 }
 
-// resolvePathPair expands a catalog config pair into resolved global and local
-// paths with per-scope existence. Local is rooted at the captured working
-// directory when it is not already absolute. An empty local scope stays empty
-// and not-existing.
+// Empty local scope stays empty; relative local roots at the captured working dir.
 func (c *core) resolvePathPair(pp catalog.PathPair) ResolvedPaths {
 	rp := ResolvedPaths{Global: c.expandPath(pp.Global)}
 	rp.GlobalExists = pathExists(rp.Global)
@@ -89,10 +74,6 @@ func (c *core) resolvePathPair(pp catalog.PathPair) ResolvedPaths {
 	return rp
 }
 
-// resolveSkillsPaths expands catalog skills roles into path entries with
-// per-path existence and derives Primary per scope (agents, else native, else
-// first alternative). Local roots are joined to the captured working directory
-// when not already absolute.
 func (c *core) resolveSkillsPaths(sp catalog.SkillsPaths) SkillsPaths {
 	return SkillsPaths{
 		Global: c.resolveSkillsScope(sp.Global, false),
@@ -115,8 +96,6 @@ func (c *core) resolveSkillsScope(sc catalog.SkillsScope, projectLocal bool) Ski
 	return out
 }
 
-// resolveSkillPath expands one catalog skill path. projectLocal roots relative
-// paths at the captured working directory; empty raw stays empty.
 func (c *core) resolveSkillPath(raw string, projectLocal bool) PathEntry {
 	if raw == "" {
 		return PathEntry{}
@@ -128,8 +107,6 @@ func (c *core) resolveSkillPath(raw string, projectLocal bool) PathEntry {
 	return PathEntry{Path: p, Exists: pathExists(p)}
 }
 
-// skillsPrimary picks the install/query target for one scope: shared agents
-// convention first, then native, then the first alternative.
 func skillsPrimary(sc SkillsScope) PathEntry {
 	if sc.Agents.Path != "" {
 		return sc.Agents
@@ -143,12 +120,8 @@ func skillsPrimary(sc SkillsScope) PathEntry {
 	return PathEntry{}
 }
 
-// expandPath applies environment-variable expansion and then leading-tilde
-// expansion to a catalog path. Env expansion runs first so "$XDG_CONFIG_HOME/agent"
-// resolves; tilde second for the "~/..." form. Both draw on the boundary-captured
-// lookup rather than the live process environment (R10): $VAR resolves each name
-// through it and ~ resolves the captured home. An unset variable becomes empty —
-// there is no XDG home fallback here, which is the loader's job for its own cache.
+// Env first ($XDG…), then leading tilde; both use the captured lookup/home.
+// Unset vars become empty — no XDG home fallback (that is the loader's job).
 func (c *core) expandPath(raw string) string {
 	if raw == "" {
 		return ""
@@ -166,9 +139,7 @@ func (c *core) expandPath(raw string) string {
 	return expanded
 }
 
-// absPath makes a located path absolute against the captured working directory,
-// so a relative --bin-path or search-dir value roots the same way a relative local
-// config path does (R10). An already-absolute path is returned cleaned.
+// Root relative paths at the captured working directory, same as local config.
 func (c *core) absPath(p string) string {
 	if p == "" {
 		return p

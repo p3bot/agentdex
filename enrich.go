@@ -3,26 +3,19 @@ package agentdex
 import "fmt"
 
 // Enrich selects how much provider and models.dev data an agent operation
-// attaches. It is the single demand axis: each level is a superset of the one
-// below, and what the operation resolves, reports, and validates against
-// models.dev is keyed off it (R4).
+// attaches. Each level is a superset of the one below.
 type Enrich int
 
 const (
-	// EnrichNone is catalog and detection facts only: no provider resolution and no
-	// enrichment of agent rows. Get never contacts models.dev. List is offline from
-	// models.dev when Providers is empty; a non-empty Providers filter is still
-	// validated against models.dev at every Enrich level, including this one.
+	// EnrichNone is catalog and detection only. Get never contacts models.dev; List
+	// still validates a non-empty Providers filter against it at every level.
 	EnrichNone Enrich = iota
-	// EnrichProviders adds the resolved provider set and nothing else. For a
-	// home-provider agent that is offline catalog data; for an agnostic agent the
-	// caller ids are validated against models.dev before they are reported.
+	// EnrichProviders adds the resolved provider set only (offline for home-provider;
+	// validates caller ids for agnostic).
 	EnrichProviders
-	// EnrichCount adds ProviderEnv and ModelCount (and coverage on Agents.Get). It
-	// is models.dev-backed for every agent a provider set was resolved for.
+	// EnrichCount adds ProviderEnv and ModelCount (and coverage on Agents.Get).
 	EnrichCount
-	// EnrichFull adds the full Models list. It pays the same models.dev fetch as
-	// EnrichCount; only the models list separates them.
+	// EnrichFull adds the Models list on the same fetch as EnrichCount.
 	EnrichFull
 )
 
@@ -42,8 +35,7 @@ func (e Enrich) String() string {
 	}
 }
 
-// EnrichmentState records the outcome of enrichment on a returned Agent, replacing
-// the nil/empty/null encodings a caller would otherwise decode by hand.
+// EnrichmentState records the outcome of enrichment on a returned Agent.
 type EnrichmentState int
 
 const (
@@ -51,13 +43,11 @@ const (
 	EnrichmentNotRequested EnrichmentState = iota
 	// EnrichmentApplied means the requested level was satisfied in full.
 	EnrichmentApplied
-	// EnrichmentNotApplicable means an agnostic agent was resolved with no providers
-	// supplied: outside facts only, distinct from a real empty result.
+	// EnrichmentNotApplicable is agnostic with no providers: outside facts only,
+	// distinct from a real empty result.
 	EnrichmentNotApplicable
-	// EnrichmentDegraded means models.dev could not fill the level — unreachable and
-	// uncached, or serving data agentdex cannot parse — so ModelCount is not a true
-	// zero. The fault is said alongside, as a warning kind on List and as the
-	// coverage verdict on Get.
+	// EnrichmentDegraded means models.dev could not fill the level, so ModelCount is
+	// not a true zero. Fault rides a List warning or Get coverage verdict.
 	EnrichmentDegraded
 )
 
@@ -77,13 +67,12 @@ func (s EnrichmentState) String() string {
 	}
 }
 
-// CoverageStatus is the verdict of probing a single agent's catalog provider set
-// against models.dev. The zero value is CoverageNotProbed, so every other status
-// is a positive verdict a probe actually established.
+// CoverageStatus is the verdict of probing one agent's catalog provider set
+// against models.dev. Zero is CoverageNotProbed; other values are probe results.
 type CoverageStatus int
 
 const (
-	// CoverageNotProbed means the level reached no models.dev, so no verdict.
+	// CoverageNotProbed means no models.dev contact, so no verdict.
 	CoverageNotProbed CoverageStatus = iota
 	CoverageAllPresent
 	CoverageSomePresent
@@ -112,20 +101,17 @@ func (s CoverageStatus) String() string {
 	}
 }
 
-// ProviderCoverage is the per-provider models.dev coverage of one agent's catalog
-// provider set, reported as data by Agents.Get. The caller maps verdicts to policy.
+// ProviderCoverage is per-provider models.dev coverage of one agent's set, as data.
 type ProviderCoverage struct {
 	Present []string
 	Absent  []string
 	Status  CoverageStatus
-	// Err is the models.dev fault behind CoverageUnreachable and CoverageSchemaDrift;
-	// nil otherwise. It wraps the modelsdev error so errors.Is resolves the drift.
+	// Err wraps the models.dev fault for Unreachable/SchemaDrift so errors.Is works.
 	Err error
 }
 
-// WarningKind classifies a non-fatal condition an operation raised. Kind and Msg
-// are one-to-many: the same kind carries different wording from different
-// operations, so a caller branches on Kind while emitting Msg verbatim (R6).
+// WarningKind classifies a non-fatal condition. Same kind may carry different Msg
+// wording per operation; branch on Kind, emit Msg verbatim.
 type WarningKind int
 
 const (
@@ -134,11 +120,9 @@ const (
 	WarnModelsSchemaDrift
 	WarnSomeProvidersAbsent
 	WarnNotInstalled
-	// WarnProvidersRequired is guidance, not an error: an agnostic agent reported
-	// without a provider set.
+	// WarnProvidersRequired is guidance: agnostic agent reported without providers.
 	WarnProvidersRequired
-	// WarnModelsStale means models.dev was served from a stale cache fallback after
-	// a failed refetch. Emitted only by operations that actually consulted models.dev.
+	// WarnModelsStale: stale cache fallback after failed refetch; only when consulted.
 	WarnModelsStale
 )
 
@@ -164,9 +148,7 @@ func (k WarningKind) String() string {
 	}
 }
 
-// Warning is a structured, self-describing note: the kind a caller branches on and
-// the human-readable message it emits verbatim (adding a remedy clause only where
-// the remedy names the caller's own affordance).
+// Warning is Kind for branching and Msg for verbatim emission.
 type Warning struct {
 	Kind WarningKind
 	Msg  string

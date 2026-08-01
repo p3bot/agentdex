@@ -25,7 +25,6 @@ func TestFixtureBinsMatchCatalogValid(t *testing.T) {
 			t.Errorf("agent %q bin = %q, want FixtureBins value %q", id, ka.Bin, want)
 		}
 	}
-	// Membership only: bin equality was checked above for every shared id.
 	for id := range cat.Agents {
 		if _, ok := catalogtest.FixtureBins[id]; !ok {
 			t.Errorf("catalog-valid has agent %q, FixtureBins does not", id)
