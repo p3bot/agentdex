@@ -47,7 +47,7 @@ type cueSkillsScope struct {
 // `agents: [...]: #KnownAgent` constraint is unified with the data when the
 // package is built, so any contract violation surfaces here before decode. The
 // loader carries no schema of its own. SkipImports keeps the registry out of
-// this step; the catalog module imports nothing.
+// this step; stdlib packages such as struct remain available.
 func loadCatalogModule(sourceDir string) (*Catalog, error) {
 	// Package is left unset so load resolves the module root's single package by
 	// its unique context, rather than assuming a name; this keeps a fork selected
@@ -76,7 +76,7 @@ func loadCatalogModule(sourceDir string) (*Catalog, error) {
 		return nil, fmt.Errorf("%w: no agents field: %w", ErrInvalidCatalog, err)
 	}
 	// Concrete validation surfaces both constraint violations (a bottom from,
-	// e.g., name failing !="") and missing required fields (an incomplete value).
+	// e.g., name failing !="" or MinFields) and missing required fields.
 	if err := agentsVal.Validate(cue.Concrete(true)); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidCatalog, err)
 	}
@@ -99,11 +99,7 @@ func loadCatalogModule(sourceDir string) (*Catalog, error) {
 			Homepage:    a.Homepage,
 		}
 		if a.Skills != nil {
-			sk, err := decodeSkills(id, a.Skills.Global, a.Skills.Local)
-			if err != nil {
-				return nil, err
-			}
-			ka.Skills = sk
+			ka.Skills = mapSkills(a.Skills.Global, a.Skills.Local)
 		}
 		if a.Version != nil {
 			ka.Version = &VersionProbe{Args: a.Version.Args, Pattern: a.Version.Pattern}
@@ -113,42 +109,23 @@ func loadCatalogModule(sourceDir string) (*Catalog, error) {
 	return &Catalog{Agents: agents}, nil
 }
 
-// decodeSkills builds SkillsPaths and rejects empty skills objects. Agents with
-// no skills omit the field entirely (a.Skills == nil). When skills is present,
-// at least one of global/local must be set, and each present scope must have at
-// least one of agents, native, or alternatives. CUE cannot express that
-// at-least-one-optional rule without leaving valid entries non-concrete, so the
-// loader enforces it here (cue vet alone does not).
-func decodeSkills(id string, global, local *cueSkillsScope) (*SkillsPaths, error) {
-	if global == nil && local == nil {
-		return nil, fmt.Errorf("%w: agent %q: skills has no global or local scope", ErrInvalidCatalog, id)
-	}
+// mapSkills builds SkillsPaths from a decoded skills object. Emptiness is
+// already rejected by schema MinFields during evaluation.
+func mapSkills(global, local *cueSkillsScope) *SkillsPaths {
 	sk := &SkillsPaths{}
 	if global != nil {
-		sc, err := decodeSkillsScope(id, "global", global)
-		if err != nil {
-			return nil, err
-		}
-		sk.Global = sc
+		sk.Global = mapSkillsScope(global)
 	}
 	if local != nil {
-		sc, err := decodeSkillsScope(id, "local", local)
-		if err != nil {
-			return nil, err
-		}
-		sk.Local = sc
+		sk.Local = mapSkillsScope(local)
 	}
-	return sk, nil
+	return sk
 }
 
-func decodeSkillsScope(id, scope string, s *cueSkillsScope) (SkillsScope, error) {
-	sc := SkillsScope{
+func mapSkillsScope(s *cueSkillsScope) SkillsScope {
+	return SkillsScope{
 		Agents:       s.Agents,
 		Native:       s.Native,
 		Alternatives: append([]string(nil), s.Alternatives...),
 	}
-	if sc.Agents == "" && sc.Native == "" && len(sc.Alternatives) == 0 {
-		return SkillsScope{}, fmt.Errorf("%w: agent %q: skills.%s has no agents, native, or alternatives", ErrInvalidCatalog, id, scope)
-	}
-	return sc, nil
 }

@@ -6,27 +6,13 @@ import (
 	"github.com/start-cli/agentdex/modelsdev"
 )
 
-// newerModel reports whether a sorts before b in a newest-first listing: later
-// release date first (ISO dates compare lexically), undated models last, ties
-// broken by id so the order is deterministic. This is the library's one model
-// order (R14), applied wherever a model list is attached.
-func newerModel(a, b modelsdev.Model) bool {
-	if a.ReleaseDate != b.ReleaseDate {
-		if a.ReleaseDate == "" {
-			return false
-		}
-		if b.ReleaseDate == "" {
-			return true
-		}
-		return a.ReleaseDate > b.ReleaseDate
-	}
-	return a.ID < b.ID
-}
-
 // sortModels orders attributed models newest release first, in place. One
-// comparator covers Models.List and agent EnrichFull (R14).
+// comparator covers Models.List and agent EnrichFull (R14); the rule lives on
+// modelsdev.Newer so the CLI and library cannot diverge.
 func sortModels(models []Model) {
-	sort.SliceStable(models, func(i, j int) bool { return newerModel(models[i].Model, models[j].Model) })
+	sort.SliceStable(models, func(i, j int) bool {
+		return modelsdev.Newer(models[i].Model, models[j].Model)
+	})
 }
 
 // sortedKeys returns a map's string keys in ascending order, for deterministic

@@ -47,13 +47,15 @@ func (a *app) newAgentsListCmd() *cobra.Command {
 		Long: "List the AI coding agents in the catalog with their local detection status: a " +
 			"detected agent shows its resolved binary in the BIN column, while an agent whose " +
 			"binary was not found on PATH shows \"missing\". --installed narrows the listing to the " +
-			"agents detected on this machine. Each agent's model count is enriched from models.dev, " +
-			"served from the local cache when warm and degrading to zero when models.dev cannot be " +
-			"reached. Provider-agnostic agents show \"-\" unless --provider is given. Detected agents " +
-			"lead and the rows are ordered by id by default; --order-by sorts by any field and " +
-			"--reverse flips the direction. An optional filter narrows the list to agents whose id or " +
-			"name contains it (case-insensitive); a filter matching nothing prints an empty listing " +
-			"and exits 0.",
+			"agents detected on this machine. Each agent's models are enriched from models.dev " +
+			"(served from the local cache when warm and degrading when models.dev cannot be " +
+			"reached): the text models column shows the count, while --json carries the full model " +
+			"array per agent so the list envelope shape stays stable without --fields (null when " +
+			"models are not applicable). Provider-agnostic agents show \"-\" unless --provider is " +
+			"given. Detected agents lead and the rows are ordered by id by default; --order-by " +
+			"sorts by any field and --reverse flips the direction. An optional filter narrows the " +
+			"list to agents whose id or name contains it (case-insensitive); a filter matching " +
+			"nothing prints an empty listing and exits 0.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			idx, err := a.index(cmd)

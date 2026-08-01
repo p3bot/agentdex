@@ -307,28 +307,6 @@ func providerEnvCell(names []string, present map[string]bool) string {
 	return strings.Join(parts, ", ")
 }
 
-// newerModel reports whether a sorts before b in a newest-first model listing:
-// later release_date first (ISO dates compare lexically), undated models last,
-// ties broken by id so the order stays deterministic.
-func newerModel(a, b modelsdev.Model) bool {
-	if a.ReleaseDate != b.ReleaseDate {
-		if a.ReleaseDate == "" {
-			return false
-		}
-		if b.ReleaseDate == "" {
-			return true
-		}
-		return a.ReleaseDate > b.ReleaseDate
-	}
-	return a.ID < b.ID
-}
-
-// sortModelsNewest orders models newest release first for display. This is a
-// presentation choice of the CLI: the library keeps its stable by-id order.
-func sortModelsNewest(models []modelsdev.Model) {
-	sort.SliceStable(models, func(i, j int) bool { return newerModel(models[i], models[j]) })
-}
-
 type costKind int
 
 const (

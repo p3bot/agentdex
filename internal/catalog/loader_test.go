@@ -126,8 +126,8 @@ func TestLoadSchemaViolationFails(t *testing.T) {
 }
 
 func TestLoadEmptySkillsRejected(t *testing.T) {
-	// skills must be omitted when an agent has no skills dirs. An empty skills
-	// object or empty scope is invalid and fails load with ErrInvalidCatalog.
+	// skills must be omitted when an agent has no skills dirs. Schema MinFields
+	// rejects an empty skills object or empty scope as ErrInvalidCatalog.
 	valid := catalogtest.FixtureDir(t, "catalog-valid")
 	cases := []struct {
 		name   string

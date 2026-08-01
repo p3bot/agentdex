@@ -56,7 +56,7 @@ agent, not from memory:
   Do not store `primary` — the library derives it as agents, else native, else
   the first alternative. Order `alternatives` by preference: when agents and
   native are unset, `alternatives[0]` becomes primary. Empty `skills: {}` or an
-  empty scope is rejected.
+  empty scope is rejected by the schema (`struct.MinFields(1)`).
 - `version.args` and optional `version.pattern`: the flag that prints the version
   and a regex to extract it.
 - `provider`: one or more real models.dev provider ids. This is the join key to
@@ -128,11 +128,10 @@ cue mod tidy
 ```
 
 `cue vet` validates by evaluation because `schema.cue` travels with the data; a
-missing required field or an empty path string fails here. Empty `skills: {}` or
-an empty scope (`skills: { global: {} }`) is not caught by CUE: every role and
-scope field is optional, and an at-least-one rule over optionals cannot stay
-concrete. The loader rejects those after decode (`ErrInvalidCatalog`); step 4
-catches them before publish. `cue mod tidy` must leave the module clean.
+missing required field or an empty path string fails schema constraints (e.g.
+`!=""`), and empty `skills: {}` or an empty scope (`skills: { global: {} }`)
+fails via `struct.MinFields(1)` on skills and each scope. `cue mod tidy` must
+leave the module clean.
 
 ### 4. Exercise through the library
 

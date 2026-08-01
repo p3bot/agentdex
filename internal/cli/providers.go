@@ -200,7 +200,7 @@ func renderProviderDetail(w io.Writer, fs []field, p modelsdev.Provider, present
 	for _, key := range sortedKeys(p.Models) {
 		models = append(models, p.Models[key])
 	}
-	sortModelsNewest(models)
+	modelsdev.SortByRelease(models)
 	recs := make([]*record, len(models))
 	for i, m := range models {
 		recs[i] = modelRecord(m, p.ID, "")
