@@ -1,6 +1,6 @@
 # agentdex
 
-agentdex is a Go library plus thin CLI that indexes three kinds of data — AI coding agents, the models.dev providers that power them, and the models those providers offer — and serves all three as browsable data. For an agent it reports the binary, version, config and skills directories, providers, and available models (enriched from models.dev), and whether it is installed on the local machine; providers and models are browsable in their own right. It owns the outside of an agent — identity, location, paths, version, capability — and never reads an agent's internal configuration. Project documents (`NN-*.md`) carry the slice of work each builds.
+agentdex is a Go library plus thin CLI that indexes three kinds of data — AI coding agents, the models.dev providers that power them, and the models those providers offer — and serves all three as browsable data. For an agent it reports the binary, version, config and skills directories, providers, and available models (enriched from models.dev), and whether it is installed on the local machine; providers and models are browsable in their own right. It owns the outside of an agent — identity, location, paths, version, capability — and never reads an agent's internal configuration.
 
 ## Module layout
 
@@ -10,6 +10,14 @@ The repository hosts two independent module systems that do not interfere:
 - CUE module under `catalog/`: `github.com/start-cli/agentdex/catalog@v1`. The `#KnownAgent` schema and the agent catalog data, published to the CUE Central Registry and fetched at runtime. It is versioned and published independently of the Go binary.
 
 The Go build ignores `catalog/`; the CUE module is a self-contained CUE module with its own `cue.mod/module.cue`.
+
+## Project documents
+
+Feature work lives in the ambient `pj` scope `ad` under `.agents/projects/`. Board order is chronological (`pj list --all` reads as history). Read verbs: `pj list`, `pj status`, `pj get`, `pj search`, `pj next`. Resolve a former root filename via the `legacy` frontmatter field:
+
+```bash
+rg -l 'legacy: "01-theme-safe-terminal-path-colour.md"' .agents/projects
+```
 
 ## Toolchain and platforms
 
@@ -181,7 +189,7 @@ Go:
 - Comments document why, not what. Respect godoc form on exported symbols.
 - Tests favour real behaviour over mocks: real CUE validation, real files via `t.TempDir()`, environment isolation via `t.Setenv`. Table-driven tests for multiple cases.
 
-Markdown for agent-facing documents (`AGENTS.md`, project documents, design notes):
+Markdown for agent-facing documents (`AGENTS.md`, pj project bodies, design notes):
 
 - No bold or italic, no horizontal rules, no emojis, no HTML comments.
 - No heading depth beyond `###`. No directory structures beyond depth 3.

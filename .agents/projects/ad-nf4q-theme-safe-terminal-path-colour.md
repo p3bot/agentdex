@@ -1,3 +1,12 @@
+---
+id: ad-nf4q
+status: backlog
+order: "a0"
+tags: [cli, colour, path, standards, terminal, theme, tui]
+created: "2026-08-01T11:56:27+10:00"
+summary: Make filesystem paths in agentdex text detail view legible on dark and light terminals, and resolve the shared start path-colour standard
+legacy: 01-theme-safe-terminal-path-colour.md
+---
 # Theme-safe terminal path colour
 
 Source: pre-commit review on 2026-07-04
