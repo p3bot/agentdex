@@ -1,0 +1,5 @@
+file,description,topics
+README.md,GitHub Copilot CLI overview install launch and LSP config,copilot;cli;install;github;overview
+changelog.md,Release notes including skills paths COPILOT_HOME and discovery changes,copilot;changelog;skills;COPILOT_HOME;paths
+install.sh,Official install script for macOS and Linux binaries,copilot;install;script;linux;macos
+LICENSE.md,License for the Copilot CLI distribution repo,copilot;license

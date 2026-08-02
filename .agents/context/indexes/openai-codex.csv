@@ -1,0 +1,17 @@
+file,description,topics
+README.md,Codex CLI overview install and launch paths,codex;cli;install;overview;openai
+AGENTS.md,Upstream agent instructions for the codex repository,codex;agents;contributing-context
+docs/install.md,Installing and building Codex CLI,codex;install;build;binary
+docs/getting-started.md,Getting started with Codex CLI,codex;getting-started;usage
+docs/config.md,Configuration documentation entry and pointers,codex;config;configuration
+docs/skills.md,Skills documentation pointer,codex;skills
+docs/authentication.md,Authentication and sign-in options,codex;auth;login;api-key
+docs/exec.md,Non-interactive exec mode,codex;exec;headless
+docs/sandbox.md,Sandbox and approvals,codex;sandbox;security
+docs/slash_commands.md,Slash commands reference,codex;slash-commands;tui
+codex-rs/README.md,Rust workspace overview for the CLI implementation,codex;rust;workspace
+codex-rs/config.md,Config docs redirect within the Rust tree,codex;config
+codex-rs/core-skills/,Skills loading discovery roots and system skills,codex;skills;discovery;paths
+codex-rs/config/,Config layer stack loader CODEX_HOME and project .codex,codex;config;CODEX_HOME;layers
+codex-rs/cli/,CLI entrypoint version flags and doctor,codex;cli;version;doctor
+codex-cli/,npm wrapper package for distributing the CLI,codex;npm;wrapper

@@ -1,0 +1,3 @@
+directory,description,topics,source_url,source_type,last_updated
+openai-codex,OpenAI Codex CLI - terminal coding agent source and docs (see indexes/openai-codex.csv),codex;openai;cli;agent;skills;config;rust,https://github.com/openai/codex,official-tool-repo,2026-08-02
+github-copilot-cli,GitHub Copilot CLI - terminal agent install scripts and changelog (see indexes/github-copilot-cli.csv),copilot;github;cli;agent;skills;install,https://github.com/github/copilot-cli,official-tool-repo,2026-08-02

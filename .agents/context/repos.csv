@@ -1,0 +1,3 @@
+url,directory,sparse_paths,ref
+https://github.com/openai/codex.git,openai-codex,,
+https://github.com/github/copilot-cli.git,github-copilot-cli,,

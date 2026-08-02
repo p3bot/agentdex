@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+
+# Environment setup
+# -----------------------------------------------------------------------------
+set -o pipefail # set -o errexit hides errors, don't use it
+[[ ${DEBUG-} ]] && set -o xtrace
+SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" || exit 1; pwd)"
+[[ ":${PATH}:" != *:"${SCRIPT_DIR}":* ]] && export PATH="${SCRIPT_DIR}:${PATH}"
+source "${HOME}/bin/scripts/bash_modules/terminal.sh"
+[[ -z ${BASH_MODULES_DIR-} ]] && echo "ERROR: terminal.sh module missing" && exit 1
+source "${BASH_MODULES_DIR}/git.sh"
+
+function print_usage() {
+  cat <<EOF
+Usage: $(basename "$0") [branch1] [branch2]
+
+Check if specific files are synchronized between two git branches.
+
+This script compares files that should be identical across branches (like
+PROJECT.md and docs/source.md) and reports any differences found.
+
+Optional arguments:
+  branch1            First branch to compare (default: work)
+  branch2            Second branch to compare (default: gdc)
+  -h, --help         Show this help message and exit
+
+Examples:
+  $(basename "$0")              # Compare work and gdc branches
+  $(basename "$0") main dev     # Compare main and dev branches
+EOF
+}
+if [[ "${1}" == "-h" || "${1}" == "--help" ]]; then
+  print_usage
+  exit 0
+fi
+
+function ctrlc_trap() {
+  log_newline
+  log_warning "Script interrupted. Exiting."
+  exit 130
+}
+trap ctrlc_trap SIGINT
+
+# Title and Dependency Checks
+# -----------------------------------------------------------------------------
+log_title "Branch File Synchronization Check"
+
+dependencies=(git)
+for cmd in "${dependencies[@]}"; do
+    if ! command -v "${cmd}" >/dev/null; then
+        log_error "ERROR: Missing dependency - '${cmd}'"
+        exit 1
+    fi
+done
+
+# Check if we're in a git repository
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+    log_error "ERROR: Not in a git repository"
+    exit 1
+fi
+
+# Report Operational Values
+# -----------------------------------------------------------------------------
+log_heading "Operational Values"
+
+declare branch1="${1:-work}"
+declare branch2="${2:-gdc}"
+declare current_branch
+current_branch="$(git symbolic-ref --short HEAD)"
+
+log_message "$(
+  cat <<EOF
+    Current branch: '${current_branch}'
+   Comparing branch: '${branch1}'
+           Against: '${branch2}'
+EOF
+)"
+
+# Validation Checks
+# -----------------------------------------------------------------------------
+log_heading "Validation Checks"
+
+# Check if branches exist
+if ! git show-ref --verify --quiet "refs/heads/${branch1}"; then
+    log_failure "Branch '${branch1}' does not exist"
+    exit 1
+fi
+log_success "Branch '${branch1}' exists"
+
+if ! git show-ref --verify --quiet "refs/heads/${branch2}"; then
+    log_failure "Branch '${branch2}' does not exist"
+    exit 1
+fi
+log_success "Branch '${branch2}' exists"
+
+# Main Logic
+# -----------------------------------------------------------------------------
+log_heading "Checking File Synchronization"
+
+# Define files that should be synchronized between branches
+declare -a sync_files=(
+    "PROJECT.md"
+    "AGENTS.md"
+    ".gitignore"
+    "docs/source.md"
+    "scripts/check-sync"
+    "scripts/refresh-repos"
+)
+
+log_message "Checking ${#sync_files[@]} file(s) for synchronization:"
+log_newline
+
+declare -a out_of_sync=()
+declare -a in_sync=()
+declare -a missing=()
+
+for file in "${sync_files[@]}"; do
+    # Check if file exists in both branches
+    if ! git cat-file -e "${branch1}:${file}" 2>/dev/null; then
+        log_failure "${file} - missing in ${branch1}"
+        missing+=("${file}")
+        continue
+    fi
+
+    if ! git cat-file -e "${branch2}:${file}" 2>/dev/null; then
+        log_failure "${file} - missing in ${branch2}"
+        missing+=("${file}")
+        continue
+    fi
+
+    # Compare files between branches
+    if git diff --quiet "${branch1}" "${branch2}" -- "${file}" 2>/dev/null; then
+        log_success "${file} - synchronized"
+        in_sync+=("${file}")
+    else
+        log_failure "${file} - out of sync"
+        out_of_sync+=("${file}")
+    fi
+done
+
+# Summary
+# -----------------------------------------------------------------------------
+log_newline
+log_heading "Summary"
+
+log_message "$(
+  cat <<EOF
+       In sync: ${#in_sync[@]}
+   Out of sync: ${#out_of_sync[@]}
+Missing files: ${#missing[@]}
+EOF
+)"
+
+if [[ ${#out_of_sync[@]} -gt 0 ]]; then
+    log_newline
+    log_subheading "Files Out of Sync"
+    for file in "${out_of_sync[@]}"; do
+        log_message "  • ${file}"
+    done
+    log_newline
+    log_message "To sync files from ${branch2} to ${branch1}:"
+    log_message "  git checkout ${branch1}"
+    log_message "  git checkout ${branch2} -- <file-path>"
+fi
+
+if [[ ${#missing[@]} -gt 0 ]]; then
+    log_newline
+    log_subheading "Missing Files"
+    for file in "${missing[@]}"; do
+        log_message "  • ${file}"
+    done
+fi
+
+# Exit with appropriate code
+if [[ ${#out_of_sync[@]} -gt 0 || ${#missing[@]} -gt 0 ]]; then
+    log_newline
+    log_failure "Synchronization check failed"
+    exit 1
+fi
+
+log_newline
+log_done "All files are synchronized"
+exit 0
