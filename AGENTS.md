@@ -120,10 +120,11 @@ agents: "claude-code": {
 
 An agnostic entry (e.g. opencode) sets `agnostic: true` and omits `provider`.
 
-When the entry has `skills`, update `docs/agents-skills-path-matrix.md` with a
-section for the agent that lists each supported skills root and whether it is
-supported (Yes / No / n/a). Keep the matrix aligned with the catalog roles:
-agents, native, and alternatives for both global and local scopes.
+When the entry has `skills`, update `docs/agents-skills-path-matrix.md`: set the
+Global and Local role rows (agents, native, alternatives, derived primary) for
+that agent id, and record researched No / n/a paths in the Unsupported section.
+Keep pre-catalog research rows (e.g. copilot) until the entry is accepted or
+dropped. See the matrix authoring notes.
 
 Fields, per `catalog/schema.cue`:
 

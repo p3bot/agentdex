@@ -49,6 +49,32 @@ agents: "claude-code": {
 	homepage: "https://github.com/anthropics/claude-code"
 }
 
+agents: "codex": {
+	name:        "Codex CLI"
+	bin:         "codex"
+	description: "OpenAI's coding agent that runs in the terminal."
+	config: {
+		global: "~/.codex"
+		local:  ".codex"
+	}
+	skills: {
+		global: {
+			agents: "~/.agents/skills"
+			native: "~/.codex/skills"
+		}
+		local: {
+			agents: ".agents/skills"
+			native: ".codex/skills"
+		}
+	}
+	version: {
+		args:    ["--version"]
+		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
+	}
+	provider: ["openai"]
+	homepage: "https://github.com/openai/codex"
+}
+
 agents: "grok": {
 	name:        "Grok"
 	bin:         "grok"

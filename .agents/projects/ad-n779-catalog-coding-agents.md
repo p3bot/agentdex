@@ -41,7 +41,7 @@ Catalog map keys already present in `catalog/agents.cue`:
 |---|---|
 | `agy` | Published entry shape in tree; Antigravity CLI (Google), successor to Gemini CLI |
 | `claude-code` | Published entry shape in tree; Anthropic Claude Code |
-| `grok` | Entry present in working tree (xAI Grok); path matrix updated; not yet published |
+| `grok` | In tree (xAI Grok); path matrix updated; committed; not yet published to registry |
 | `opencode` | Published entry shape in tree; provider-agnostic |
 
 `docs/agents-skills-path-matrix.md` also documents `copilot` paths without a matching `agents.cue` entry.
@@ -84,7 +84,7 @@ Process top to bottom. Skip only with an explicit reason recorded in the outcome
 
 | Order | Candidate | Suggested id | Notes |
 |---|---|---|---|
-| 1 | Grok (finish) | `grok` | Entry and matrix already in working tree; remaining: review and commit; publish with the next registry release (alone or batched) |
+| 1 | Grok (finish) | `grok` | Done in tree (commit); include in next registry publish |
 | 2 | OpenAI Codex CLI | `codex` | Open source; bin `codex`; verify provider `openai` |
 | 3 | GitHub Copilot CLI | `copilot` or as research decides | Resolve bin (`github-copilot` vs `gh copilot`); matrix section exists |
 | 4 | Aider | `aider` | Open source; likely agnostic; verify |
@@ -128,7 +128,7 @@ Update as work proceeds.
 
 | Agent | Result | Notes |
 |---|---|---|
-| `grok` | entry drafted | In tree; exercise passed via `catalog.dir`; include in next registry publish |
+| `grok` | committed | Entry + matrix + AGENTS.md workflow notes; exercise passed; include in next registry publish |
 
 ## Implementation Guidance
 
