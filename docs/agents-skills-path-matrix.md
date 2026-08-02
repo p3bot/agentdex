@@ -20,6 +20,19 @@
 |.agents/skills/|No|
 |.claude/skills/|Yes|
 
+## grok
+
+|Path|Support|
+|-|-|
+|~/.agents/skills/|Yes|
+|~/.claude/skills/|Yes|
+|~/.cursor/skills/|Yes|
+|~/.grok/skills/|Yes|
+|.agents/skills/|Yes|
+|.claude/skills/|Yes|
+|.cursor/skills/|Yes|
+|.grok/skills/|Yes|
+
 ## copilot
 
 |Path|Support|

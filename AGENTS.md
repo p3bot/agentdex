@@ -50,7 +50,19 @@ configuration.
 ### 1. Research the outside facts
 
 Gather the static facts the catalog stores and confirm each against the real
-agent, not from memory:
+agent, not from memory. Prefer primary sources in this order:
+
+- Run the installed binary: resolve it on PATH, print version and help, and use
+  any inspect or doctor command that reports discovered paths.
+- Read the product's own docs (README, user guide, file-locations pages) for
+  config and skills roots. Prefer docs shipped with the install when present.
+- If the agent is open source, clone the repository and inspect the source for
+  path constants, discovery order, version flags, and provider defaults. Treat
+  source as authoritative when docs and binary disagree.
+- Confirm each `provider` id against models.dev (provider page or API catalog).
+  A wrong id silently drops model enrichment.
+
+Facts to collect:
 
 - `bin`: the executable name resolved on PATH (`exec.LookPath`), no `.exe`.
 - `config` paths: global and optional local directories, written with `~` and
@@ -65,8 +77,9 @@ agent, not from memory:
   the first alternative. Order `alternatives` by preference: when agents and
   native are unset, `alternatives[0]` becomes primary. Empty `skills: {}` or an
   empty scope is rejected by the schema (`struct.MinFields(1)`).
-- `version.args` and optional `version.pattern`: the flag that prints the version
-  and a regex to extract it.
+- `version.args` and optional `version.pattern`: the flag that prints the
+  version and a regex to extract it. Run the binary once and check that the
+  pattern captures the version string from real output before cataloguing it.
 - `provider`: one or more real models.dev provider ids. This is the join key to
   models.dev enrichment; a wrong id silently drops model data. An agent that can
   drive any models.dev provider (e.g. opencode) is provider-agnostic: set
@@ -107,6 +120,11 @@ agents: "claude-code": {
 
 An agnostic entry (e.g. opencode) sets `agnostic: true` and omits `provider`.
 
+When the entry has `skills`, update `docs/agents-skills-path-matrix.md` with a
+section for the agent that lists each supported skills root and whether it is
+supported (Yes / No / n/a). Keep the matrix aligned with the catalog roles:
+agents, native, and alternatives for both global and local scopes.
+
 Fields, per `catalog/schema.cue`:
 
 | Field | Required | Notes |
@@ -144,17 +162,22 @@ leave the module clean.
 ### 4. Exercise through the library
 
 Point the loader at the working-tree catalog with the `catalog.dir` key in
-`config.cue`, rather than the registry. `catalog.dir` loads the catalog by
-evaluating the local CUE module directory: no version is resolved and no registry
-is contacted, so the unpublished working tree is visible immediately, and an entry
-the schema rejects fails here with the CUE diagnostic naming it. A module path
-cannot name an unpublished tree, so this is the only source that shows a working
-edit before it is published. Set the key to the repository's `catalog/`
-directory:
+config, rather than the registry. Config lives at
+`$XDG_CONFIG_HOME/agentdex/config.cue` (fallback `~/.config/agentdex/config.cue`).
+`catalog.dir` loads the catalog by evaluating the local CUE module directory: no
+version is resolved and no registry is contacted, so the unpublished working
+tree is visible immediately, and an entry the schema rejects fails here with the
+CUE diagnostic naming it. A module path cannot name an unpublished tree, so this
+is the only source that shows a working edit before it is published. Set the key
+to the repository's `catalog/` directory:
 
 ```cue
 catalog: dir: "/path/to/agentdex/catalog"
 ```
+
+For an isolated check that does not touch the user config, point
+`XDG_CONFIG_HOME` at a temporary directory that contains
+`agentdex/config.cue` with that `catalog.dir` value.
 
 Then confirm the new entry before publishing. `agents list` shows the whole
 catalog, so the added agent appears with its detection status even before it is
@@ -164,6 +187,9 @@ installed; `--installed` narrows to the agents present on this machine:
 agentdex agents list
 agentdex agents get <id>
 ```
+
+Check that version extraction, config and skills paths, and provider model
+counts look right on `agents get` before publishing.
 
 ### 5. Publish a new catalog version
 

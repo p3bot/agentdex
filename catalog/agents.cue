@@ -49,6 +49,34 @@ agents: "claude-code": {
 	homepage: "https://github.com/anthropics/claude-code"
 }
 
+agents: "grok": {
+	name:        "Grok"
+	bin:         "grok"
+	description: "xAI's terminal-based AI coding assistant and agentic harness."
+	config: {
+		global: "~/.grok"
+		local:  ".grok"
+	}
+	skills: {
+		global: {
+			agents: "~/.agents/skills"
+			native: "~/.grok/skills"
+			alternatives: ["~/.claude/skills", "~/.cursor/skills"]
+		}
+		local: {
+			agents: ".agents/skills"
+			native: ".grok/skills"
+			alternatives: [".claude/skills", ".cursor/skills"]
+		}
+	}
+	version: {
+		args:    ["--version"]
+		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
+	}
+	provider: ["xai"]
+	homepage: "https://x.ai/cli"
+}
+
 agents: "opencode": {
 	name:        "opencode"
 	bin:         "opencode"

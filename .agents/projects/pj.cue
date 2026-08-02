@@ -2,8 +2,11 @@ name:       "ad"
 autoCommit: false
 
 knownTags: [
+	"agents",
+	"catalog",
 	"cli",
 	"colour",
+	"interactive",
 	"path",
 	"standards",
 	"terminal",
