@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/start-cli/agentdex/internal/modelsdevtest"
 )
 
 func TestRefreshAll(t *testing.T) {
@@ -31,7 +33,7 @@ func TestRefreshModelsTransientWithoutNetwork(t *testing.T) {
 
 func TestRefreshModelsWarmCacheOfflineIsTransient(t *testing.T) {
 	// Forced refresh must fail rather than silently serve a warm cache as success.
-	data := modelsCatalog([]string{"anthropic"}, nil)
+	data := modelsdevtest.CatalogJSON([]string{"anthropic"}, nil)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write(data)
 	}))

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
@@ -19,7 +18,7 @@ import (
 	"cuelang.org/go/mod/modregistrytest"
 
 	"github.com/start-cli/agentdex/internal/catalogtest"
-	"github.com/start-cli/agentdex/modelsdev"
+	"github.com/start-cli/agentdex/internal/modelsdevtest"
 )
 
 type result struct {
@@ -138,78 +137,13 @@ func probeCount(t *testing.T, counterPath string) int {
 	return strings.Count(string(data), "\n")
 }
 
+// modelsServer / closedModelsServer keep call sites short; fixtures live in modelsdevtest.
 func modelsServer(t *testing.T, present []string, malformed ...string) *httptest.Server {
-	t.Helper()
-	data := modelsCatalog(present, malformed)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write(data)
-	}))
-	t.Cleanup(srv.Close)
-	return srv
+	return modelsdevtest.Server(t, present, malformed...)
 }
 
 func closedModelsServer(t *testing.T) string {
-	t.Helper()
-	srv := httptest.NewServer(http.NotFoundHandler())
-	url := srv.URL
-	srv.Close()
-	return url
-}
-
-func modelsCatalog(present, malformed []string) []byte {
-	cat := modelsdev.Catalog{
-		// Non-empty agnostic map keeps validateTopLevel happy and carries the
-		// canonical id used by canonical-id tests.
-		Models: map[string]modelsdev.Model{
-			"anthropic/claude-sonnet": {ID: "anthropic/claude-sonnet", Name: "Claude Sonnet", Limit: modelsdev.Limit{Context: 200000}},
-		},
-		Providers: map[string]modelsdev.Provider{},
-	}
-	for _, pid := range present {
-		cat.Providers[pid] = provider(pid, false)
-	}
-	for _, pid := range malformed {
-		cat.Providers[pid] = provider(pid, true)
-	}
-	data, err := json.Marshal(cat)
-	if err != nil {
-		panic(err)
-	}
-	return data
-}
-
-// providerReleaseDates give distinct release dates so newest-first ordering is
-// observable across providers.
-var providerReleaseDates = map[string]string{
-	"anthropic": "2025-06-01",
-	"google":    "2024-01-01",
-	"openai":    "2025-01-01",
-}
-
-// anthropic carries "claude-sonnet" for the canonical-id path; malformed models have an empty id.
-func provider(pid string, malformed bool) modelsdev.Provider {
-	key, name := pid+"-model", pid+" model"
-	if pid == "anthropic" {
-		key, name = "claude-sonnet", "Claude Sonnet"
-	}
-	id := key
-	if malformed {
-		id = ""
-	}
-	return modelsdev.Provider{
-		ID:   pid,
-		Name: strings.ToUpper(pid[:1]) + pid[1:],
-		Env:  []string{strings.ToUpper(pid) + "_API_KEY"},
-		Models: map[string]modelsdev.Model{
-			key: {
-				ID:          id,
-				Name:        name,
-				ReleaseDate: providerReleaseDates[pid],
-				Limit:       modelsdev.Limit{Context: 200000, Output: 8192},
-				Cost:        &modelsdev.Cost{Input: 3, Output: 15},
-			},
-		},
-	}
+	return modelsdevtest.Closed(t)
 }
 
 // startCatalogRegistry publishes the fixture catalog to an in-process OCI registry

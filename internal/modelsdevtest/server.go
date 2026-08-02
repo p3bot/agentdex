@@ -96,6 +96,12 @@ func Provider(pid string, malformed bool) modelsdev.Provider {
 	}
 }
 
+// CatalogJSON is the fixture catalog bytes: present providers valid, malformed
+// fail validation. Used when a test needs raw bytes rather than a live server.
+func CatalogJSON(present, malformed []string) []byte {
+	return catalogJSON(present, malformed)
+}
+
 // Agnostic map carries one canonical id so the top-level shape validates.
 func catalogJSON(present, malformed []string) []byte {
 	cat := modelsdev.Catalog{

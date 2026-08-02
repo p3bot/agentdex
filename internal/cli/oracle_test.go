@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/start-cli/agentdex/internal/modelsdevtest"
 	"github.com/start-cli/agentdex/modelsdev"
 )
 
@@ -346,7 +347,7 @@ func emptyProviderModelsServer(t *testing.T) string {
 		},
 		Providers: map[string]modelsdev.Provider{
 			"empty":     {ID: "empty", Name: "Empty", Models: map[string]modelsdev.Model{}},
-			"anthropic": provider("anthropic", false),
+			"anthropic": modelsdevtest.Provider("anthropic", false),
 		},
 	}
 	data, err := json.Marshal(cat)

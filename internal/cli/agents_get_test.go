@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/start-cli/agentdex"
+	"github.com/start-cli/agentdex/internal/modelsdevtest"
 )
 
 func anyContains(ss []string, sub string) bool {
@@ -243,13 +244,7 @@ func TestGetNonePresentIsDataError(t *testing.T) {
 
 // Any models.dev access fails the test: proof of offline paths.
 func mustNotFetchModelsServer(t *testing.T) string {
-	t.Helper()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Errorf("models.dev was fetched; this path must stay offline")
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	t.Cleanup(srv.Close)
-	return srv.URL
+	return modelsdevtest.MustNotFetch(t)
 }
 
 func TestGetNonModelsFieldsSkipModelsDevAndRollup(t *testing.T) {

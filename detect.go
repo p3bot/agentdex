@@ -39,21 +39,25 @@ func (c *core) detect(ctx context.Context, ka catalog.KnownAgent) Agent {
 
 // locateBinary: binPaths override is sole candidate; else lookPath then search
 // dirs. Every hit must be executable; non-executable lookPath falls through.
-// Relative paths root at the captured working directory.
+// Relative paths root at the captured working directory before the executable check.
 func (c *core) locateBinary(id, bin string) (string, bool) {
 	if override, ok := c.binPaths[id]; ok && override != "" {
-		if isExecutable(override) {
-			return c.absPath(override), true
+		p := c.absPath(override)
+		if isExecutable(p) {
+			return p, true
 		}
 		return "", false
 	}
-	if p, err := c.lookPath(bin); err == nil && isExecutable(p) {
-		return c.absPath(p), true
+	if p, err := c.lookPath(bin); err == nil {
+		p = c.absPath(p)
+		if isExecutable(p) {
+			return p, true
+		}
 	}
 	for _, dir := range c.searchDirs {
-		candidate := filepath.Join(dir, bin)
+		candidate := c.absPath(filepath.Join(dir, bin))
 		if isExecutable(candidate) {
-			return c.absPath(candidate), true
+			return candidate, true
 		}
 	}
 	return "", false

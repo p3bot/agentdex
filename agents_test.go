@@ -230,6 +230,203 @@ func TestWithLookPathBoundary(t *testing.T) {
 	}
 }
 
+func TestWithBinPathsOverride(t *testing.T) {
+	// Override is the sole candidate: closed lookPath and no search dirs still find it.
+	overrideDir := binDir(t, fixtureBinAlpha)
+	override := filepath.Join(overrideDir, fixtureBinAlpha)
+	wantAbs, err := filepath.Abs(override)
+	if err != nil {
+		t.Fatalf("abs override: %v", err)
+	}
+
+	idx := openAgents(t, testCatalog,
+		WithBinPaths(map[string]string{"alpha-cli": override}),
+		WithEnvLookup(envFn(t.TempDir())),
+		WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+	d, err := idx.Agents.Get(context.Background(), "alpha-cli", AgentGetQuery{Enrich: EnrichNone})
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if !d.Detection.Found {
+		t.Fatal("WithBinPaths should find alpha-cli with lookPath closed and no search dirs")
+	}
+	if d.Detection.BinaryPath != wantAbs {
+		t.Errorf("BinaryPath = %q, want override %q", d.Detection.BinaryPath, wantAbs)
+	}
+	if d.Detection.Version != "1.0.0" {
+		t.Errorf("Version = %q, want 1.0.0 from the override binary", d.Detection.Version)
+	}
+
+	// Non-executable override must not Found and must not fall through to lookPath/searchDirs.
+	missing := filepath.Join(t.TempDir(), "absent")
+	search := binDir(t, fixtureBinAlpha)
+	bad := openAgents(t, testCatalog,
+		WithBinPaths(map[string]string{"alpha-cli": missing}),
+		WithSearchDirs(search),
+		WithLookPath(func(name string) (string, error) {
+			if name == fixtureBinAlpha {
+				return filepath.Join(search, fixtureBinAlpha), nil
+			}
+			return "", exec.ErrNotFound
+		}),
+		WithEnvLookup(envFn(t.TempDir())),
+		WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+	d, err = bad.Agents.Get(context.Background(), "alpha-cli", AgentGetQuery{Enrich: EnrichNone})
+	if err != nil {
+		t.Fatalf("non-exec override Get: %v", err)
+	}
+	if d.Detection.Found {
+		t.Fatalf("non-executable WithBinPaths must not Found or fall through, got %q", d.Detection.BinaryPath)
+	}
+
+	// Relative override roots at WithWorkingDir.
+	wd := t.TempDir()
+	relName := "rel-bin"
+	relPath := filepath.Join(wd, relName)
+	if err := os.WriteFile(relPath, []byte("#!/bin/sh\necho v1.0.0\n"), 0o755); err != nil {
+		t.Fatalf("write relative bin: %v", err)
+	}
+	if err := os.Chmod(relPath, 0o755); err != nil {
+		t.Fatalf("chmod relative bin: %v", err)
+	}
+	rel := openAgents(t, testCatalog,
+		WithBinPaths(map[string]string{"alpha-cli": relName}),
+		WithWorkingDir(wd),
+		WithEnvLookup(envFn(t.TempDir())),
+		WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+	d, err = rel.Agents.Get(context.Background(), "alpha-cli", AgentGetQuery{Enrich: EnrichNone})
+	if err != nil {
+		t.Fatalf("relative override Get: %v", err)
+	}
+	if !d.Detection.Found {
+		t.Fatal("relative WithBinPaths should resolve under WorkingDir")
+	}
+	if d.Detection.BinaryPath != relPath {
+		t.Errorf("BinaryPath = %q, want %q", d.Detection.BinaryPath, relPath)
+	}
+}
+
+func TestRelativeSearchDirRootsAtWorkingDir(t *testing.T) {
+	// Relative search dirs root at WorkingDir before the executable check (same
+	// order as WithBinPaths), so a dir that only exists under WorkingDir still finds.
+	wd := t.TempDir()
+	relDir := "local-bins"
+	absDir := filepath.Join(wd, relDir)
+	if err := os.Mkdir(absDir, 0o755); err != nil {
+		t.Fatalf("mkdir search dir: %v", err)
+	}
+	binPath := filepath.Join(absDir, fixtureBinAlpha)
+	if err := os.WriteFile(binPath, []byte("#!/bin/sh\necho v1.0.0\n"), 0o755); err != nil {
+		t.Fatalf("write bin: %v", err)
+	}
+	if err := os.Chmod(binPath, 0o755); err != nil {
+		t.Fatalf("chmod bin: %v", err)
+	}
+
+	idx := openAgents(t, testCatalog,
+		WithSearchDirs(relDir),
+		WithWorkingDir(wd),
+		WithEnvLookup(envFn(t.TempDir())),
+		WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+	d, err := idx.Agents.Get(context.Background(), "alpha-cli", AgentGetQuery{Enrich: EnrichNone})
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if !d.Detection.Found {
+		t.Fatal("relative search dir should resolve under WorkingDir")
+	}
+	if d.Detection.BinaryPath != binPath {
+		t.Errorf("BinaryPath = %q, want %q", d.Detection.BinaryPath, binPath)
+	}
+}
+
+func TestExpandPathEnvAndBareTilde(t *testing.T) {
+	// $VAR expansion uses the injected lookup; bare ~ is home; unset vars become empty.
+	body := fmt.Sprintf(`
+agents: "alpha-cli": {
+	name: "Alpha CLI"
+	bin:  %q
+	config: {
+		global: "$XDG_CONFIG_HOME/alpha"
+		local:  ".alpha"
+	}
+	skills: {
+		global: {native: "$XDG_DATA_HOME/skills"}
+		local:  {native: ".alpha/skills"}
+	}
+	provider: ["anthropic"]
+}
+agents: "beta-tool": {
+	name: "Beta Tool"
+	bin:  %q
+	config: {global: "~"}
+	provider: ["openai"]
+}
+agents: "gamma-agent": {
+	name: "Gamma Agent"
+	bin:  %q
+	config: {global: "$UNSET_AGENTDEX_VAR/gone"}
+	provider: ["google"]
+}
+`, fixtureBinAlpha, fixtureBinBeta, fixtureBinGamma)
+
+	xdgConfig := t.TempDir()
+	xdgData := t.TempDir()
+	home := t.TempDir()
+	wd := t.TempDir()
+	lookup := func(k string) (string, bool) {
+		switch k {
+		case "HOME":
+			return home, true
+		case "XDG_CONFIG_HOME":
+			return xdgConfig, true
+		case "XDG_DATA_HOME":
+			return xdgData, true
+		default:
+			return "", false
+		}
+	}
+	idx := openAgents(t, body,
+		WithEnvLookup(lookup),
+		WithWorkingDir(wd),
+		WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+
+	alpha, err := idx.Agents.Get(context.Background(), "alpha-cli", AgentGetQuery{Enrich: EnrichNone})
+	if err != nil {
+		t.Fatalf("alpha Get: %v", err)
+	}
+	wantGlobal := filepath.Join(xdgConfig, "alpha")
+	if alpha.Detection.Config.Global != wantGlobal {
+		t.Errorf("alpha Config.Global = %q, want $XDG_CONFIG_HOME expanded to %q", alpha.Detection.Config.Global, wantGlobal)
+	}
+	wantSkills := filepath.Join(xdgData, "skills")
+	if alpha.Detection.Skills.Global.Native.Path != wantSkills {
+		t.Errorf("alpha skills.global.native = %q, want %q", alpha.Detection.Skills.Global.Native.Path, wantSkills)
+	}
+
+	beta, err := idx.Agents.Get(context.Background(), "beta-tool", AgentGetQuery{Enrich: EnrichNone})
+	if err != nil {
+		t.Fatalf("beta Get: %v", err)
+	}
+	if beta.Detection.Config.Global != home {
+		t.Errorf("beta bare ~ Config.Global = %q, want home %q", beta.Detection.Config.Global, home)
+	}
+
+	gamma, err := idx.Agents.Get(context.Background(), "gamma-agent", AgentGetQuery{Enrich: EnrichNone})
+	if err != nil {
+		t.Fatalf("gamma Get: %v", err)
+	}
+	// Unset vars become empty: "$UNSET_AGENTDEX_VAR/gone" → "/gone". No XDG home fallback here.
+	if gamma.Detection.Config.Global != "/gone" {
+		t.Errorf("gamma Config.Global = %q, want /gone after empty env expand", gamma.Detection.Config.Global)
+	}
+}
+
 func TestGetDetectionFactsOfflineAtEnrichNone(t *testing.T) {
 	home := t.TempDir()
 	wd := t.TempDir()

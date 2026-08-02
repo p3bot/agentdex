@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -140,5 +141,77 @@ func TestLoadRejectsSyntaxError(t *testing.T) {
 	_, err := Load(path)
 	if !errors.Is(err, ErrConfig) {
 		t.Fatalf("Load syntax error err = %v, want ErrConfig", err)
+	}
+}
+
+func TestPathXDGAndHomeFallback(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", "/xdg-config")
+	if got := Path(); got != filepath.Join("/xdg-config", "agentdex", "config.cue") {
+		t.Errorf("Path with XDG_CONFIG_HOME = %q", got)
+	}
+
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("HOME", "/home/tester")
+	if got := Path(); got != filepath.Join("/home/tester", ".config", "agentdex", "config.cue") {
+		t.Errorf("Path with HOME fallback = %q", got)
+	}
+}
+
+func TestOptionsMergesFlagsOverConfig(t *testing.T) {
+	// mergeSlices: config order, then flags, exact dups dropped.
+	if got := mergeSlices([]string{"/config/bin", "/shared"}, []string{"/shared", "/flag/bin"}); !slices.Equal(got, []string{"/config/bin", "/shared", "/flag/bin"}) {
+		t.Errorf("mergeSlices = %v, want config then flags with /shared once", got)
+	}
+
+	// mergeBinPaths: flags win on id collision; config-only ids remain.
+	merged := mergeBinPaths(
+		map[string]string{"alpha-cli": "/config/alpha", "beta-tool": "/config/beta"},
+		map[string]string{"alpha-cli": "/flag/alpha"},
+	)
+	if merged["alpha-cli"] != "/flag/alpha" {
+		t.Errorf("mergeBinPaths alpha = %q, want flag win /flag/alpha", merged["alpha-cli"])
+	}
+	if merged["beta-tool"] != "/config/beta" {
+		t.Errorf("mergeBinPaths beta = %q, want config /config/beta", merged["beta-tool"])
+	}
+	if mergeBinPaths(nil, nil) != nil {
+		t.Error("mergeBinPaths(nil, nil) should be nil")
+	}
+
+	// Options emits WithBinPaths / WithSearchDirs / WithModelsURL for a full config.
+	dir := catalogtest.WriteModule(t, `agents: "alpha-cli": {
+	name: "Alpha CLI"
+	bin:  "alpha"
+	config: {global: "~/.alpha"}
+	provider: ["anthropic"]
+}`)
+	c := &Config{
+		CatalogDir: dir,
+		CatalogTTL: DefaultTTL,
+		ModelsTTL:  DefaultTTL,
+		ModelsURL:  "https://mirror.example/catalog.json",
+		SearchDirs: []string{"/config/bin"},
+		BinPaths:   map[string]string{"alpha-cli": "/config/alpha"},
+	}
+	flags := Flags{
+		SearchDirs: []string{"/flag/bin"},
+		BinPaths:   map[string]string{"alpha-cli": "/flag/alpha"},
+	}
+	opts := append(c.Options(flags), agentdex.WithModelsURL(modelsdevtest.MustNotFetch(t)), agentdex.WithLookPath(func(string) (string, error) {
+		return "", os.ErrNotExist
+	}))
+	// ModelsURL in Config is overridden by the trailing WithModelsURL for offline Open;
+	// still assert Open accepts the Options-built slice (CatalogDir, TTLs, bin/search merge).
+	idx, err := agentdex.Open(opts...)
+	if err != nil {
+		t.Fatalf("Open via Options: %v", err)
+	}
+	// Flag bin path is non-existent: override is sole candidate → not Found (no fallthrough).
+	d, err := idx.Agents.Get(t.Context(), "alpha-cli", agentdex.AgentGetQuery{Enrich: agentdex.EnrichNone})
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if d.Detection.Found {
+		t.Errorf("Found via non-existent flag bin path, BinaryPath=%q", d.Detection.BinaryPath)
 	}
 }

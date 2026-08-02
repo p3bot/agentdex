@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/start-cli/agentdex/internal/catalogtest"
 )
 
 func TestVersionEnvelope(t *testing.T) {
@@ -136,6 +138,39 @@ func TestMalformedBinPathIsUsageError(t *testing.T) {
 	got := runCLI("agents", "list", "--bin-path", "no-equals-sign")
 	if got.code != codeUsage {
 		t.Fatalf("malformed --bin-path exit = %d, want 2; stderr=%q", got.code, got.stderr)
+	}
+}
+
+func TestBinPathOverridesDetection(t *testing.T) {
+	// No fixture bin on PATH/search_dirs; --bin-path is the sole way to Found.
+	s := newScenario(t, "")
+	elsewhere := filepath.Join(s.home, "elsewhere")
+	mustMkdir(t, elsewhere)
+	installFakeBin(t, elsewhere, "alpha-cli")
+	override := filepath.Join(elsewhere, catalogtest.FixtureBin(t, "alpha-cli"))
+
+	got := runCLI("--json", "agents", "list", "--installed", "--bin-path", "alpha-cli="+override)
+	if got.code != codeOK {
+		t.Fatalf("list --bin-path exit = %d, stderr=%q", got.code, got.stderr)
+	}
+	rows := got.envelope(t).Data.([]any)
+	if len(rows) != 1 {
+		t.Fatalf("installed rows = %d, want 1 (alpha-cli via override)", len(rows))
+	}
+	row := rows[0].(map[string]any)
+	if row["id"] != "alpha-cli" {
+		t.Errorf("id = %v, want alpha-cli", row["id"])
+	}
+	if bin, _ := row["bin"].(string); bin != override {
+		t.Errorf("bin = %v, want override path %q", row["bin"], override)
+	}
+	// Without override the agent must not appear as installed.
+	noOverride := runCLI("--json", "agents", "list", "--installed")
+	if noOverride.code != codeOK {
+		t.Fatalf("list without override exit = %d, stderr=%q", noOverride.code, noOverride.stderr)
+	}
+	if rows := noOverride.envelope(t).Data.([]any); len(rows) != 0 {
+		t.Errorf("without --bin-path installed rows = %v, want empty", rows)
 	}
 }
 
