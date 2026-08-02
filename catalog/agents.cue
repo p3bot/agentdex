@@ -75,6 +75,33 @@ agents: "codex": {
 	homepage: "https://github.com/openai/codex"
 }
 
+agents: "copilot": {
+	name:        "GitHub Copilot CLI"
+	bin:         "copilot"
+	description: "GitHub's agentic coding assistant for the terminal."
+	config: {
+		global: "~/.copilot"
+		local:  ".github"
+	}
+	skills: {
+		global: {
+			agents: "~/.agents/skills"
+			native: "~/.copilot/skills"
+		}
+		local: {
+			agents: ".agents/skills"
+			native: ".github/skills"
+			alternatives: [".claude/skills"]
+		}
+	}
+	version: {
+		args:    ["--version"]
+		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
+	}
+	provider: ["github-copilot"]
+	homepage: "https://github.com/github/copilot-cli"
+}
+
 agents: "grok": {
 	name:        "Grok"
 	bin:         "grok"

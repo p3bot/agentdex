@@ -39,12 +39,12 @@ Catalog map keys already present in `catalog/agents.cue`:
 
 | id | Status |
 |---|---|
-| `agy` | Published entry shape in tree; Antigravity CLI (Google), successor to Gemini CLI |
-| `claude-code` | Published entry shape in tree; Anthropic Claude Code |
-| `grok` | In tree (xAI Grok); path matrix updated; committed; not yet published to registry |
-| `opencode` | Published entry shape in tree; provider-agnostic |
-
-`docs/agents-skills-path-matrix.md` also documents `copilot` paths without a matching `agents.cue` entry.
+| `agy` | In registry (catalog@v1 line) |
+| `claude-code` | In registry (catalog@v1 line) |
+| `codex` | Added this session; published in catalog@v1.3.0 |
+| `copilot` | Added this session; published in catalog@v1.3.0 |
+| `grok` | Added this session; published in catalog@v1.3.0 |
+| `opencode` | In registry (catalog@v1 line) |
 
 Config for local exercise: `$XDG_CONFIG_HOME/agentdex/config.cue` (fallback `~/.config/agentdex/config.cue`). Use `catalog.dir` pointed at this repository's `catalog/` for unpublished work; prefer a temporary `XDG_CONFIG_HOME` so user config is not overwritten.
 
@@ -63,10 +63,11 @@ Market and product research that shaped the work queue (mid-2026):
 - models.dev provider catalog (join keys for `provider`): https://models.dev/ and https://models.dev/api.json
 - Antigravity / Gemini CLI succession (agy already catalogued): product migration notes mid-2026
 
-Grok dry-run (already applied in tree, pending publish):
+Session research notes:
 
-- Installed binary `grok`, docs under `~/.grok/docs/user-guide/08-skills.md` and `~/.grok/README.md`
-- models.dev provider id `xai`
+- Grok: installed binary `grok`; docs under `~/.grok/docs/`; models.dev provider `xai`
+- Codex: binary `codex` (release probe); config `~/.codex` / `.codex`; models.dev provider `openai`
+- Copilot: binary `copilot` (not `gh copilot`); config `~/.copilot` / `.github`; models.dev provider `github-copilot`
 
 ## Requirements
 
@@ -84,9 +85,9 @@ Process top to bottom. Skip only with an explicit reason recorded in the outcome
 
 | Order | Candidate | Suggested id | Notes |
 |---|---|---|---|
-| 1 | Grok (finish) | `grok` | Done in tree (commit); include in next registry publish |
-| 2 | OpenAI Codex CLI | `codex` | Open source; bin `codex`; verify provider `openai` |
-| 3 | GitHub Copilot CLI | `copilot` or as research decides | Resolve bin (`github-copilot` vs `gh copilot`); matrix section exists |
+| 1 | Grok (finish) | `grok` | Done; catalog@v1.3.0 |
+| 2 | OpenAI Codex CLI | `codex` | Done; catalog@v1.3.0 |
+| 3 | GitHub Copilot CLI | `copilot` | Done; catalog@v1.3.0 |
 | 4 | Aider | `aider` | Open source; likely agnostic; verify |
 | 5 | Goose | `goose` | Block OSS agent harness; confirm bin and outside facts |
 | 6 | Amazon Kiro CLI | `kiro` | Confirm bin, install path, provider |
@@ -128,7 +129,10 @@ Update as work proceeds.
 
 | Agent | Result | Notes |
 |---|---|---|
-| `grok` | committed | Entry + matrix + AGENTS.md workflow notes; exercise passed; include in next registry publish |
+| `grok` | published | catalog@v1.3.0; entry + matrix; exercise passed |
+| `codex` | published | catalog@v1.3.0; entry + matrix; provider openai |
+| `copilot` | published | catalog@v1.3.0; bin copilot; provider github-copilot; config.local `.github` |
+| registry | catalog@v1.3.0 | Additive publish of grok + codex + copilot over v1.2.0 |
 
 ## Implementation Guidance
 
@@ -137,7 +141,7 @@ Update as work proceeds.
 - For provider-agnostic tools, set `agnostic: true` and omit `provider`; do not invent a home provider.
 - Keep the outcome log short: result and one-line notes only.
 - After each agent, leave the tree in a state the user can publish or discard without leftover half-entries for the next candidate.
-- Publish cadence: not after each agent. Default is one registry publish per session (or when the user asks), covering every additive entry already exercised. `grok` is ready for the next publish but does not force a publish by itself; it can ship alone or ride with later agents. Existing installs only re-resolve after the catalog TTL, so rapid per-agent publishes do not deliver stepwise updates to them.
+- Publish cadence: not after each agent. Default is one registry publish per session (or when the user asks), covering every additive entry already exercised. Session batch published as catalog@v1.3.0 (`grok`, `codex`, `copilot`). Existing installs only re-resolve after the catalog TTL.
 
 ## Acceptance Criteria
 
