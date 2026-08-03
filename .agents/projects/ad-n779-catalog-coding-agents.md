@@ -45,12 +45,12 @@ Catalog map keys already present in `catalog/agents.cue`:
 | `copilot` | Added this session; published in catalog@v1.3.0 |
 | `grok` | Added this session; published in catalog@v1.3.0 |
 | `opencode` | In registry (catalog@v1 line) |
-| `aider` | Exercised; unpublished |
-| `goose` | Exercised; unpublished |
-| `kiro` | Exercised; unpublished |
-| `augment` | Exercised; unpublished |
-| `cline` | Exercised; unpublished |
-| `codewhale` | Exercised; unpublished |
+| `aider` | Published in catalog@v1.4.0 |
+| `goose` | Published in catalog@v1.4.0 |
+| `kiro` | Published in catalog@v1.4.0 |
+| `augment` | Published in catalog@v1.4.0 |
+| `cline` | Published in catalog@v1.4.0 |
+| `codewhale` | Published in catalog@v1.4.0 |
 
 Config for local exercise: `$XDG_CONFIG_HOME/agentdex/config.cue` (fallback `~/.config/agentdex/config.cue`). Use `catalog.dir` pointed at this repository's `catalog/` for unpublished work; prefer a temporary `XDG_CONFIG_HOME` so user config is not overwritten.
 
@@ -94,12 +94,12 @@ Process top to bottom. Skip only with an explicit reason recorded in the outcome
 | 1 | Grok (finish) | `grok` | Done; catalog@v1.3.0 |
 | 2 | OpenAI Codex CLI | `codex` | Done; catalog@v1.3.0 |
 | 3 | GitHub Copilot CLI | `copilot` | Done; catalog@v1.3.0 |
-| 4 | Aider | `aider` | Done; exercised; unpublished |
-| 5 | Goose | `goose` | Done; exercised; unpublished |
-| 6 | Amazon Kiro CLI | `kiro` | Done; exercised; unpublished |
-| 7 | Augment CLI | `augment` | Done; exercised; unpublished |
-| 8 | Cline CLI | `cline` | Done; exercised; unpublished |
-| 9 | DeepSeek TUI → Codewhale | `codewhale` | Done; exercised; unpublished (DeepSeek TUI rebranded) |
+| 4 | Aider | `aider` | Done; catalog@v1.4.0 |
+| 5 | Goose | `goose` | Done; catalog@v1.4.0 |
+| 6 | Amazon Kiro CLI | `kiro` | Done; catalog@v1.4.0 |
+| 7 | Augment CLI | `augment` | Done; catalog@v1.4.0 |
+| 8 | Cline CLI | `cline` | Done; catalog@v1.4.0 |
+| 9 | DeepSeek TUI → Codewhale | `codewhale` | Done; catalog@v1.4.0 (DeepSeek TUI rebranded) |
 
 Do not re-add agents already correct in the catalog unless research finds a factual error; fix in place if so.
 
@@ -143,13 +143,14 @@ Update as work proceeds.
 | `codex` | published | catalog@v1.3.0; entry + matrix; provider openai |
 | `copilot` | published | catalog@v1.3.0; bin copilot; provider github-copilot; config.local `.github` |
 | registry | catalog@v1.3.0 | Additive publish of grok + codex + copilot over v1.2.0 |
-| `aider` | exercised | agnostic; config.global `~/.aider`; no skills/local; context clone aider-ai |
-| `goose` | exercised | agnostic; config `~/.config/goose`; skills agents+native+alts; homepage aaif-goose/goose; context clone aaif-goose |
-| `kiro` | exercised | bin kiro-cli; agnostic (no models.dev kiro id); config ~/.kiro/.kiro; skills native only; version 2.16.0 verified |
-| `augment` | exercised | bin auggie; agnostic; config ~/.augment/.augment; skills agents+native+claude; version 0.34.0 verified; context augmentcode-auggie |
-| `cline` | exercised | bin cline; agnostic (true multi-provider); config ~/.cline/.cline; skills agents+native+clinerules; version 3.0.49; context cline-cline |
-| `codewhale` | exercised | bin codewhale; agnostic; config ~/.codewhale/.codewhale; skills agents+native+alts; version 0.9.3 verified; was DeepSeek TUI; context hmbown-codewhale |
+| `aider` | published | catalog@v1.4.0; agnostic; config.global `~/.aider`; no skills/local; context clone aider-ai |
+| `goose` | published | catalog@v1.4.0; agnostic; config `~/.config/goose`; skills agents+native+alts; homepage aaif-goose/goose; context clone aaif-goose |
+| `kiro` | published | catalog@v1.4.0; bin kiro-cli; agnostic; config ~/.kiro/.kiro; skills native only; version 2.16.0 verified |
+| `augment` | published | catalog@v1.4.0; bin auggie; agnostic; config ~/.augment/.augment; skills agents+native+claude; version 0.34.0 verified; context augmentcode-auggie |
+| `cline` | published | catalog@v1.4.0; bin cline; agnostic; config ~/.cline/.cline; skills agents+native+clinerules; version 3.0.49; context cline-cline |
+| `codewhale` | published | catalog@v1.4.0; bin codewhale; agnostic; config ~/.codewhale/.codewhale; skills agents+native+alts; version 0.9.3 verified; was DeepSeek TUI; context hmbown-codewhale |
 | DeepSeek TUI | skipped | rebranded to Codewhale (v0.8.41+); no separate entry |
+| registry | catalog@v1.4.0 | Additive publish of aider + goose + kiro + augment + cline + codewhale over v1.3.0 |
 
 ## Implementation Guidance
 
@@ -159,7 +160,7 @@ Update as work proceeds.
 - For provider-agnostic tools, set `agnostic: true` and omit `provider`; do not invent a home provider.
 - Keep the outcome log short: result and one-line notes only.
 - After each agent, leave the tree in a state the user can publish or discard without leftover half-entries for the next candidate.
-- Publish cadence: not after each agent. Default is one registry publish per session (or when the user asks), covering every additive entry already exercised. Session batch published as catalog@v1.3.0 (`grok`, `codex`, `copilot`). Existing installs only re-resolve after the catalog TTL.
+- Publish cadence: not after each agent. Default is one registry publish per session (or when the user asks), covering every additive entry already exercised. Batches: catalog@v1.3.0 (`grok`, `codex`, `copilot`); catalog@v1.4.0 (`aider`, `goose`, `kiro`, `augment`, `cline`, `codewhale`). Existing installs only re-resolve after the catalog TTL.
 
 ## Acceptance Criteria
 
