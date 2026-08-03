@@ -18,6 +18,7 @@ comparable.
 | copilot | ~/.agents/skills | ~/.copilot/skills | | agents |
 | goose | ~/.agents/skills | ~/.config/goose/skills | ~/.claude/skills, ~/.config/agents/skills | agents |
 | grok | ~/.agents/skills | ~/.grok/skills | ~/.claude/skills, ~/.cursor/skills | agents |
+| kiro | | ~/.kiro/skills | | native |
 | opencode | ~/.agents/skills | | ~/.claude/skills | agents |
 
 ## Local
@@ -30,6 +31,7 @@ comparable.
 | copilot | .agents/skills | .github/skills | .claude/skills | agents |
 | goose | .agents/skills | .goose/skills | .claude/skills | agents |
 | grok | .agents/skills | .grok/skills | .claude/skills, .cursor/skills | agents |
+| kiro | | .kiro/skills | | native |
 | opencode | .agents/skills | .opencode/skills | .claude/skills | agents |
 
 ## Unsupported
@@ -46,6 +48,8 @@ stored in the catalog.
 | copilot | global | ~/.claude/skills | No |
 | copilot | local | .opencode/skills | No |
 | goose | global | ~/.agents/plugins/*/skills | n/a (dynamic plugin globs; not a static catalog path) |
+| kiro | global | ~/.agents/skills | No |
+| kiro | local | .agents/skills | No |
 | opencode | global | ~/.copilot/skills | n/a |
 
 ## Authoring notes

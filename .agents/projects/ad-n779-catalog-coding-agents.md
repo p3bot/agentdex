@@ -90,7 +90,7 @@ Process top to bottom. Skip only with an explicit reason recorded in the outcome
 | 3 | GitHub Copilot CLI | `copilot` | Done; catalog@v1.3.0 |
 | 4 | Aider | `aider` | Done; exercised; unpublished |
 | 5 | Goose | `goose` | Done; exercised; unpublished |
-| 6 | Amazon Kiro CLI | `kiro` | Confirm bin, install path, provider |
+| 6 | Amazon Kiro CLI | `kiro` | Done; exercised; unpublished |
 | 7 | Augment CLI | `augment` | Enterprise CLI; confirm bin and outside facts |
 | 8 | Cline CLI | `cline` | Confirm a real CLI bin exists beyond the VS Code extension |
 | 9 | DeepSeek TUI / related | as research decides | Confirm product name, bin, and fit before treating as next |
@@ -139,6 +139,7 @@ Update as work proceeds.
 | registry | catalog@v1.3.0 | Additive publish of grok + codex + copilot over v1.2.0 |
 | `aider` | exercised | agnostic; config.global `~/.aider`; no skills/local; context clone aider-ai |
 | `goose` | exercised | agnostic; config `~/.config/goose`; skills agents+native+alts; homepage aaif-goose/goose; context clone aaif-goose |
+| `kiro` | exercised | bin kiro-cli; agnostic (no models.dev kiro id); config ~/.kiro/.kiro; skills native only; version 2.16.0 verified |
 
 ## Implementation Guidance
 

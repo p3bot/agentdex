@@ -144,6 +144,26 @@ agents: "goose": {
 	homepage: "https://github.com/aaif-goose/goose"
 }
 
+agents: "kiro": {
+	name:        "Kiro CLI"
+	bin:         "kiro-cli"
+	description: "AWS agentic coding CLI for terminal workflows, custom agents, and deployment pipelines."
+	config: {
+		global: "~/.kiro"
+		local:  ".kiro"
+	}
+	skills: {
+		global: {native: "~/.kiro/skills"}
+		local:  {native: ".kiro/skills"}
+	}
+	version: {
+		args:    ["--version"]
+		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
+	}
+	agnostic: true
+	homepage: "https://kiro.dev"
+}
+
 agents: "grok": {
 	name:        "Grok"
 	bin:         "grok"
