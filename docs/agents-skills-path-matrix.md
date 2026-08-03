@@ -15,6 +15,7 @@ comparable.
 | agy | | ~/.gemini/antigravity-cli/skills | | native |
 | augment | ~/.agents/skills | ~/.augment/skills | ~/.claude/skills | agents |
 | claude-code | | ~/.claude/skills | | native |
+| cline | ~/.agents/skills | ~/.cline/skills | | agents |
 | codex | ~/.agents/skills | ~/.codex/skills | | agents |
 | copilot | ~/.agents/skills | ~/.copilot/skills | | agents |
 | goose | ~/.agents/skills | ~/.config/goose/skills | ~/.claude/skills, ~/.config/agents/skills | agents |
@@ -29,6 +30,7 @@ comparable.
 | agy | .agents/skills | | .claude/skills, .opencode/skills | agents |
 | augment | .agents/skills | .augment/skills | .claude/skills | agents |
 | claude-code | | .claude/skills | | native |
+| cline | .agents/skills | .cline/skills | .clinerules/skills | agents |
 | codex | .agents/skills | .codex/skills | | agents |
 | copilot | .agents/skills | .github/skills | .claude/skills | agents |
 | goose | .agents/skills | .goose/skills | .claude/skills | agents |
@@ -52,6 +54,7 @@ stored in the catalog.
 | goose | global | ~/.agents/plugins/*/skills | n/a (dynamic plugin globs; not a static catalog path) |
 | kiro | global | ~/.agents/skills | No |
 | kiro | local | .agents/skills | No |
+| cline | local | .claude/skills | No (docs list it; source search paths omit it) |
 | opencode | global | ~/.copilot/skills | n/a |
 
 ## Authoring notes

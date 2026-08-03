@@ -1,0 +1,8 @@
+file,description,topics
+README.md,Product overview rules skills multi-model,overview;skills
+apps/cli/README.md,CLI install flags data-dir env version,cli;config;version
+apps/cli/package.json,bin name homepage package metadata,bin;homepage
+sdk/packages/shared/src/storage/paths.ts,Config skills rules path resolution,paths;skills;config
+docs/getting-started/config.mdx,Global ~/.cline and project .cline layout,config;paths
+docs/customization/skills.mdx,Skill locations global and project,skills
+docs/usage/cli-overview.mdx,CLI commands overview,cli

@@ -92,7 +92,7 @@ Process top to bottom. Skip only with an explicit reason recorded in the outcome
 | 5 | Goose | `goose` | Done; exercised; unpublished |
 | 6 | Amazon Kiro CLI | `kiro` | Done; exercised; unpublished |
 | 7 | Augment CLI | `augment` | Done; exercised; unpublished |
-| 8 | Cline CLI | `cline` | Confirm a real CLI bin exists beyond the VS Code extension |
+| 8 | Cline CLI | `cline` | Done; exercised; unpublished |
 | 9 | DeepSeek TUI / related | as research decides | Confirm product name, bin, and fit before treating as next |
 
 Do not re-add agents already correct in the catalog unless research finds a factual error; fix in place if so.
@@ -141,6 +141,7 @@ Update as work proceeds.
 | `goose` | exercised | agnostic; config `~/.config/goose`; skills agents+native+alts; homepage aaif-goose/goose; context clone aaif-goose |
 | `kiro` | exercised | bin kiro-cli; agnostic (no models.dev kiro id); config ~/.kiro/.kiro; skills native only; version 2.16.0 verified |
 | `augment` | exercised | bin auggie; agnostic; config ~/.augment/.augment; skills agents+native+claude; version 0.34.0 verified; context augmentcode-auggie |
+| `cline` | exercised | bin cline; agnostic (true multi-provider); config ~/.cline/.cline; skills agents+native+clinerules; version 3.0.49; context cline-cline |
 
 ## Implementation Guidance
 

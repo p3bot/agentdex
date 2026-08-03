@@ -92,6 +92,33 @@ agents: "claude-code": {
 	homepage: "https://github.com/anthropics/claude-code"
 }
 
+agents: "cline": {
+	name:        "Cline CLI"
+	bin:         "cline"
+	description: "Open-source AI coding agent for the terminal with Plan/Act modes and multi-provider support."
+	config: {
+		global: "~/.cline"
+		local:  ".cline"
+	}
+	skills: {
+		global: {
+			agents: "~/.agents/skills"
+			native: "~/.cline/skills"
+		}
+		local: {
+			agents: ".agents/skills"
+			native: ".cline/skills"
+			alternatives: [".clinerules/skills"]
+		}
+	}
+	version: {
+		args:    ["--version"]
+		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
+	}
+	agnostic: true
+	homepage: "https://cline.bot"
+}
+
 agents: "codex": {
 	name:        "Codex CLI"
 	bin:         "codex"

@@ -4,3 +4,4 @@ github-copilot-cli,GitHub Copilot CLI - terminal agent install scripts and chang
 aider-ai,Aider AI pair programming CLI - source and docs (see indexes/aider-ai.csv),aider;cli;agent;config;agnostic;python,https://github.com/Aider-AI/aider,official-tool-repo,2026-08-03
 aaif-goose,AAIF Goose open-source AI agent CLI and desktop (see indexes/aaif-goose.csv),goose;cli;agent;skills;config;rust;agnostic,https://github.com/aaif-goose/goose,official-tool-repo,2026-08-03
 augmentcode-auggie,Augment Auggie CLI public repo docs and plugin marketplace (see indexes/augmentcode-auggie.csv),augment;auggie;cli;agent;skills;config,https://github.com/augmentcode/auggie,official-tool-repo,2026-08-03
+cline-cline,Cline open-source AI coding agent monorepo CLI and SDK (see indexes/cline-cline.csv),cline;cli;agent;skills;config;sdk,https://github.com/cline/cline,official-tool-repo,2026-08-03
