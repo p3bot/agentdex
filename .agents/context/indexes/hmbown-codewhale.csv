@@ -1,0 +1,13 @@
+file,description,topics
+README.md,Product overview install multi-provider TUI,overview;install
+docs/REBRAND.md,DeepSeek TUI to Codewhale rename and legacy paths,rebrand;legacy;paths
+docs/LEGACY_PATHS.md,Legacy ~/.deepseek read fallback audit,legacy;paths
+docs/CONFIGURATION.md,config.toml constitution CODEWHALE_HOME paths,config;paths
+docs/SKILLS.md,Skills manager owned vs compatible roots,skills
+docs/INSTALL.md,Install methods bins codewhale codew,install;bin
+crates/paths/src/lib.rs,CODEWHALE_APP_DIR and legacy home resolvers,paths;home
+crates/cli/Cargo.toml,bin names codewhale and codew,bin
+crates/cli/src/lib.rs,clap version flag DEEPSEEK_BUILD_VERSION,version
+crates/tui/src/skills/mod.rs,default skills dirs and discovery precedence,skills;paths
+crates/tui/src/skills/roots.rs,SkillRootCatalog discovery roots,skills;roots
+config.example.toml,skills_dir mcp_config defaults,config;skills

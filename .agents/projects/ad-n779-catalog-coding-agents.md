@@ -45,6 +45,12 @@ Catalog map keys already present in `catalog/agents.cue`:
 | `copilot` | Added this session; published in catalog@v1.3.0 |
 | `grok` | Added this session; published in catalog@v1.3.0 |
 | `opencode` | In registry (catalog@v1 line) |
+| `aider` | Exercised; unpublished |
+| `goose` | Exercised; unpublished |
+| `kiro` | Exercised; unpublished |
+| `augment` | Exercised; unpublished |
+| `cline` | Exercised; unpublished |
+| `codewhale` | Exercised; unpublished |
 
 Config for local exercise: `$XDG_CONFIG_HOME/agentdex/config.cue` (fallback `~/.config/agentdex/config.cue`). Use `catalog.dir` pointed at this repository's `catalog/` for unpublished work; prefer a temporary `XDG_CONFIG_HOME` so user config is not overwritten.
 
@@ -93,7 +99,7 @@ Process top to bottom. Skip only with an explicit reason recorded in the outcome
 | 6 | Amazon Kiro CLI | `kiro` | Done; exercised; unpublished |
 | 7 | Augment CLI | `augment` | Done; exercised; unpublished |
 | 8 | Cline CLI | `cline` | Done; exercised; unpublished |
-| 9 | DeepSeek TUI / related | as research decides | Confirm product name, bin, and fit before treating as next |
+| 9 | DeepSeek TUI → Codewhale | `codewhale` | Done; exercised; unpublished (DeepSeek TUI rebranded) |
 
 Do not re-add agents already correct in the catalog unless research finds a factual error; fix in place if so.
 
@@ -142,6 +148,8 @@ Update as work proceeds.
 | `kiro` | exercised | bin kiro-cli; agnostic (no models.dev kiro id); config ~/.kiro/.kiro; skills native only; version 2.16.0 verified |
 | `augment` | exercised | bin auggie; agnostic; config ~/.augment/.augment; skills agents+native+claude; version 0.34.0 verified; context augmentcode-auggie |
 | `cline` | exercised | bin cline; agnostic (true multi-provider); config ~/.cline/.cline; skills agents+native+clinerules; version 3.0.49; context cline-cline |
+| `codewhale` | exercised | bin codewhale; agnostic; config ~/.codewhale/.codewhale; skills agents+native+alts; version 0.9.3 verified; was DeepSeek TUI; context hmbown-codewhale |
+| DeepSeek TUI | skipped | rebranded to Codewhale (v0.8.41+); no separate entry |
 
 ## Implementation Guidance
 

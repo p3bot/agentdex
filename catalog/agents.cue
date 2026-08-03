@@ -119,6 +119,34 @@ agents: "cline": {
 	homepage: "https://cline.bot"
 }
 
+agents: "codewhale": {
+	name:        "Codewhale"
+	bin:         "codewhale"
+	description: "Open-source, provider-agnostic terminal coding agent."
+	config: {
+		global: "~/.codewhale"
+		local:  ".codewhale"
+	}
+	skills: {
+		global: {
+			agents: "~/.agents/skills"
+			native: "~/.codewhale/skills"
+			alternatives: ["~/.claude/skills", "~/.deepseek/skills"]
+		}
+		local: {
+			agents: ".agents/skills"
+			native: ".codewhale/skills"
+			alternatives: ["skills", ".opencode/skills", ".claude/skills", ".cursor/skills"]
+		}
+	}
+	version: {
+		args:    ["--version"]
+		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
+	}
+	agnostic: true
+	homepage: "https://github.com/Hmbown/CodeWhale"
+}
+
 agents: "codex": {
 	name:        "Codex CLI"
 	bin:         "codex"

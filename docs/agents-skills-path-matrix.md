@@ -16,6 +16,7 @@ comparable.
 | augment | ~/.agents/skills | ~/.augment/skills | ~/.claude/skills | agents |
 | claude-code | | ~/.claude/skills | | native |
 | cline | ~/.agents/skills | ~/.cline/skills | | agents |
+| codewhale | ~/.agents/skills | ~/.codewhale/skills | ~/.claude/skills, ~/.deepseek/skills | agents |
 | codex | ~/.agents/skills | ~/.codex/skills | | agents |
 | copilot | ~/.agents/skills | ~/.copilot/skills | | agents |
 | goose | ~/.agents/skills | ~/.config/goose/skills | ~/.claude/skills, ~/.config/agents/skills | agents |
@@ -31,6 +32,7 @@ comparable.
 | augment | .agents/skills | .augment/skills | .claude/skills | agents |
 | claude-code | | .claude/skills | | native |
 | cline | .agents/skills | .cline/skills | .clinerules/skills | agents |
+| codewhale | .agents/skills | .codewhale/skills | skills, .opencode/skills, .claude/skills, .cursor/skills | agents |
 | codex | .agents/skills | .codex/skills | | agents |
 | copilot | .agents/skills | .github/skills | .claude/skills | agents |
 | goose | .agents/skills | .goose/skills | .claude/skills | agents |
