@@ -13,6 +13,7 @@ comparable.
 | agent | agents | native | alternatives | primary |
 |---|---|---|---|---|
 | agy | | ~/.gemini/antigravity-cli/skills | | native |
+| augment | ~/.agents/skills | ~/.augment/skills | ~/.claude/skills | agents |
 | claude-code | | ~/.claude/skills | | native |
 | codex | ~/.agents/skills | ~/.codex/skills | | agents |
 | copilot | ~/.agents/skills | ~/.copilot/skills | | agents |
@@ -26,6 +27,7 @@ comparable.
 | agent | agents | native | alternatives | primary |
 |---|---|---|---|---|
 | agy | .agents/skills | | .claude/skills, .opencode/skills | agents |
+| augment | .agents/skills | .augment/skills | .claude/skills | agents |
 | claude-code | | .claude/skills | | native |
 | codex | .agents/skills | .codex/skills | | agents |
 | copilot | .agents/skills | .github/skills | .claude/skills | agents |

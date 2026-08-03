@@ -40,6 +40,34 @@ agents: "aider": {
 	homepage: "https://github.com/Aider-AI/aider"
 }
 
+agents: "augment": {
+	name:        "Auggie CLI"
+	bin:         "auggie"
+	description: "Augment Code's agentic coding CLI for interactive and automated terminal workflows."
+	config: {
+		global: "~/.augment"
+		local:  ".augment"
+	}
+	skills: {
+		global: {
+			agents: "~/.agents/skills"
+			native: "~/.augment/skills"
+			alternatives: ["~/.claude/skills"]
+		}
+		local: {
+			agents: ".agents/skills"
+			native: ".augment/skills"
+			alternatives: [".claude/skills"]
+		}
+	}
+	version: {
+		args:    ["--version"]
+		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
+	}
+	agnostic: true
+	homepage: "https://augmentcode.com"
+}
+
 agents: "claude-code": {
 	name:        "Claude Code"
 	bin:         "claude"

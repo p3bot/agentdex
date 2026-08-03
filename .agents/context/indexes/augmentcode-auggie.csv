@@ -1,0 +1,4 @@
+file,description,topics
+README.md,Auggie install login custom commands .augment,install;bin;config
+CHANGELOG.md,Path and skills feature history .agents support,skills;paths;changelog
+examples/commands/,Example slash commands under .augment/commands,commands
