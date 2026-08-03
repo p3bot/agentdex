@@ -73,7 +73,7 @@ Session research notes:
 
 1. Work the agent queue below in order, one agent at a time, using the interactive cycle in the Implementation Plan.
 2. Every accepted agent is added through the procedure in `AGENTS.md` "Adding an agent to the catalog" (research, entry, path matrix when skills apply, `cue vet` / `cue mod tidy`, `catalog.dir` exercise). Publish is not required at the end of every agent cycle; see Implementation Guidance.
-3. Research confirms outside facts against the real product: installed binary when available, product docs, open-source clone and source inspection when the agent is open source, and models.dev for each `provider` id.
+3. Research confirms outside facts against the real product: installed binary when available, product docs, open-source source inspection when the agent is open source, and models.dev for each `provider` id. When an open-source repository exists, clone it under `.agents/context/` and register it in `.agents/context/repos.csv` (and the matching index rows) before relying on it as a primary source — follow `.agents/context/AGENTS.md`.
 4. Entries report only the outside of the agent. No fields that require reading agent internal configuration.
 5. Agent ids stay kebab-case; the map key is the sole identity.
 6. The work queue and a short per-agent outcome log are kept up to date in this project document as agents complete, skip, or defer.
@@ -88,7 +88,7 @@ Process top to bottom. Skip only with an explicit reason recorded in the outcome
 | 1 | Grok (finish) | `grok` | Done; catalog@v1.3.0 |
 | 2 | OpenAI Codex CLI | `codex` | Done; catalog@v1.3.0 |
 | 3 | GitHub Copilot CLI | `copilot` | Done; catalog@v1.3.0 |
-| 4 | Aider | `aider` | Open source; likely agnostic; verify |
+| 4 | Aider | `aider` | Done; exercised; unpublished |
 | 5 | Goose | `goose` | Block OSS agent harness; confirm bin and outside facts |
 | 6 | Amazon Kiro CLI | `kiro` | Confirm bin, install path, provider |
 | 7 | Augment CLI | `augment` | Enterprise CLI; confirm bin and outside facts |
@@ -113,7 +113,11 @@ Deferred unless a later cycle promotes them: Cursor agent CLI, Windsurf agent CL
 Each agent is one cycle. Do not batch multiple agents into one silent pass.
 
 1. Orient: read this project, `AGENTS.md` add-agent section, current `catalog/agents.cue`, and the path matrix. Present the next queue item to the user and confirm it is the one to work.
-2. Research: gather outside facts per `AGENTS.md` (binary, docs, open-source clone when applicable, models.dev). Present a proposed entry (id, fields, skills roles, open questions) to the user. Wait for confirmation or edits.
+2. Research: gather outside facts per `AGENTS.md` (binary, docs, models.dev). When the agent is open source and a public repository exists, ensure it is available under `.agents/context/`:
+   - If not already listed in `.agents/context/repos.csv`, append a row (`url,directory,sparse_paths,ref`) and shallow-clone into `.agents/context/<directory>` (or run `.agents/context/scripts/refresh-repos` after updating `repos.csv`).
+   - Create or update `indexes/<directory>.csv` and the root `index.csv` row per `.agents/context/AGENTS.md`.
+   - Prefer the local clone over web queries when resolving path constants, version flags, and skills roots.
+   Present a proposed entry (id, fields, skills roles, open questions) to the user. Wait for confirmation or edits.
 3. Apply: write `catalog/agents.cue` and update the path matrix when skills apply.
 4. Validate: from `catalog/`, run `cue vet ./...` and `cue mod tidy`.
 5. Exercise: load via `catalog.dir` (isolated `XDG_CONFIG_HOME` preferred). Run `agentdex agents list` and `agentdex agents get <id>`. Confirm version, paths, and provider model counts with the user.
@@ -133,10 +137,12 @@ Update as work proceeds.
 | `codex` | published | catalog@v1.3.0; entry + matrix; provider openai |
 | `copilot` | published | catalog@v1.3.0; bin copilot; provider github-copilot; config.local `.github` |
 | registry | catalog@v1.3.0 | Additive publish of grok + codex + copilot over v1.2.0 |
+| `aider` | exercised | agnostic; config.global `~/.aider`; no skills/local; context clone aider-ai |
 
 ## Implementation Guidance
 
-- Prefer installing the agent when practical so version args and path discovery are verified on a real binary; when not installed, open-source clone plus published docs are required, not optional.
+- Prefer installing the agent when practical so version args and path discovery are verified on a real binary; when not installed, an open-source clone under `.agents/context/` plus published docs are required, not optional.
+- Open-source agent trees live in project-local `.agents/context/` (not `~/.agents/context` unless already mirrored there). Clones are gitignored; `repos.csv`, indexes, and scripts stay tracked.
 - When docs and source disagree, trust source (as `AGENTS.md` states) and note the discrepancy in the research summary shown to the user.
 - For provider-agnostic tools, set `agnostic: true` and omit `provider`; do not invent a home provider.
 - Keep the outcome log short: result and one-line notes only.

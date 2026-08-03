@@ -25,6 +25,21 @@ agents: "agy": {
 	homepage: "https://github.com/google-antigravity/antigravity-cli"
 }
 
+agents: "aider": {
+	name:        "Aider"
+	bin:         "aider"
+	description: "AI pair programming in the terminal."
+	config: {
+		global: "~/.aider"
+	}
+	version: {
+		args:    ["--version"]
+		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
+	}
+	agnostic: true
+	homepage: "https://github.com/Aider-AI/aider"
+}
+
 agents: "claude-code": {
 	name:        "Claude Code"
 	bin:         "claude"

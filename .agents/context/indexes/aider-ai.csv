@@ -1,0 +1,12 @@
+file,description,topics
+README.md,Product overview install features homepage,install;overview;homepage
+pyproject.toml,Package name scripts entrypoint homepage URL,bin;package;homepage
+aider/__init__.py,Version string source,version
+aider/main.py,Config search order conf file paths ~/.aider state,config;paths;dotenv
+aider/args.py,--version flag defaults history ignore paths,version;cli;paths
+aider/models.py,Default model multi-provider litellm support,provider;models;agnostic
+aider/onboarding.py,OpenRouter OAuth writes ~/.aider/oauth-keys.env,config;paths;openrouter
+aider/versioncheck.py,Version check cache under ~/.aider/caches,version;paths
+aider/website/docs/config/aider_conf.md,YAML config locations home git-root cwd,config
+aider/website/docs/config/dotenv.md,Env file search paths,config
+aider/website/docs/usage/conventions.md,Conventions files not skills directories,skills;conventions
