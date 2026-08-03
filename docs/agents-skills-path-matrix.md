@@ -16,6 +16,7 @@ comparable.
 | claude-code | | ~/.claude/skills | | native |
 | codex | ~/.agents/skills | ~/.codex/skills | | agents |
 | copilot | ~/.agents/skills | ~/.copilot/skills | | agents |
+| goose | ~/.agents/skills | ~/.config/goose/skills | ~/.claude/skills, ~/.config/agents/skills | agents |
 | grok | ~/.agents/skills | ~/.grok/skills | ~/.claude/skills, ~/.cursor/skills | agents |
 | opencode | ~/.agents/skills | | ~/.claude/skills | agents |
 
@@ -27,6 +28,7 @@ comparable.
 | claude-code | | .claude/skills | | native |
 | codex | .agents/skills | .codex/skills | | agents |
 | copilot | .agents/skills | .github/skills | .claude/skills | agents |
+| goose | .agents/skills | .goose/skills | .claude/skills | agents |
 | grok | .agents/skills | .grok/skills | .claude/skills, .cursor/skills | agents |
 | opencode | .agents/skills | .opencode/skills | .claude/skills | agents |
 
@@ -43,6 +45,7 @@ stored in the catalog.
 | claude-code | local | .agents/skills | No |
 | copilot | global | ~/.claude/skills | No |
 | copilot | local | .opencode/skills | No |
+| goose | global | ~/.agents/plugins/*/skills | n/a (dynamic plugin globs; not a static catalog path) |
 | opencode | global | ~/.copilot/skills | n/a |
 
 ## Authoring notes

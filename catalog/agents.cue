@@ -117,6 +117,33 @@ agents: "copilot": {
 	homepage: "https://github.com/github/copilot-cli"
 }
 
+agents: "goose": {
+	name:        "goose"
+	bin:         "goose"
+	description: "Open-source AI agent with desktop app, CLI, and API for code and workflows."
+	config: {
+		global: "~/.config/goose"
+	}
+	skills: {
+		global: {
+			agents: "~/.agents/skills"
+			native: "~/.config/goose/skills"
+			alternatives: ["~/.claude/skills", "~/.config/agents/skills"]
+		}
+		local: {
+			agents: ".agents/skills"
+			native: ".goose/skills"
+			alternatives: [".claude/skills"]
+		}
+	}
+	version: {
+		args:    ["--version"]
+		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
+	}
+	agnostic: true
+	homepage: "https://github.com/aaif-goose/goose"
+}
+
 agents: "grok": {
 	name:        "Grok"
 	bin:         "grok"

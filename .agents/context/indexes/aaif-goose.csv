@@ -1,0 +1,11 @@
+file,description,topics
+README.md,Product overview install CLI desktop homepage,install;overview;homepage
+Cargo.toml,Workspace version repository URL,version;homepage
+crates/goose-cli/Cargo.toml,CLI package [[bin]] name goose,bin
+crates/goose-cli/src/cli.rs,clap root command version and subcommands,version;cli
+crates/goose/src/config/paths.rs,Config data state agents path roots XDG,config;paths
+crates/goose/src/config/base.rs,Default config.yaml under config dir,config
+crates/goose/src/skills/mod.rs,Global and project skill discovery roots,skills;paths
+crates/goose/src/slash_commands/skill_slash_command.rs,User-facing skill install locations list,skills
+documentation/docs/guides/config-files.md,Documented ~/.config/goose config.yaml,config;docs
+documentation/docs/mcp/skills-mcp.md,Skills from .agents/skills and ~/.agents/skills,skills;docs

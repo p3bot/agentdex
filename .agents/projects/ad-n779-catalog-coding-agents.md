@@ -89,7 +89,7 @@ Process top to bottom. Skip only with an explicit reason recorded in the outcome
 | 2 | OpenAI Codex CLI | `codex` | Done; catalog@v1.3.0 |
 | 3 | GitHub Copilot CLI | `copilot` | Done; catalog@v1.3.0 |
 | 4 | Aider | `aider` | Done; exercised; unpublished |
-| 5 | Goose | `goose` | Block OSS agent harness; confirm bin and outside facts |
+| 5 | Goose | `goose` | Done; exercised; unpublished |
 | 6 | Amazon Kiro CLI | `kiro` | Confirm bin, install path, provider |
 | 7 | Augment CLI | `augment` | Enterprise CLI; confirm bin and outside facts |
 | 8 | Cline CLI | `cline` | Confirm a real CLI bin exists beyond the VS Code extension |
@@ -138,6 +138,7 @@ Update as work proceeds.
 | `copilot` | published | catalog@v1.3.0; bin copilot; provider github-copilot; config.local `.github` |
 | registry | catalog@v1.3.0 | Additive publish of grok + codex + copilot over v1.2.0 |
 | `aider` | exercised | agnostic; config.global `~/.aider`; no skills/local; context clone aider-ai |
+| `goose` | exercised | agnostic; config `~/.config/goose`; skills agents+native+alts; homepage aaif-goose/goose; context clone aaif-goose |
 
 ## Implementation Guidance
 

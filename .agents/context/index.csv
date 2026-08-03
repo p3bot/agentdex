@@ -2,3 +2,4 @@ directory,description,topics,source_url,source_type,last_updated
 openai-codex,OpenAI Codex CLI - terminal coding agent source and docs (see indexes/openai-codex.csv),codex;openai;cli;agent;skills;config;rust,https://github.com/openai/codex,official-tool-repo,2026-08-02
 github-copilot-cli,GitHub Copilot CLI - terminal agent install scripts and changelog (see indexes/github-copilot-cli.csv),copilot;github;cli;agent;skills;install,https://github.com/github/copilot-cli,official-tool-repo,2026-08-02
 aider-ai,Aider AI pair programming CLI - source and docs (see indexes/aider-ai.csv),aider;cli;agent;config;agnostic;python,https://github.com/Aider-AI/aider,official-tool-repo,2026-08-03
+aaif-goose,AAIF Goose open-source AI agent CLI and desktop (see indexes/aaif-goose.csv),goose;cli;agent;skills;config;rust;agnostic,https://github.com/aaif-goose/goose,official-tool-repo,2026-08-03
