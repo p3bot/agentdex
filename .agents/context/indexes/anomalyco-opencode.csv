@@ -1,0 +1,14 @@
+file,description,topics
+README.md,OpenCode product overview install homepage opencode.ai,opencode;cli;install;overview;agnostic
+AGENTS.md,Upstream agent instructions for the opencode monorepo,opencode;agents;contributing-context
+install,Install script for released binaries,install;binary
+packages/opencode/bin/opencode,CLI binary wrapper entrypoint name opencode,bin;cli
+packages/opencode/package.json,Package name bin mapping version metadata,bin;package;version
+packages/core/src/config.ts,Config load entry and discovery,config;paths
+packages/core/src/skill.ts,Skills module entry,skills
+packages/core/src/skill/discovery.ts,Skills root discovery order agents native alternatives,skills;discovery;paths
+packages/core/src/config/plugin/skill.ts,Plugin skill config wiring,skills;config;plugin
+packages/web/src/content/docs/config.mdx,Config documentation global local paths,config;docs;paths
+packages/web/src/content/docs/skills.mdx,Skills documentation discovery roots,skills;docs;paths
+packages/web/src/content/docs/cli.mdx,CLI usage version and commands,cli;version;docs
+packages/web/src/content/docs/providers.mdx,Multi-provider agnostic model wiring,providers;agnostic;models

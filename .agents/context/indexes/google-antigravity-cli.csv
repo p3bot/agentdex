@@ -1,0 +1,5 @@
+file,description,topics
+README.md,Antigravity CLI overview install docs website links bin agy,agy;cli;install;overview;google
+CHANGELOG.md,Release history version notes path and feature changes,version;changelog
+examples/statusline/README.md,Statusline extension example for CLI customisation,examples;cli
+examples/title/README.md,Title extension example for CLI customisation,examples;cli

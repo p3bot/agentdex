@@ -1,0 +1,8 @@
+file,description,topics
+README.md,Amazon Q Developer CLI predecessor of Kiro CLI closed-source note,amazon-q;kiro;cli;predecessor
+Cargo.toml,Workspace package names binary targets,bin;package
+crates/chat-cli/src/util/paths.rs,Global and workspace path constants .aws/amazonq .amazonq,config;paths
+crates/chat-cli/src/cli/mod.rs,CLI entry subcommands version wiring,cli;version
+crates/chat-cli/src/cli/agent/mod.rs,Agent management paths and discovery,agents;paths
+crates/chat-cli/src/os/diagnostics.rs,Doctor diagnostics path discovery,doctor;paths
+crates/chat-cli/src/database/settings.rs,Settings storage locations,config;settings

@@ -1,0 +1,5 @@
+file,description,topics
+README.md,Kiro product overview IDE and CLI surfaces homepage kiro.dev,kiro;cli;ide;overview
+docs/README.md,Docs and issue-process notes for the product repo,docs
+CONTRIBUTING.md,Contribution and issue reporting for Kiro CLI closed-source product,contributing;issues
+.kiro/specs/,Example project-local .kiro tree layout,config;paths;.kiro

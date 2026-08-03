@@ -1,0 +1,11 @@
+file,description,topics
+README.md,Grok Build CLI overview install build from source docs layout,grok;cli;install;overview;xai
+Cargo.toml,Workspace package names binary targets version,bin;package;version
+crates/codegen/xai-grok-config/src/paths.rs,User global ~/.grok GROK_HOME path resolution,config;paths;GROK_HOME
+crates/codegen/xai-grok-config/src/loader.rs,Config load order global and project,config;loader
+crates/codegen/xai-grok-config/src/lib.rs,Config crate entry,config
+crates/codegen/xai-grok-paths/src/lib.rs,Shared path helpers for grok home and project trees,paths
+crates/codegen/xai-grok-version/src/lib.rs,Version string source for --version,version
+crates/codegen/xai-grok-shell/src/bin/,CLI binary entrypoints,cli;bin
+crates/codegen/xai-grok-agent/src/plugins/discovery.rs,Plugin and skills-style discovery roots,skills;plugins;discovery
+crates/codegen/xai-grok-shell/src/claude_import.rs,Claude skills/config import compatibility paths,skills;claude;compat

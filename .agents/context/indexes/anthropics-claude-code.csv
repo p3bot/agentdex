@@ -1,0 +1,6 @@
+file,description,topics
+README.md,Claude Code overview install methods npm deprecation setup docs link,claude-code;cli;install;overview;anthropic
+CHANGELOG.md,Release history version notes feature and path changes,version;changelog
+examples/settings/README.md,Settings examples for sandbox lax strict policies,config;settings;examples
+examples/mdm/README.md,MDM and enterprise policy examples for Claude Code,config;mdm;enterprise
+plugins/README.md,Bundled plugins layout and extension commands,plugins;skills;commands

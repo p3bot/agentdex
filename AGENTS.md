@@ -56,9 +56,22 @@ agent, not from memory. Prefer primary sources in this order:
   any inspect or doctor command that reports discovered paths.
 - Read the product's own docs (README, user guide, file-locations pages) for
   config and skills roots. Prefer docs shipped with the install when present.
-- If the agent is open source, clone the repository and inspect the source for
-  path constants, discovery order, version flags, and provider defaults. Treat
-  source as authoritative when docs and binary disagree.
+- If the agent is open source and a public repository exists, make that source
+  available under the project-local context library before treating it as a
+  primary source. Follow `.agents/context/AGENTS.md` for layout and indexing:
+  - Prefer project-local `.agents/context/` (not `~/.agents/context` unless
+    already mirrored there). Clones are gitignored; `repos.csv`, indexes, and
+    scripts stay tracked.
+  - If the repo is not already listed in `.agents/context/repos.csv`, append a
+    row (`url,directory,sparse_paths,ref`) and shallow-clone into
+    `.agents/context/<directory>` (or run `.agents/context/scripts/refresh-repos`
+    after updating `repos.csv`). Use sparse checkout when only docs matter.
+  - Create or update `indexes/<directory>.csv` and the root `index.csv` row.
+  - Inspect the local tree for path constants, discovery order, version flags,
+    and provider defaults. Prefer the clone over web queries for those facts.
+  - Treat source as authoritative when docs and binary disagree.
+  When the binary is not installed, an open-source clone under
+  `.agents/context/` plus published docs are required, not optional.
 - Confirm each `provider` id against models.dev (provider page or API catalog).
   A wrong id silently drops model enrichment.
 
