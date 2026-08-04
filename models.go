@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/start-cli/agentdex/modelsdev"
+	"github.com/p3bot/agentdex/modelsdev"
 )
 
 // List browses models across the scoped providers, newest release first. Empty

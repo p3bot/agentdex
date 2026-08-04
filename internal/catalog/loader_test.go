@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/start-cli/agentdex/internal/catalog"
-	"github.com/start-cli/agentdex/internal/catalogtest"
+	"github.com/p3bot/agentdex/internal/catalog"
+	"github.com/p3bot/agentdex/internal/catalogtest"
 )
 
 const (
-	mainPath = "github.com/start-cli/agentdex/catalog@v1"
+	mainPath = "github.com/p3bot/agentdex/catalog@v1"
 	forkPath = "example.com/fork/catalog@v2"
 )
 

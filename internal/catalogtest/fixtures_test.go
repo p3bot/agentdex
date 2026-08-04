@@ -3,8 +3,8 @@ package catalogtest_test
 import (
 	"testing"
 
-	"github.com/start-cli/agentdex/internal/catalog"
-	"github.com/start-cli/agentdex/internal/catalogtest"
+	"github.com/p3bot/agentdex/internal/catalog"
+	"github.com/p3bot/agentdex/internal/catalogtest"
 )
 
 // TestFixtureBinsMatchCatalogValid locks the single source of fixture binary

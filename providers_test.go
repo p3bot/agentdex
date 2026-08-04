@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/start-cli/agentdex/internal/modelsdevtest"
-	"github.com/start-cli/agentdex/modelsdev"
+	"github.com/p3bot/agentdex/internal/modelsdevtest"
+	"github.com/p3bot/agentdex/modelsdev"
 )
 
 // Models.dev only (no agent catalog). presentEnv names env vars reported set.

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/start-cli/agentdex/internal/catalogtest"
-	"github.com/start-cli/agentdex/internal/modelsdevtest"
-	"github.com/start-cli/agentdex/modelsdev"
+	"github.com/p3bot/agentdex/internal/catalogtest"
+	"github.com/p3bot/agentdex/internal/modelsdevtest"
+	"github.com/p3bot/agentdex/modelsdev"
 )
 
 // From catalogtest.FixtureBins — single table shared with the CLI harness.

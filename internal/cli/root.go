@@ -17,9 +17,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/agentdex"
-	"github.com/start-cli/agentdex/internal/config"
-	"github.com/start-cli/agentdex/internal/tui"
+	"github.com/p3bot/agentdex"
+	"github.com/p3bot/agentdex/internal/config"
+	"github.com/p3bot/agentdex/internal/tui"
 )
 
 // groupCore keeps real commands together in help so cobra's help/completion stay under Additional Commands.

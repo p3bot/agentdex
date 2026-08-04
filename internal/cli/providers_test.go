@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/start-cli/agentdex/modelsdev"
+	"github.com/p3bot/agentdex/modelsdev"
 )
 
 func TestProviderRecordEnvAndPresence(t *testing.T) {

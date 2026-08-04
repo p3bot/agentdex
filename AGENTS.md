@@ -6,8 +6,8 @@ agentdex is a Go library plus thin CLI that indexes three kinds of data — AI c
 
 The repository hosts two independent module systems that do not interfere:
 
-- Go module at the repository root: `github.com/start-cli/agentdex`. The index library (root package `agentdex`), the public models.dev subpackage (`modelsdev/`), private subsystems under `internal/`, and the CLI under `cmd/agentdex/`.
-- CUE module under `catalog/`: `github.com/start-cli/agentdex/catalog@v1`. The `#KnownAgent` schema and the agent catalog data, published to the CUE Central Registry and fetched at runtime. It is versioned and published independently of the Go binary.
+- Go module at the repository root: `github.com/p3bot/agentdex`. The index library (root package `agentdex`), the public models.dev subpackage (`modelsdev/`), private subsystems under `internal/`, and the CLI under `cmd/agentdex/`.
+- CUE module under `catalog/`: `github.com/p3bot/agentdex/catalog@v1`. The `#KnownAgent` schema and the agent catalog data, published to the CUE Central Registry and fetched at runtime. It is versioned and published independently of the Go binary.
 
 The Go build ignores `catalog/`; the CUE module is a self-contained CUE module with its own `cue.mod/module.cue`.
 

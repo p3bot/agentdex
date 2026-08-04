@@ -10,8 +10,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/agentdex"
-	"github.com/start-cli/agentdex/internal/tui"
+	"github.com/p3bot/agentdex"
+	"github.com/p3bot/agentdex/internal/tui"
 )
 
 func (a *app) newAgentsCmd() *cobra.Command {

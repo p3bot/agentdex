@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/start-cli/agentdex/internal/catalog"
-	"github.com/start-cli/agentdex/modelsdev"
+	"github.com/p3bot/agentdex/internal/catalog"
+	"github.com/p3bot/agentdex/modelsdev"
 )
 
 // Open constructs an *Index over the configured catalog source and models.dev

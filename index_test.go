@@ -9,9 +9,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/start-cli/agentdex/internal/catalogtest"
-	"github.com/start-cli/agentdex/internal/modelsdevtest"
-	"github.com/start-cli/agentdex/modelsdev"
+	"github.com/p3bot/agentdex/internal/catalogtest"
+	"github.com/p3bot/agentdex/internal/modelsdevtest"
+	"github.com/p3bot/agentdex/modelsdev"
 )
 
 // In-process OCI registry; resCache is shared so a second Index can reuse a resolution.
@@ -71,7 +71,7 @@ func TestOpenRejectsDirAndModuleTogether(t *testing.T) {
 	dir := catalogtest.WriteModule(t, testCatalog)
 	_, err := Open(
 		WithCatalogDir(dir),
-		WithCatalogModule("github.com/start-cli/agentdex/catalog@v1"),
+		WithCatalogModule("github.com/p3bot/agentdex/catalog@v1"),
 		WithModelsURL(modelsdevtest.MustNotFetch(t)),
 	)
 	if err == nil {
@@ -155,7 +155,7 @@ func TestCatalogInfoRegistrySource(t *testing.T) {
 	if info.Source != CatalogSourceRegistry {
 		t.Errorf("Source = %v, want CatalogSourceRegistry", info.Source)
 	}
-	if info.Module != "github.com/start-cli/agentdex/catalog@v1" {
+	if info.Module != "github.com/p3bot/agentdex/catalog@v1" {
 		t.Errorf("Module = %q, want default major-line path", info.Module)
 	}
 	if info.Version == "" {
@@ -172,7 +172,7 @@ func TestCatalogInfoRegistrySource(t *testing.T) {
 
 func TestCatalogInfoHonoursModuleOverride(t *testing.T) {
 	ctx := context.Background()
-	const module = "github.com/start-cli/agentdex/catalog@v1"
+	const module = "github.com/p3bot/agentdex/catalog@v1"
 
 	idx, closeReg := openRegistry(t, t.TempDir(), WithCatalogModule(module))
 	t.Cleanup(closeReg)

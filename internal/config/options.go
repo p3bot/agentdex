@@ -3,7 +3,7 @@ package config
 import (
 	"maps"
 
-	"github.com/start-cli/agentdex"
+	"github.com/p3bot/agentdex"
 )
 
 // Flags carries the global flag values that feed into option mapping.

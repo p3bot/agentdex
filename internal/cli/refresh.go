@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/agentdex"
+	"github.com/p3bot/agentdex"
 )
 
 // refreshTargets is the single source for target validation, unknown-target error,

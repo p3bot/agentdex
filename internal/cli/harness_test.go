@@ -17,8 +17,8 @@ import (
 	"cuelang.org/go/mod/modcache"
 	"cuelang.org/go/mod/modregistrytest"
 
-	"github.com/start-cli/agentdex/internal/catalogtest"
-	"github.com/start-cli/agentdex/internal/modelsdevtest"
+	"github.com/p3bot/agentdex/internal/catalogtest"
+	"github.com/p3bot/agentdex/internal/modelsdevtest"
 )
 
 type result struct {
@@ -151,7 +151,7 @@ func closedModelsServer(t *testing.T) string {
 func startCatalogRegistry(t *testing.T) func() {
 	t.Helper()
 	dir := catalogtest.FixtureDir(t, "catalog-valid")
-	const moduleDir = "github.com_start-cli_agentdex_catalog_v1.0.0"
+	const moduleDir = "github.com_p3bot_agentdex_catalog_v1.0.0"
 
 	fsys := fstest.MapFS{}
 	for _, rel := range []string{"cue.mod/module.cue", "schema.cue", "agents.cue"} {

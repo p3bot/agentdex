@@ -20,7 +20,7 @@ import (
 func StartRegistry(t *testing.T) (*modregistrytest.Registry, func()) {
 	t.Helper()
 	dir := FixtureDir(t, "catalog-valid")
-	const moduleDir = "github.com_start-cli_agentdex_catalog_v1.0.0"
+	const moduleDir = "github.com_p3bot_agentdex_catalog_v1.0.0"
 
 	fsys := fstest.MapFS{}
 	for _, rel := range []string{"cue.mod/module.cue", "schema.cue", "agents.cue"} {

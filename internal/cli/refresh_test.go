@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/start-cli/agentdex/internal/modelsdevtest"
+	"github.com/p3bot/agentdex/internal/modelsdevtest"
 )
 
 func TestRefreshAll(t *testing.T) {

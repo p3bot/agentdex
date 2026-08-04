@@ -5,7 +5,7 @@
 #Config: {
 	cache_ttl?: string
 	catalog: {
-		module: string | *"github.com/start-cli/agentdex/catalog@v1"
+		module: string | *"github.com/p3bot/agentdex/catalog@v1"
 		dir?:   string
 		ttl?:   string
 	}

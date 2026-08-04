@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/start-cli/agentdex/modelsdev"
+	"github.com/p3bot/agentdex/modelsdev"
 )
 
 // CountingServer is Server with a fetch counter so a test can assert a single

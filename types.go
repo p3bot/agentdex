@@ -3,7 +3,7 @@ package agentdex
 import (
 	"fmt"
 
-	"github.com/start-cli/agentdex/modelsdev"
+	"github.com/p3bot/agentdex/modelsdev"
 )
 
 // Result is the symmetric return of every List: ordered items and warnings.

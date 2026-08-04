@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/start-cli/agentdex/internal/tui"
+	"github.com/p3bot/agentdex/internal/tui"
 )
 
 // envelope is the shared JSON output contract for every command.

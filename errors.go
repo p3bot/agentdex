@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/start-cli/agentdex/modelsdev"
+	"github.com/p3bot/agentdex/modelsdev"
 )
 
 // Exported sentinels for errors.Is. Detail rides the wrapping message (library-

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/start-cli/agentdex/internal/catalogtest"
+	"github.com/p3bot/agentdex/internal/catalogtest"
 )
 
 func TestVersionEnvelope(t *testing.T) {

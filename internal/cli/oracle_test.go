@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/start-cli/agentdex/internal/modelsdevtest"
-	"github.com/start-cli/agentdex/modelsdev"
+	"github.com/p3bot/agentdex/internal/modelsdevtest"
+	"github.com/p3bot/agentdex/modelsdev"
 )
 
 // This file pins user-facing CLI contracts the typed API tests do not exercise:

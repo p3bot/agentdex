@@ -17,7 +17,7 @@ func WriteModule(t *testing.T, agentsBody string) string {
 	dir := t.TempDir()
 
 	schema := repoFile(t, filepath.Join("catalog", "schema.cue"))
-	moduleCue := "module: \"github.com/start-cli/agentdex/catalog@v1\"\nlanguage: {\n\tversion: \"v0.16.0\"\n}\n"
+	moduleCue := "module: \"github.com/p3bot/agentdex/catalog@v1\"\nlanguage: {\n\tversion: \"v0.16.0\"\n}\n"
 
 	write := func(rel, body string) {
 		t.Helper()

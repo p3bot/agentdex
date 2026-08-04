@@ -3,7 +3,7 @@ package modelsdev_test
 import (
 	"testing"
 
-	"github.com/start-cli/agentdex/modelsdev"
+	"github.com/p3bot/agentdex/modelsdev"
 )
 
 func TestSortByReleaseNewestFirst(t *testing.T) {

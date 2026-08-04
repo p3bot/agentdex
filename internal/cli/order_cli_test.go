@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/start-cli/agentdex/modelsdev"
+	"github.com/p3bot/agentdex/modelsdev"
 )
 
 // pricedModelsServer serves three models whose combined price and release date

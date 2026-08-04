@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/start-cli/agentdex/internal/catalogtest"
-	"github.com/start-cli/agentdex/internal/modelsdevtest"
-	"github.com/start-cli/agentdex/modelsdev"
+	"github.com/p3bot/agentdex/internal/catalogtest"
+	"github.com/p3bot/agentdex/internal/modelsdevtest"
+	"github.com/p3bot/agentdex/modelsdev"
 )
 
 // Directory catalog + models.dev double for agent-scoped model listings.

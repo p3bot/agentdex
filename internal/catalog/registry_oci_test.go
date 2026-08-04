@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/start-cli/agentdex/internal/catalog"
-	"github.com/start-cli/agentdex/internal/catalogtest"
+	"github.com/p3bot/agentdex/internal/catalog"
+	"github.com/p3bot/agentdex/internal/catalogtest"
 )
 
 // TestProductionRegistryAgainstLocalOCI exercises the real modconfig-backed
@@ -33,7 +33,7 @@ func TestProductionRegistryAgainstLocalOCI(t *testing.T) {
 		t.Errorf("resolved version = %q, want v1.0.0", version)
 	}
 
-	canonical := "github.com/start-cli/agentdex/catalog@v1.0.0"
+	canonical := "github.com/p3bot/agentdex/catalog@v1.0.0"
 	sourceDir, err := prod.Fetch(ctx, canonical)
 	if err != nil {
 		t.Fatalf("Fetch: %v", err)

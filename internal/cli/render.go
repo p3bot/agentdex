@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/start-cli/agentdex/internal/tui"
+	"github.com/p3bot/agentdex/internal/tui"
 )
 
 // tabulate projects records onto JSON and a text table independently. Empty

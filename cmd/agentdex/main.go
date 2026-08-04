@@ -5,7 +5,7 @@ package main
 import (
 	"os"
 
-	"github.com/start-cli/agentdex/internal/cli"
+	"github.com/p3bot/agentdex/internal/cli"
 )
 
 func main() {

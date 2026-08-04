@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/start-cli/agentdex/internal/catalog"
+	"github.com/p3bot/agentdex/internal/catalog"
 )
 
 // Best-effort: a slow or hung binary must not stall detection.

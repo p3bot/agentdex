@@ -3,7 +3,7 @@ package cli
 import (
 	"testing"
 
-	"github.com/start-cli/agentdex/modelsdev"
+	"github.com/p3bot/agentdex/modelsdev"
 )
 
 var orderTestSet = newFieldSet(

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/start-cli/agentdex/internal/catalog"
+	"github.com/p3bot/agentdex/internal/catalog"
 )
 
 // Caps concurrent version-probe execs; work is I/O-bound so above GOMAXPROCS is fine.

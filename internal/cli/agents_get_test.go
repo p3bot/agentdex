@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/start-cli/agentdex"
-	"github.com/start-cli/agentdex/internal/modelsdevtest"
+	"github.com/p3bot/agentdex"
+	"github.com/p3bot/agentdex/internal/modelsdevtest"
 )
 
 func anyContains(ss []string, sub string) bool {

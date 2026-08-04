@@ -1,4 +1,4 @@
-module github.com/start-cli/agentdex
+module github.com/p3bot/agentdex
 
 go 1.25.0
 

@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/start-cli/agentdex"
-	"github.com/start-cli/agentdex/internal/tui"
-	"github.com/start-cli/agentdex/modelsdev"
+	"github.com/p3bot/agentdex"
+	"github.com/p3bot/agentdex/internal/tui"
+	"github.com/p3bot/agentdex/modelsdev"
 )
 
 func (a *app) newProvidersCmd() *cobra.Command {

@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/start-cli/agentdex"
-	"github.com/start-cli/agentdex/internal/tui"
-	"github.com/start-cli/agentdex/modelsdev"
+	"github.com/p3bot/agentdex"
+	"github.com/p3bot/agentdex/internal/tui"
+	"github.com/p3bot/agentdex/modelsdev"
 )
 
 var agentFieldSet = newFieldSet(

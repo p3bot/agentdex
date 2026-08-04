@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/start-cli/agentdex"
-	"github.com/start-cli/agentdex/internal/catalogtest"
-	"github.com/start-cli/agentdex/internal/modelsdevtest"
+	"github.com/p3bot/agentdex"
+	"github.com/p3bot/agentdex/internal/catalogtest"
+	"github.com/p3bot/agentdex/internal/modelsdevtest"
 )
 
 func writeConfig(t *testing.T, body string) string {
@@ -32,7 +32,7 @@ func TestOptionsCatalogDirOmitsModule(t *testing.T) {
 	provider: ["anthropic"]
 }`)
 	c := &Config{
-		CatalogModule: "github.com/start-cli/agentdex/catalog@v1",
+		CatalogModule: "github.com/p3bot/agentdex/catalog@v1",
 		CatalogDir:    dir,
 		CatalogTTL:    DefaultTTL,
 		ModelsTTL:     DefaultTTL,
@@ -48,7 +48,7 @@ func TestLoadMissingFileIsEmptyDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load missing: %v", err)
 	}
-	if got.CatalogModule != "github.com/start-cli/agentdex/catalog@v1" {
+	if got.CatalogModule != "github.com/p3bot/agentdex/catalog@v1" {
 		t.Errorf("CatalogModule = %q, want the default module path", got.CatalogModule)
 	}
 	if got.Color != "auto" {

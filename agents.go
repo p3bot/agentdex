@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/start-cli/agentdex/internal/catalog"
-	"github.com/start-cli/agentdex/modelsdev"
+	"github.com/p3bot/agentdex/internal/catalog"
+	"github.com/p3bot/agentdex/modelsdev"
 )
 
 // Get returns detection detail for one agent, selected exactly by its catalog id.

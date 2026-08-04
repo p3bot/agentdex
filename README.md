@@ -8,8 +8,8 @@ The agent index is data-driven from a published catalog: agentdex never guesses 
 
 The repository hosts two independent module systems:
 
-- A Go module at the repository root (`github.com/start-cli/agentdex`): the index library and CLI.
-- A CUE module under `catalog/` (`github.com/start-cli/agentdex/catalog@v1`): the `#KnownAgent` schema and the agent catalog data, published to the CUE Central Registry and fetched at runtime.
+- A Go module at the repository root (`github.com/p3bot/agentdex`): the index library and CLI.
+- A CUE module under `catalog/` (`github.com/p3bot/agentdex/catalog@v1`): the `#KnownAgent` schema and the agent catalog data, published to the CUE Central Registry and fetched at runtime.
 
 They do not interfere: the Go build ignores `catalog/`, and the CUE module is versioned and published independently of the Go binary.
 
@@ -44,7 +44,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/start-cli/agentdex"
+	"github.com/p3bot/agentdex"
 )
 
 func main() {
@@ -68,7 +68,7 @@ func main() {
 }
 ```
 
-The full surface — every option, service method, query and result type, enrichment level, and error — is documented on the [package](https://pkg.go.dev/github.com/start-cli/agentdex).
+The full surface — every option, service method, query and result type, enrichment level, and error — is documented on the [package](https://pkg.go.dev/github.com/p3bot/agentdex).
 
 Skill directories are classified, not a single path: per scope (global user-wide, local project) the catalog records `agents` (shared `~/.agents/skills` / `.agents/skills` when supported), `native` (the product's own tree), and `alternatives` (other supported roots, priority order). Primary is derived — agents, else native, else the first alternative — and is the install/query target. The library exposes the full layout on `Detection.Skills` (each root is a path plus on-disk existence). The CLI surfaces primary as `skills_dir` / `skills_local_dir` and the matrix as `skills`, where each role is `{path, exists}` and `primary` remains a bare path string. Agents with no skills dirs omit skills entirely. Catalog authoring is in [AGENTS.md](AGENTS.md).
 
@@ -101,13 +101,13 @@ Configuration is optional and lives at `$XDG_CONFIG_HOME/agentdex/config.cue`. S
 Go:
 
 ```
-go install github.com/start-cli/agentdex/cmd/agentdex@latest
+go install github.com/p3bot/agentdex/cmd/agentdex@latest
 ```
 
 Homebrew (once the tap release is published):
 
 ```
-brew tap start-cli/tap
+brew tap p3bot/tap
 brew install agentdex
 ```
 

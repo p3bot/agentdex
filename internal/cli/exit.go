@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"io/fs"
 
-	"github.com/start-cli/agentdex"
-	"github.com/start-cli/agentdex/internal/config"
-	"github.com/start-cli/agentdex/modelsdev"
+	"github.com/p3bot/agentdex"
+	"github.com/p3bot/agentdex/internal/config"
+	"github.com/p3bot/agentdex/modelsdev"
 )
 
 // Exit codes are agentdex's taxonomy, shared with the wider start CLI. Commands

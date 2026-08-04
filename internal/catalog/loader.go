@@ -9,7 +9,7 @@ import (
 )
 
 // DefaultModulePath is the published catalog module loaded unless overridden.
-const DefaultModulePath = "github.com/start-cli/agentdex/catalog@v1"
+const DefaultModulePath = "github.com/p3bot/agentdex/catalog@v1"
 
 // DefaultTTL is the version-resolution cache lifetime.
 const DefaultTTL = 24 * time.Hour

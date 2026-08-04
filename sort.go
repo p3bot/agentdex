@@ -3,7 +3,7 @@ package agentdex
 import (
 	"sort"
 
-	"github.com/start-cli/agentdex/modelsdev"
+	"github.com/p3bot/agentdex/modelsdev"
 )
 
 // Newest release first via modelsdev.Newer so library and CLI share one rule.
