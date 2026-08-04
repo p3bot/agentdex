@@ -96,19 +96,20 @@ Every `list` verb orders by `id` (`models list` by newest release date) and acce
 
 Configuration is optional and lives at `$XDG_CONFIG_HOME/agentdex/config.cue`. See `internal/config/schema.cue` for the full schema.
 
-## Install
+## Installation
 
-Go:
+### Homebrew (Linux/macOS)
 
-```
-go install github.com/p3bot/agentdex/cmd/agentdex@latest
-```
-
-Homebrew (once the tap release is published):
-
-```
+```bash
 brew tap p3bot/tap
-brew install agentdex
+brew trust p3bot/tap
+brew install p3bot/tap/agentdex
+```
+
+### Go Install
+
+```bash
+go install github.com/p3bot/agentdex/cmd/agentdex@latest
 ```
 
 ## License
