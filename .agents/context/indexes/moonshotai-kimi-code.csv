@@ -1,0 +1,7 @@
+file,description,topics
+README.md,Kimi Code CLI overview install bin kimi homepage,kimi-code;cli;install;bin;overview
+docs/en/configuration/config-files.md,config.toml KIMI_CODE_HOME project local.toml,config;paths;local
+docs/en/configuration/data-locations.md,Data root ~/.kimi-code layout skills credentials,paths;skills;data
+docs/en/customization/skills.md,Skill locations user project agents native,skills;paths
+docs/en/configuration/providers.md,Provider types kimi anthropic openai models.dev import,providers;models
+apps/kimi-code/package.json,Package name version bin mapping,bin;version;package

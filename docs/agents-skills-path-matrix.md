@@ -19,8 +19,10 @@ comparable.
 | codewhale | ~/.agents/skills | ~/.codewhale/skills | ~/.claude/skills, ~/.deepseek/skills | agents |
 | codex | ~/.agents/skills | ~/.codex/skills | | agents |
 | copilot | ~/.agents/skills | ~/.copilot/skills | | agents |
+| crush | ~/.agents/skills | ~/.config/crush/skills | ~/.config/agents/skills, ~/.claude/skills | agents |
 | goose | ~/.agents/skills | ~/.config/goose/skills | ~/.claude/skills, ~/.config/agents/skills | agents |
 | grok | ~/.agents/skills | ~/.grok/skills | ~/.claude/skills, ~/.cursor/skills | agents |
+| kimi-code | ~/.agents/skills | ~/.kimi-code/skills | | agents |
 | kiro | | ~/.kiro/skills | | native |
 | opencode | ~/.agents/skills | | ~/.claude/skills | agents |
 
@@ -35,8 +37,10 @@ comparable.
 | codewhale | .agents/skills | .codewhale/skills | skills, .opencode/skills, .claude/skills, .cursor/skills | agents |
 | codex | .agents/skills | .codex/skills | | agents |
 | copilot | .agents/skills | .github/skills | .claude/skills | agents |
+| crush | .agents/skills | .crush/skills | .claude/skills, .cursor/skills | agents |
 | goose | .agents/skills | .goose/skills | .claude/skills | agents |
 | grok | .agents/skills | .grok/skills | .claude/skills, .cursor/skills | agents |
+| kimi-code | .agents/skills | .kimi-code/skills | | agents |
 | kiro | | .kiro/skills | | native |
 | opencode | .agents/skills | .opencode/skills | .claude/skills | agents |
 

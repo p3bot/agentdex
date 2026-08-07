@@ -20,7 +20,20 @@ Out: schema breaks without a paired binary release; Go/detection special-cases; 
 
 ## Current State
 
-Catalog through **catalog@v1.4.0** on the registry. Keys in tree: `agy`, `aider`, `augment`, `claude-code`, `cline`, `codewhale`, `codex`, `copilot`, `goose`, `grok`, `kiro`, `opencode`.
+Registry still **catalog@v1.4.0**. Working tree ahead of registry with two exercised unpublished entries:
+
+| id | bin | provider / agnostic | status |
+|---|---|---|---|
+| `crush` | `crush` | `agnostic: true` | entry + matrix + context; `cue vet` OK; exercised |
+| `kimi-code` | `kimi` | `provider: ["kimi-for-coding"]` | entry + matrix + context; `cue vet` OK; exercised |
+
+Full keys in tree: `agy`, `aider`, `augment`, `claude-code`, `cline`, `codewhale`, `codex`, `copilot`, `crush`, `goose`, `grok`, `kimi-code`, `kiro`, `opencode`.
+
+Session context clones (tracked indexes/repos.csv; trees gitignored): `charmbracelet-crush`, `moonshotai-kimi-code`, `qwenlm-qwen-code`.
+
+Next cycle: **Qwen Code** — research complete, proposal ready, waiting on user confirm before apply. Proposed: id `qwen-code`, bin `qwen`, config `~/.qwen` / `.qwen`, skills agents+native (`.agents` + `.qwen`), `agnostic: true`, homepage QwenLM/qwen-code. Open points: agnostic vs `alibaba`/`alibaba-coding-plan`; id/bin.
+
+Not committed this session (host git). Publish only on request; prefer one session batch of exercised entries.
 
 Exercise unpublished work with `catalog.dir` under a temp `XDG_CONFIG_HOME` (see `AGENTS.md`). Repo constraints: Go 1.25 pure Go, CUE `v0.16.0`, Linux/macOS/WSL.
 
@@ -43,19 +56,17 @@ Process top to bottom. Skip only with a reason in the outcome log.
 
 | Order | Candidate | Suggested id | Notes |
 |---|---|---|---|
-| 1 | Crush | `crush` | Charm; bin crush |
-| 2 | Kimi Code CLI | `kimi-code` | Moonshot; confirm id/bin |
-| 3 | Qwen Code | `qwen-code` | Alibaba; bin qwen |
-| 4 | OpenHands | `openhands` | bin openhands |
-| 5 | Amp | `amp` | Sourcegraph; bin amp |
-| 6 | Continue CLI | `continue` | bin cn |
-| 7 | Kilo Code CLI | `kilo` | Confirm bin |
-| 8 | Pi | `pi` | Minimal harness |
-| 9 | Plandex | `plandex` | Large multi-file tasks |
-| 10 | Open Interpreter | `open-interpreter` | bin interpreter |
-| 11 | ForgeCode | `forge` | Confirm bin |
-| 12 | Hermes Agent | `hermes` | Nous Research CLI/TUI |
-| 13 | OpenClaw | `openclaw` | Personal assistant / gateway |
+| 1 | Qwen Code | `qwen-code` | Research done; propose agnostic, bin `qwen`; await confirm |
+| 2 | OpenHands | `openhands` | bin openhands |
+| 3 | Amp | `amp` | Sourcegraph; bin amp |
+| 4 | Continue CLI | `continue` | bin cn |
+| 5 | Kilo Code CLI | `kilo` | Confirm bin |
+| 6 | Pi | `pi` | Minimal harness |
+| 7 | Plandex | `plandex` | Large multi-file tasks |
+| 8 | Open Interpreter | `open-interpreter` | bin interpreter |
+| 9 | ForgeCode | `forge` | Confirm bin |
+| 10 | Hermes Agent | `hermes` | Nous Research CLI/TUI |
+| 11 | OpenClaw | `openclaw` | Personal assistant / gateway |
 
 Do not re-add agents already correct in the catalog unless research finds a factual error.
 
@@ -89,6 +100,8 @@ Out of scope or weak facts → skip with reason; do not force a weak entry.
 | catalog@v1.3.0 | published | `grok`, `codex`, `copilot` |
 | catalog@v1.4.0 | published | `aider`, `goose`, `kiro`, `augment`, `cline`, `codewhale` |
 | DeepSeek TUI | skipped | rebranded → `codewhale` |
+| crush | exercised | agnostic; unpublished pending session batch |
+| kimi-code | exercised | bin `kimi`; provider `kimi-for-coding`; unpublished |
 
 Append one short row per later agent or registry publish.
 

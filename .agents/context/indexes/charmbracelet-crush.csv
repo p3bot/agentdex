@@ -1,0 +1,7 @@
+file,description,topics
+README.md,Crush overview install config skills providers Hyper homepage,crush;cli;install;config;skills;agnostic;hyper
+docs/config/README.md,Config locations crushrc JSON priority skill-path options,config;crushrc;paths;skills
+internal/config/load.go,GlobalConfig GlobalSkillsDirs ProjectSkillsDir path constants,config;skills;paths;source
+internal/version/version.go,Build version ldflags and go install fallback,version
+internal/cmd/dirs.go,crush dirs config and data directory listing,dirs;config;paths
+internal/cmd/root.go,CLI root fang version flags,cli;version

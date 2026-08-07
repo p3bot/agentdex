@@ -200,6 +200,34 @@ agents: "copilot": {
 	homepage: "https://github.com/github/copilot-cli"
 }
 
+agents: "crush": {
+	name:        "Crush"
+	bin:         "crush"
+	description: "Charm's multi-model AI coding agent for the terminal."
+	config: {
+		global: "~/.config/crush"
+		local:  ".crush"
+	}
+	skills: {
+		global: {
+			agents: "~/.agents/skills"
+			native: "~/.config/crush/skills"
+			alternatives: ["~/.config/agents/skills", "~/.claude/skills"]
+		}
+		local: {
+			agents: ".agents/skills"
+			native: ".crush/skills"
+			alternatives: [".claude/skills", ".cursor/skills"]
+		}
+	}
+	version: {
+		args:    ["--version"]
+		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
+	}
+	agnostic: true
+	homepage: "https://github.com/charmbracelet/crush"
+}
+
 agents: "goose": {
 	name:        "goose"
 	bin:         "goose"
@@ -225,6 +253,32 @@ agents: "goose": {
 	}
 	agnostic: true
 	homepage: "https://github.com/aaif-goose/goose"
+}
+
+agents: "kimi-code": {
+	name:        "Kimi Code CLI"
+	bin:         "kimi"
+	description: "Moonshot AI's terminal AI coding agent with Kimi models and multi-provider support."
+	config: {
+		global: "~/.kimi-code"
+		local:  ".kimi-code"
+	}
+	skills: {
+		global: {
+			agents: "~/.agents/skills"
+			native: "~/.kimi-code/skills"
+		}
+		local: {
+			agents: ".agents/skills"
+			native: ".kimi-code/skills"
+		}
+	}
+	version: {
+		args:    ["--version"]
+		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
+	}
+	provider: ["kimi-for-coding"]
+	homepage: "https://github.com/MoonshotAI/kimi-code"
 }
 
 agents: "kiro": {
