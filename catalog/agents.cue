@@ -355,3 +355,29 @@ agents: "opencode": {
 	agnostic: true
 	homepage: "https://opencode.ai"
 }
+
+agents: "qwen-code": {
+	name:        "Qwen Code"
+	bin:         "qwen"
+	description: "Open-source multi-protocol AI coding agent for the terminal."
+	config: {
+		global: "~/.qwen"
+		local:  ".qwen"
+	}
+	skills: {
+		global: {
+			agents: "~/.agents/skills"
+			native: "~/.qwen/skills"
+		}
+		local: {
+			agents: ".agents/skills"
+			native: ".qwen/skills"
+		}
+	}
+	version: {
+		args:    ["--version"]
+		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
+	}
+	agnostic: true
+	homepage: "https://github.com/QwenLM/qwen-code"
+}

@@ -1,0 +1,8 @@
+file,description,topics
+README.md,Qwen Code overview install bin qwen multi-protocol homepage,qwen-code;cli;install;bin;overview
+package.json,Package name version bin mapping,bin;version;package
+packages/core/src/config/storage.ts,Global QWEN_DIR skills dirs SKILL_PROVIDER_CONFIG_DIRS,config;paths;skills;storage
+packages/core/src/skills/skill-manager.ts,Skill discovery order project and user levels,skills;discovery
+docs/users/configuration/settings.md,settings.json user/project paths QWEN_HOME,config;settings;paths
+docs/users/configuration/model-providers.md,Multi-protocol modelProviders openai anthropic gemini,providers;models;agnostic
+docs/users/features/skills.md,Personal and project skill locations,skills;paths

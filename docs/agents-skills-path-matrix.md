@@ -25,6 +25,7 @@ comparable.
 | kimi-code | ~/.agents/skills | ~/.kimi-code/skills | | agents |
 | kiro | | ~/.kiro/skills | | native |
 | opencode | ~/.agents/skills | | ~/.claude/skills | agents |
+| qwen-code | ~/.agents/skills | ~/.qwen/skills | | agents |
 
 ## Local
 
@@ -43,6 +44,7 @@ comparable.
 | kimi-code | .agents/skills | .kimi-code/skills | | agents |
 | kiro | | .kiro/skills | | native |
 | opencode | .agents/skills | .opencode/skills | .claude/skills | agents |
+| qwen-code | .agents/skills | .qwen/skills | | agents |
 
 ## Unsupported
 
