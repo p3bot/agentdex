@@ -11,13 +11,13 @@ The repository hosts two independent module systems that do not interfere:
 
 The Go build ignores `catalog/`; the CUE module is a self-contained CUE module with its own `cue.mod/module.cue`.
 
-## Project documents
+## Related documents
 
-Feature work lives in the ambient `pj` scope `ad` under `.agents/projects/`. Board order is chronological (`pj list --all` reads as history). Read verbs: `pj list`, `pj status`, `pj get`, `pj search`, `pj next`. Resolve a former root filename via the `legacy` frontmatter field:
-
-```bash
-rg -l 'legacy: "01-theme-safe-terminal-path-colour.md"' .agents/projects
-```
+- `README.md` — human-facing install, CLI, and library API reference.
+- `docs/agents-skills-path-matrix.md` — researched skills path roles per catalogued agent; update when adding or changing skills paths.
+- `docs/cli-skill-command-design.md` — design note for a possible future CLI skill command (not implemented).
+- `.agents/context/` — project-local clones and indexes of agent source repos used when cataloguing outside facts. Layout and maintenance: `.agents/context/AGENTS.md`.
+- `.agents/roles/default.md` — default coding-agent role for work in this repository.
 
 ## Toolchain and platforms
 
@@ -209,10 +209,10 @@ counts look right on `agents get` before publishing.
 
 The catalog is versioned and published independently of the Go binary, so adding
 an agent needs no agentdex release. Publish a new version under the `@v1` major
-line to the CUE Central Registry with the same mechanism start/library uses;
-`cue login` and `CUE_REGISTRY` are honoured as-is, with no agentdex-specific auth.
-Existing installs resolve the new version within the cache TTL (24h default); new
-installs resolve it immediately via `ModuleVersions`.
+line to the CUE Central Registry; `cue login` and `CUE_REGISTRY` are honoured
+as-is, with no agentdex-specific auth. Existing installs resolve the new version
+within the cache TTL (24h default); new installs resolve it immediately via
+`ModuleVersions`.
 
 Schema-breaking catalog changes are not independent of the binary. The schema
 travels with the data, so a new `#KnownAgent` shape that older loaders cannot
@@ -229,7 +229,7 @@ Go:
 - Comments document why, not what. Respect godoc form on exported symbols.
 - Tests favour real behaviour over mocks: real CUE validation, real files via `t.TempDir()`, environment isolation via `t.Setenv`. Table-driven tests for multiple cases.
 
-Markdown for agent-facing documents (`AGENTS.md`, pj project bodies, design notes):
+Markdown for agent-facing documents (`AGENTS.md`, design notes under `docs/`, context library docs):
 
 - No bold or italic, no horizontal rules, no emojis, no HTML comments.
 - No heading depth beyond `###`. No directory structures beyond depth 3.
