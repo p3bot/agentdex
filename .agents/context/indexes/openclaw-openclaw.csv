@@ -1,0 +1,8 @@
+file,description,topics
+README.md,Overview install bin openclaw gateway onboard skills providers,openclaw;cli;install;bin;overview
+package.json,Package name openclaw version bin openclaw.mjs,bin;version;package
+openclaw.mjs,Launcher --version output OpenClaw VERSION,version;cli
+src/config/paths.ts,State dir ~/.openclaw OPENCLAW_STATE_DIR legacy .clawdbot,config;paths;home
+docs/tools/skills.md,Skill load order workspace agents managed extraDirs,skills;paths
+docs/gateway/configuration.md,Config ~/.openclaw/openclaw.json workspace defaults,config;paths
+docs/concepts/model-providers.md,Multi-provider model setup,providers;agnostic

@@ -255,6 +255,31 @@ agents: "crush": {
 	homepage: "https://github.com/charmbracelet/crush"
 }
 
+agents: "forge": {
+	name:        "ForgeCode"
+	bin:         "forge"
+	description: "Multi-provider terminal coding harness with interactive TUI and Zsh integration."
+	config: {
+		global: "~/.forge"
+		local:  ".forge"
+	}
+	skills: {
+		global: {
+			agents: "~/.agents/skills"
+			native: "~/.forge/skills"
+		}
+		local: {
+			native: ".forge/skills"
+		}
+	}
+	version: {
+		args:    ["--version"]
+		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
+	}
+	agnostic: true
+	homepage: "https://github.com/antinomyhq/forgecode"
+}
+
 agents: "goose": {
 	name:        "goose"
 	bin:         "goose"
@@ -384,6 +409,26 @@ agents: "grok": {
 	homepage: "https://x.ai/cli"
 }
 
+agents: "hermes": {
+	name:        "Hermes Agent"
+	bin:         "hermes"
+	description: "Self-improving multi-platform AI agent with terminal CLI/TUI and a skills learning loop."
+	config: {
+		global: "~/.hermes"
+	}
+	skills: {
+		global: {
+			native: "~/.hermes/skills"
+		}
+	}
+	version: {
+		args:    ["--version"]
+		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
+	}
+	agnostic: true
+	homepage: "https://github.com/NousResearch/hermes-agent"
+}
+
 agents: "opencode": {
 	name:        "opencode"
 	bin:         "opencode"
@@ -409,6 +454,54 @@ agents: "opencode": {
 	}
 	agnostic: true
 	homepage: "https://opencode.ai"
+}
+
+agents: "open-interpreter": {
+	name:        "Open Interpreter"
+	bin:         "interpreter"
+	description: "Terminal coding agent for low-cost and open models, built on the Codex CLI surface."
+	config: {
+		global: "~/.openinterpreter"
+		local:  ".openinterpreter"
+	}
+	skills: {
+		global: {
+			agents: "~/.agents/skills"
+			native: "~/.openinterpreter/skills"
+		}
+		local: {
+			agents: ".agents/skills"
+			native: ".openinterpreter/skills"
+		}
+	}
+	version: {
+		args:    ["--version"]
+		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
+	}
+	agnostic: true
+	homepage: "https://github.com/openinterpreter/openinterpreter"
+}
+
+agents: "openclaw": {
+	name:        "OpenClaw"
+	bin:         "openclaw"
+	description: "Local-first multi-channel personal AI assistant gateway with CLI, TUI, and skills."
+	config: {
+		global: "~/.openclaw"
+	}
+	skills: {
+		global: {
+			agents: "~/.agents/skills"
+			native: "~/.openclaw/skills"
+			alternatives: ["~/.openclaw/workspace/skills", "~/.openclaw/workspace/.agents/skills"]
+		}
+	}
+	version: {
+		args:    ["--version"]
+		pattern: "([0-9]{4}\\.[0-9]+\\.[0-9]+(?:-[0-9]+)?)"
+	}
+	agnostic: true
+	homepage: "https://github.com/openclaw/openclaw"
 }
 
 agents: "openhands": {

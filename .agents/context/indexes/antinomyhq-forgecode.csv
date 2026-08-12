@@ -1,0 +1,8 @@
+file,description,topics
+README.md,Overview install bin forge modes skills config providers,forge;cli;install;bin;skills;overview
+crates/forge_main/Cargo.toml,Binary package name forge,bin;package
+crates/forge_main/src/cli.rs,clap version flag CLI surface,cli;version
+crates/forge_config/src/reader.rs,Base path FORGE_CONFIG legacy ~/forge default ~/.forge config files,config;paths;home
+crates/forge_domain/src/env.rs,Skills agents global local paths agents_skills_path,skills;paths
+crates/forge_repo/src/skill.rs,Skill load order CWD agents global built-in precedence,skills;load
+crates/forge_domain/src/provider.rs,Built-in multi-provider IDs including forge openai anthropic,providers;agnostic

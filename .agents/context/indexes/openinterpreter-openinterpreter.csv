@@ -1,0 +1,12 @@
+file,description,topics
+README.md,Overview install bin interpreter/i harness portability skills AGENTS.md,open-interpreter;cli;install;bin;skills;overview
+docs/install.md,Install update uninstall ~/.openinterpreter packages PATH INTERPRETER_HOME,install;bin;paths;version
+docs/config.md,User ~/.openinterpreter/config.toml project .openinterpreter/config.toml,config;paths
+docs/skills.md,Skills roots .agents/skills ~/.agents/skills legacy ~/.openinterpreter/skills,skills;paths
+docs/portability.md,Shared agent standards product state under ~/.openinterpreter,portability;skills;config
+docs/providers.md,Multi-provider model setup harness-agnostic provider IDs,providers;agnostic
+codex-rs/utils/home-dir/src/lib.rs,Home resolution INTERPRETER_HOME default ~/.openinterpreter ignores CODEX_HOME,config;paths;home
+codex-rs/config/src/loader/mod.rs,Project config dir name .openinterpreter vs .codex,config;paths;local
+codex-rs/core-skills/src/loader.rs,Skill root discovery agents skills and product skills fallback,skills;paths
+codex-rs/product-info/src/lib.rs,Product brand command_name interpreter release channel,bin;product;version
+codex-rs/cli/src/main.rs,CLI clap name interpreter version surface,cli;version;bin

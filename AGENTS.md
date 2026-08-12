@@ -50,10 +50,15 @@ configuration.
 ### 1. Research the outside facts
 
 Gather the static facts the catalog stores and confirm each against the real
-agent, not from memory. Prefer primary sources in this order:
+agent, not from memory. Skip products that are archived, read-only after a final
+release, clearly non-terminal (IDE-only), or outside the Linux/macOS/WSL target
+set. Prefer primary sources in this order:
 
-- Run the installed binary: resolve it on PATH, print version and help, and use
-  any inspect or doctor command that reports discovered paths.
+- Run the real binary when practical: resolve it on PATH, or download a current
+  release package for the target OS when it is not installed. Print version and
+  help, and use any inspect or doctor command that reports discovered paths.
+  A release binary is enough for `bin` and `version` verification; do not invent
+  those from docs alone.
 - Read the product's own docs (README, user guide, file-locations pages) for
   config and skills roots. Prefer docs shipped with the install when present.
 - If the agent is open source and a public repository exists, make that source
@@ -66,33 +71,43 @@ agent, not from memory. Prefer primary sources in this order:
     row (`url,directory,sparse_paths,ref`) and shallow-clone into
     `.agents/context/<directory>` (or run `.agents/context/scripts/refresh-repos`
     after updating `repos.csv`). Use sparse checkout when only docs matter.
-  - Create or update `indexes/<directory>.csv` and the root `index.csv` row.
+  - Create or update `indexes/<directory>.csv` and the root `index.csv` row
+    (they may land with the catalog apply; the clone must exist before source
+    is treated as authoritative).
   - Inspect the local tree for path constants, discovery order, version flags,
     and provider defaults. Prefer the clone over web queries for those facts.
   - Treat source as authoritative when docs and binary disagree.
-  When the binary is not installed, an open-source clone under
-  `.agents/context/` plus published docs are required, not optional.
+  When the binary is not installed and the product is open source, the context
+  clone plus published docs are required, not optional.
+- If the product is closed source (no public CLI tree), do not invent a context
+  clone. Require product docs and a real binary (PATH or release package) for
+  every catalogued fact you cannot derive from docs alone.
 - Confirm each `provider` id against models.dev (provider page or API catalog).
   A wrong id silently drops model enrichment.
 
-Facts to collect:
+Facts to collect (omit a field or entire `skills` block when the agent has no
+corresponding outside path; do not store empty placeholders):
 
 - `bin`: the executable name resolved on PATH (`exec.LookPath`), no `.exe`.
-- `config` paths: global and optional local directories, written with `~` and
-  XDG-style paths, not an absolute home.
+- `config` paths: required `global`, optional `local`, written with `~` and
+  XDG-style paths, not an absolute home. Omit `local` when there is no
+  project-local config directory.
 - `skills` paths: omit entirely when the agent has no skills directories. When
-  present, classified roots per scope (`global` = user-wide, `local` =
-  project). Within each scope set the roles the agent supports: `agents`
-  (shared `~/.agents/skills` or `.agents/skills`), `native` (this product's own
-  tree, e.g. `~/.claude/skills`), and `alternatives` (other supported roots).
-  Written with `~` and XDG-style paths. See `docs/agents-skills-path-matrix.md`.
-  Do not store `primary` — the library derives it as agents, else native, else
-  the first alternative. Order `alternatives` by preference: when agents and
-  native are unset, `alternatives[0]` becomes primary. Empty `skills: {}` or an
-  empty scope is rejected by the schema (`struct.MinFields(1)`).
+  present, at least one scope (`global` = user-wide, `local` = project); omit a
+  scope that has no roots. Within each scope set the roles the agent supports:
+  `agents` (shared `~/.agents/skills` or `.agents/skills`), `native` (this
+  product's own tree, e.g. `~/.claude/skills`), and `alternatives` (other
+  supported roots). Written with `~` and XDG-style paths. See
+  `docs/agents-skills-path-matrix.md`. Do not store `primary` — the library
+  derives it as agents, else native, else the first alternative. Order
+  `alternatives` by preference: when agents and native are unset,
+  `alternatives[0]` becomes primary. Empty `skills: {}` or an empty scope is
+  rejected by the schema (`struct.MinFields(1)`).
 - `version.args` and optional `version.pattern`: the flag that prints the
-  version and a regex to extract it. Run the binary once and check that the
-  pattern captures the version string from real output before cataloguing it.
+  version and a regex to extract it. Confirm the pattern against real binary
+  output (PATH install or a downloaded release asset) before cataloguing;
+  match date-style or other non-semver forms when that is what the product
+  prints (e.g. `2026.7.1-2`).
 - `provider`: one or more real models.dev provider ids. This is the join key to
   models.dev enrichment; a wrong id silently drops model data. An agent that can
   drive any models.dev provider (e.g. opencode) is provider-agnostic: set

@@ -1,0 +1,11 @@
+file,description,topics
+README.md,Overview install bin hermes multi-platform CLI TUI gateway,hermes;cli;install;bin;overview
+pyproject.toml,Package hermes-agent version scripts hermes entrypoint,bin;version;package
+hermes_constants.py,get_hermes_home default ~/.hermes HERMES_HOME override,config;paths;home
+hermes_cli/config.py,Config under ~/.hermes/config.yaml and .env,config;paths
+hermes_cli/__init__.py,Version and release date strings,version
+hermes_cli/_startup_fast.py,hermes --version output format,version;cli
+tools/skill_manager_tool.py,Skills single root ~/.hermes/skills,skills;paths
+tools/skills_tool.py,Skill discovery and external_dirs,skills;paths
+website/docs/user-guide/features/skills.md,Skills docs external_dirs config,skills;docs
+website/docs/integrations/index.md,Multi-provider integrations,providers;agnostic
