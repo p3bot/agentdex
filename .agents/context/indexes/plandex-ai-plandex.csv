@@ -1,0 +1,9 @@
+file,description,topics
+README.md,Plandex overview install plandex/pdx local mode cloud wind-down,plandex;cli;install;overview
+app/cli/fs/fs.go,Home ~/.plandex-home-v2 project .plandex-v2 paths,config;paths
+app/cli/cmd/version.go,version subcommand prints version,version;cli
+app/cli/cmd/root.go,Root usage plandex and pdx alias docs,cli;bin
+app/cli/version.txt,CLI version string,version
+app/cli/install.sh,Install script binary plandex pdx symlink,install;bin
+docs/docs/install.md,Install options WSL Windows,install;platforms
+docs/docs/core-concepts/configuration.md,Plan config CLI set-config (not skills roots),config

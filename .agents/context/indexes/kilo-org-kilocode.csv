@@ -1,0 +1,8 @@
+file,description,topics
+README.md,Kilo Code install CLI bin kilo VS Code JetBrains homepage,kilo;cli;install;bin;overview
+AGENTS.md,CLI packages/opencode architecture OpenCode fork,kilo;cli;layout;dev
+packages/opencode/package.json,npm name @kilocode/cli bin kilo kilocode version,bin;version;package
+packages/core/src/global.ts,XDG paths app kilo config data cache state,config;paths;xdg
+packages/opencode/src/config/paths.ts,Project config dirs .kilo .kilocode global config,config;paths;local
+packages/opencode/src/skill/index.ts,Skill discovery agents claude kilo skill skills patterns,skills;discovery
+packages/opencode/src/index.ts,yargs scriptName kilo --version -v,version;cli

@@ -13,6 +13,7 @@ comparable.
 | agent | agents | native | alternatives | primary |
 |---|---|---|---|---|
 | agy | | ~/.gemini/antigravity-cli/skills | | native |
+| amp | ~/.agents/skills | ~/.config/amp/skills | ~/.config/agents/skills, ~/.claude/skills | agents |
 | augment | ~/.agents/skills | ~/.augment/skills | ~/.claude/skills | agents |
 | claude-code | | ~/.claude/skills | | native |
 | cline | ~/.agents/skills | ~/.cline/skills | | agents |
@@ -22,9 +23,12 @@ comparable.
 | crush | ~/.agents/skills | ~/.config/crush/skills | ~/.config/agents/skills, ~/.claude/skills | agents |
 | goose | ~/.agents/skills | ~/.config/goose/skills | ~/.claude/skills, ~/.config/agents/skills | agents |
 | grok | ~/.agents/skills | ~/.grok/skills | ~/.claude/skills, ~/.cursor/skills | agents |
+| kilo | ~/.agents/skills | ~/.config/kilo/skills | ~/.config/kilo/skill, ~/.claude/skills | agents |
 | kimi-code | ~/.agents/skills | ~/.kimi-code/skills | | agents |
 | kiro | | ~/.kiro/skills | | native |
 | opencode | ~/.agents/skills | | ~/.claude/skills | agents |
+| openhands | ~/.agents/skills | ~/.openhands/skills | ~/.openhands/microagents | agents |
+| pi | ~/.agents/skills | ~/.pi/agent/skills | | agents |
 | qwen-code | ~/.agents/skills | ~/.qwen/skills | | agents |
 
 ## Local
@@ -32,6 +36,7 @@ comparable.
 | agent | agents | native | alternatives | primary |
 |---|---|---|---|---|
 | agy | .agents/skills | | .claude/skills, .opencode/skills | agents |
+| amp | .agents/skills | | .claude/skills | agents |
 | augment | .agents/skills | .augment/skills | .claude/skills | agents |
 | claude-code | | .claude/skills | | native |
 | cline | .agents/skills | .cline/skills | .clinerules/skills | agents |
@@ -41,9 +46,12 @@ comparable.
 | crush | .agents/skills | .crush/skills | .claude/skills, .cursor/skills | agents |
 | goose | .agents/skills | .goose/skills | .claude/skills | agents |
 | grok | .agents/skills | .grok/skills | .claude/skills, .cursor/skills | agents |
+| kilo | .agents/skills | .kilo/skills | .kilo/skill, .claude/skills | agents |
 | kimi-code | .agents/skills | .kimi-code/skills | | agents |
 | kiro | | .kiro/skills | | native |
 | opencode | .agents/skills | .opencode/skills | .claude/skills | agents |
+| openhands | .agents/skills | .openhands/skills | .openhands/microagents | agents |
+| pi | .agents/skills | .pi/skills | | agents |
 | qwen-code | .agents/skills | .qwen/skills | | agents |
 
 ## Unsupported
@@ -64,6 +72,10 @@ stored in the catalog.
 | kiro | local | .agents/skills | No |
 | cline | local | .claude/skills | No (docs list it; source search paths omit it) |
 | opencode | global | ~/.copilot/skills | n/a |
+| amp | global | ~/.claude/plugins/cache | n/a (dynamic Claude plugin cache) |
+| amp | any | amp.skills.path | n/a (user-configured extra roots) |
+| kilo | local | .opencode/skills | No (no longer loaded; use .kilo) |
+| kilo | local | .kilocode/skills | legacy (prefer .kilo) |
 
 ## Authoring notes
 

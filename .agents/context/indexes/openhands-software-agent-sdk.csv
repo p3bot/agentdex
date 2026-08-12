@@ -1,0 +1,6 @@
+file,description,topics
+README.md,Software Agent SDK overview CLI and Cloud engine,sdk;overview
+openhands-sdk/openhands/sdk/skills/skill.py,USER_SKILLS_DIRS load_user_skills load_project_skills discovery order,skills;paths;discovery
+openhands-sdk/openhands/sdk/skills/installed.py,DEFAULT_INSTALLED_SKILLS_DIR ~/.openhands/skills/installed,skills;installed;paths
+openhands-sdk/openhands/sdk/skills/__init__.py,Public skill loader exports,skills;api
+openhands-sdk/openhands/sdk/hooks/config.py,HookConfig load from .openhands/hooks.json global and project,hooks;config;paths

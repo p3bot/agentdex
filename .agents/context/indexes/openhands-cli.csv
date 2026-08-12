@@ -1,0 +1,9 @@
+file,description,topics
+README.md,OpenHands CLI install bin openhands config under ~/.openhands,openhands;cli;install;bin;config
+AGENTS.md,CLI architecture openhands_cli package layout uv tooling,openhands;cli;layout;dev
+pyproject.toml,Package name openhands version scripts openhands entrypoint,bin;version;package
+openhands_cli/locations.py,Persistence dir ~/.openhands conversations work dir overrides,config;paths;persistence
+openhands_cli/argparsers/main_parser.py,CLI --version flag and main argument surface,version;cli;args
+openhands_cli/stores/agent_store.py,load_project_skills and AgentContext user/public skill flags,skills;agent;load
+openhands_cli/stores/cli_settings.py,cli_config.json under ~/.openhands,config;cli
+openhands_cli/setup.py,Hooks from ~/.openhands or project .openhands,hooks;config;paths

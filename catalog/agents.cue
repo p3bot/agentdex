@@ -40,6 +40,33 @@ agents: "aider": {
 	homepage: "https://github.com/Aider-AI/aider"
 }
 
+agents: "amp": {
+	name:        "Amp"
+	bin:         "amp"
+	description: "Frontier multi-model AI coding agent for the terminal."
+	config: {
+		global: "~/.config/amp"
+		local:  ".amp"
+	}
+	skills: {
+		global: {
+			agents:       "~/.agents/skills"
+			native:       "~/.config/amp/skills"
+			alternatives: ["~/.config/agents/skills", "~/.claude/skills"]
+		}
+		local: {
+			agents:       ".agents/skills"
+			alternatives: [".claude/skills"]
+		}
+	}
+	version: {
+		args:    ["--version"]
+		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+(?:-g[0-9a-f]+)?)"
+	}
+	agnostic: true
+	homepage: "https://ampcode.com/"
+}
+
 agents: "augment": {
 	name:        "Auggie CLI"
 	bin:         "auggie"
@@ -255,6 +282,34 @@ agents: "goose": {
 	homepage: "https://github.com/aaif-goose/goose"
 }
 
+agents: "kilo": {
+	name:        "Kilo Code"
+	bin:         "kilo"
+	description: "Open-source multi-model AI coding agent for the terminal."
+	config: {
+		global: "~/.config/kilo"
+		local:  ".kilo"
+	}
+	skills: {
+		global: {
+			agents:       "~/.agents/skills"
+			native:       "~/.config/kilo/skills"
+			alternatives: ["~/.config/kilo/skill", "~/.claude/skills"]
+		}
+		local: {
+			agents:       ".agents/skills"
+			native:       ".kilo/skills"
+			alternatives: [".kilo/skill", ".claude/skills"]
+		}
+	}
+	version: {
+		args:    ["--version"]
+		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
+	}
+	provider: ["kilo"]
+	homepage: "https://kilo.ai/"
+}
+
 agents: "kimi-code": {
 	name:        "Kimi Code CLI"
 	bin:         "kimi"
@@ -354,6 +409,76 @@ agents: "opencode": {
 	}
 	agnostic: true
 	homepage: "https://opencode.ai"
+}
+
+agents: "openhands": {
+	name:        "OpenHands"
+	bin:         "openhands"
+	description: "Open-source multi-model AI coding agent for the terminal."
+	config: {
+		global: "~/.openhands"
+		local:  ".openhands"
+	}
+	skills: {
+		global: {
+			agents:       "~/.agents/skills"
+			native:       "~/.openhands/skills"
+			alternatives: ["~/.openhands/microagents"]
+		}
+		local: {
+			agents:       ".agents/skills"
+			native:       ".openhands/skills"
+			alternatives: [".openhands/microagents"]
+		}
+	}
+	version: {
+		args:    ["--version"]
+		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
+	}
+	agnostic: true
+	homepage: "https://github.com/OpenHands/OpenHands-CLI"
+}
+
+agents: "pi": {
+	name:        "Pi"
+	bin:         "pi"
+	description: "Minimal terminal coding agent harness with extensions and skills."
+	config: {
+		global: "~/.pi"
+		local:  ".pi"
+	}
+	skills: {
+		global: {
+			agents: "~/.agents/skills"
+			native: "~/.pi/agent/skills"
+		}
+		local: {
+			agents: ".agents/skills"
+			native: ".pi/skills"
+		}
+	}
+	version: {
+		args:    ["--version"]
+		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
+	}
+	agnostic: true
+	homepage: "https://pi.dev"
+}
+
+agents: "plandex": {
+	name:        "Plandex"
+	bin:         "plandex"
+	description: "Terminal AI coding agent for large multi-file tasks and real-world projects."
+	config: {
+		global: "~/.plandex-home-v2"
+		local:  ".plandex-v2"
+	}
+	version: {
+		args:    ["version"]
+		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
+	}
+	agnostic: true
+	homepage: "https://plandex.ai"
 }
 
 agents: "qwen-code": {

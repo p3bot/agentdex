@@ -1,0 +1,8 @@
+file,description,topics
+README.md,Pi monorepo overview packages pi.dev homepage,pi;overview;install
+packages/coding-agent/package.json,npm name bin pi configDir .pi,bin;package;config
+packages/coding-agent/README.md,CLI install skills extensions quickstart,cli;install;skills
+packages/coding-agent/docs/skills.md,Skill locations global and project agents paths,skills;paths
+packages/coding-agent/docs/settings.md,settings.json global ~/.pi/agent and project .pi,config;settings
+packages/coding-agent/docs/usage.md,CLI flags version trust sessions,cli;version;usage
+packages/coding-agent/docs/quickstart.md,Install auth ~/.pi/agent,install;config
