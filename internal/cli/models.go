@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/p3bot/agentdex"
+	"github.com/p3bot/agentdex/internal/tui"
 )
 
 func (a *app) newModelsCmd() *cobra.Command {
@@ -156,6 +157,7 @@ func (a *app) modelsGet(cmd *cobra.Command, idx *agentdex.Index, composite strin
 			return
 		}
 		fmt.Fprintln(w)
+		fmt.Fprintln(w, tui.Header.Sprint("Model"))
 		renderDetail(w, fs)
 		renderPriceFooter(w, modelFieldSet.all)
 	})

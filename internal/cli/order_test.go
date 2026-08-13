@@ -95,6 +95,17 @@ func TestOrderRecords(t *testing.T) {
 			want: []string{"c", "a", "b"},
 		},
 		{
+			name: "string order is case-insensitive",
+			recs: []*record{
+				orderRec("goose", map[string]any{"name": "goose"}),
+				orderRec("aider", map[string]any{"name": "Aider"}),
+				orderRec("open", map[string]any{"name": "opencode"}),
+				orderRec("claude", map[string]any{"name": "Claude Code"}),
+			},
+			key:  "name",
+			want: []string{"aider", "claude", "goose", "open"},
+		},
+		{
 			name: "bool orders false before true",
 			recs: []*record{
 				orderRec("on", map[string]any{"flag": true}),
@@ -109,6 +120,17 @@ func TestOrderRecords(t *testing.T) {
 				orderRec("many", map[string]any{"tags": []string{"a", "b", "c"}}),
 				orderRec("none", map[string]any{"tags": []string{}}),
 				orderRec("one", map[string]any{"tags": []string{"a"}}),
+			},
+			key:  "tags",
+			want: []string{"none", "one", "many"},
+		},
+		{
+			// A type the switch does not name: length still ranks, not missing.
+			name: "unnamed slice type orders by length",
+			recs: []*record{
+				orderRec("many", map[string]any{"tags": []struct{ n int }{{1}, {2}}}),
+				orderRec("none", map[string]any{"tags": []struct{ n int }{}}),
+				orderRec("one", map[string]any{"tags": []struct{ n int }{{1}}}),
 			},
 			key:  "tags",
 			want: []string{"none", "one", "many"},

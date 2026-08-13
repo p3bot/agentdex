@@ -288,16 +288,26 @@ func TestOracleGetDataFaultReportsAgentAndError(t *testing.T) {
 	})
 }
 
-func modelsCell(t *testing.T, stdout, id string) string {
+// textRowCells returns whitespace-split cells for the table row whose first
+// cell equals id. Fields splits on any space, so this is only for space-free
+// columns (ids, counts, dashes). A blank middle cell collapses, so callers
+// lock dash markers by requiring the expected column count and values.
+func textRowCells(t *testing.T, stdout, id string) []string {
 	t.Helper()
 	for line := range strings.SplitSeq(stdout, "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), id) {
-			f := strings.Fields(line)
-			return f[len(f)-1]
+		cells := strings.Fields(line)
+		if len(cells) > 0 && cells[0] == id {
+			return cells
 		}
 	}
 	t.Fatalf("no row for %q in:\n%s", id, stdout)
-	return ""
+	return nil
+}
+
+func modelsCell(t *testing.T, stdout, id string) string {
+	t.Helper()
+	f := textRowCells(t, stdout, id)
+	return f[len(f)-1]
 }
 
 func TestOracleListModelsCellDistinction(t *testing.T) {

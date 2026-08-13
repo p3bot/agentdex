@@ -2,13 +2,12 @@ package cli
 
 import (
 	"fmt"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
-
-	"github.com/p3bot/agentdex/modelsdev"
 )
 
 func (fs fieldSet) ordered(defaultKey string, descend ...string) fieldSet {
@@ -105,7 +104,8 @@ func orderKey(v any) (kind int, num float64, str string) {
 		if t == "" {
 			return orderMissing, 0, ""
 		}
-		return orderStr, 0, t
+		// Case-insensitive so display names like "goose" sort with G, not after Z.
+		return orderStr, 0, strings.ToLower(t)
 	case bool:
 		if t {
 			return orderNum, 1, ""
@@ -117,13 +117,13 @@ func orderKey(v any) (kind int, num float64, str string) {
 		return orderNum, float64(t), ""
 	case float64:
 		return orderNum, t, ""
-	case []string:
-		return orderNum, float64(len(t)), ""
-	case []modelsdev.Model:
-		return orderNum, float64(len(t)), ""
-	case map[string]bool:
-		return orderNum, float64(len(t)), ""
 	default:
+		// Any slice or map ranks by length so --order-by models (or env, providers)
+		// cannot silently miss a new payload type.
+		rv := reflect.ValueOf(v)
+		if k := rv.Kind(); k == reflect.Slice || k == reflect.Map {
+			return orderNum, float64(rv.Len()), ""
+		}
 		return orderMissing, 0, ""
 	}
 }

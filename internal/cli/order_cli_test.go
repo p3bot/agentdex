@@ -196,6 +196,19 @@ func TestAgentsListOrderByDropsFoundGrouping(t *testing.T) {
 	assertOrder(t, modelIDOrder(t, got), []string{"gamma-agent", "delta-agent", "beta-tool", "alpha-cli"})
 }
 
+func TestAgentsListOrderByModelsCount(t *testing.T) {
+	// Each fixture provider has one model; gamma has two providers, delta is N/A.
+	srv := modelsServer(t, []string{"anthropic", "google", "openai"})
+	newScenario(t, srv.URL, "alpha-cli", "beta-tool", "gamma-agent")
+
+	got := runCLI("--json", "agents", "list", "--order-by", "models")
+	if got.code != codeOK {
+		t.Fatalf("agents list --order-by models exit = %d, stderr=%q", got.code, got.stderr)
+	}
+	// 1 (alpha, beta by id), 2 (gamma), N/A last.
+	assertOrder(t, modelIDOrder(t, got), []string{"alpha-cli", "beta-tool", "gamma-agent", "delta-agent"})
+}
+
 func TestProvidersListOrderByReverse(t *testing.T) {
 	srv := modelsServer(t, []string{"anthropic", "google", "openai"})
 	newScenario(t, srv.URL)

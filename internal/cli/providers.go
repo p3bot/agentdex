@@ -99,8 +99,8 @@ func (a *app) newProvidersGetCmd() *cobra.Command {
 		Short:   "Show detail for one models.dev provider",
 		Long: "Show detail for one models.dev provider, selected exactly by its provider id: " +
 			"its facts (id, name, doc, npm, api), its API-key env presence, and its model count. " +
-			"Pass --models to fill the full model table. An id that names no provider is not-found " +
-			"(exit 3).",
+			"Pass --models or include models in --fields for the full model table (not the count). " +
+			"An id that names no provider is not-found (exit 3).",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			idx, err := a.index(cmd)
@@ -131,8 +131,8 @@ func (a *app) providersGet(cmd *cobra.Command, idx *agentdex.Index, id string, m
 	}
 	return a.ok(cmd, jsonObject(fs), nil, func(w io.Writer) {
 		if len(fields) > 0 {
-			// --fields is the scripting surface: bare values, no sections.
-			renderFields(w, fs)
+			// models in --fields is the full table (same as --models), not the count cell.
+			renderProviderSelectedFields(w, fs, p.Provider)
 			return
 		}
 		// Empty fields ⇒ full resolved record.
@@ -174,9 +174,27 @@ func renderProviderDetail(w io.Writer, fs []field, p modelsdev.Provider, present
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, tui.Header.Sprint("Models"))
 	if !showModels {
-		fmt.Fprintf(w, "  %d\n", len(p.Models))
+		n := len(p.Models)
+		noun := "models"
+		if n == 1 {
+			noun = "model"
+		}
+		fmt.Fprintf(w, "  %d %s\n", n, noun)
+		fmt.Fprintln(w, "  "+tui.Muted.Sprint("pass --models to list them"))
 		return
 	}
+	renderProviderModelsTable(w, p)
+}
+
+// --fields path: models expands to the per-model table, matching --models.
+// Providers always carry models from the fetch, so expand is unconditional.
+func renderProviderSelectedFields(w io.Writer, fs []field, p modelsdev.Provider) {
+	renderSelectedFields(w, fs, true, func(w io.Writer) {
+		renderProviderModelsTable(w, p)
+	})
+}
+
+func renderProviderModelsTable(w io.Writer, p modelsdev.Provider) {
 	models := make([]modelsdev.Model, 0, len(p.Models))
 	for _, key := range sortedKeys(p.Models) {
 		models = append(models, p.Models[key])
@@ -187,7 +205,7 @@ func renderProviderDetail(w io.Writer, fs []field, p modelsdev.Provider, present
 		recs[i] = modelRecord(m, p.ID, "")
 	}
 	_, headers, rows, _ := tabulate(recs, nil, modelFieldSet.defaults, modelFieldSet)
-	renderTable(w, headers, rows, "  (none)")
+	renderTable(w, headers, rows, "(none)")
 	if len(rows) > 0 {
 		renderPriceFooter(w, modelFieldSet.defaults)
 	}

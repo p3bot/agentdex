@@ -7,7 +7,7 @@ import (
 )
 
 func TestBareNounIsUsageFault(t *testing.T) {
-	// Bare noun is usage (exit 2); text mode prints group help so verbs are discoverable.
+	// Bare noun is usage (exit 2): short error + help pointer, not a full help dump.
 	newScenario(t, "", "alpha-cli")
 
 	for _, noun := range []string{"agents", "providers", "models"} {
@@ -15,8 +15,14 @@ func TestBareNounIsUsageFault(t *testing.T) {
 		if got.code != codeUsage {
 			t.Errorf("bare %q exit = %d, want 2; stderr=%q", noun, got.code, got.stderr)
 		}
-		if !strings.Contains(got.stdout, "list") || !strings.Contains(got.stdout, "get") {
-			t.Errorf("bare %q text should print group help naming list and get:\n%s", noun, got.stdout)
+		if strings.TrimSpace(got.stdout) != "" {
+			t.Errorf("bare %q should not dump help on stdout:\n%s", noun, got.stdout)
+		}
+		if !strings.Contains(got.stderr, "list or get") {
+			t.Errorf("bare %q stderr should name list or get:\n%s", noun, got.stderr)
+		}
+		if !strings.Contains(got.stderr, noun+" --help") {
+			t.Errorf("bare %q stderr should point at --help:\n%s", noun, got.stderr)
 		}
 	}
 }

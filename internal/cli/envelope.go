@@ -55,7 +55,8 @@ func (fs fieldSet) validate(fields []string) error {
 }
 
 // record is one output row as an ordered, selectable field set. A valid but absent
-// key (empty canonical id, say) resolves to a blank rather than an unknown-field error.
+// key (empty canonical id, say) resolves to empty JSON and text "-" rather than
+// an unknown-field error.
 type record struct {
 	set     fieldSet
 	order   []string
@@ -73,7 +74,8 @@ func (r *record) add(key string, val any, text string) {
 	r.present[key] = field{key: key, val: val, text: text}
 }
 
-// Empty selection is every field this record carries; selected-but-absent resolve blank.
+// Empty selection is every field this record carries; selected-but-absent resolve
+// to empty JSON val and text "-" so table cells never look accidentally blank.
 func (r *record) resolve(fields []string) ([]field, error) {
 	if err := r.set.validate(fields); err != nil {
 		return nil, err
@@ -88,7 +90,7 @@ func (r *record) resolve(fields []string) ([]field, error) {
 			out = append(out, f)
 			continue
 		}
-		out = append(out, field{key: k, val: "", text: ""})
+		out = append(out, field{key: k, val: "", text: "-"})
 	}
 	return out, nil
 }

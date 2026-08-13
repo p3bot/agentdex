@@ -39,7 +39,7 @@ type skillsPayload struct {
 	Local  *skillsScopePayload `json:"local,omitempty"`
 }
 
-// Optional absent fields are not added; they remain valid to select and resolve blank.
+// Optional absent fields are not added; they remain valid to select (JSON empty, text "-").
 func agentRecord(a *agentdex.Agent) *record {
 	return buildAgentRecord(a, true)
 }
@@ -78,7 +78,8 @@ func buildAgentRecord(a *agentdex.Agent, includeProviders bool) *record {
 		r.add("skills", payload, text)
 	}
 	if includeProviders {
-		r.add("providers", a.ResolvedProviders, strings.Join(a.ResolvedProviders, ", "))
+		// Empty list is text "-", same as other absent scalars; never a blank cell.
+		r.add("providers", a.ResolvedProviders, orDash(strings.Join(a.ResolvedProviders, ", ")))
 	}
 	r.add("homepage", a.Homepage, orDash(a.Homepage))
 	return r
@@ -197,7 +198,8 @@ var modelFieldSet = newFieldSet(
 	[]string{"id", "name", "context", "input", "output"},
 ).ordered("released", "released")
 
-// canonical_id is added only when non-empty; selecting it still yields a blank.
+// canonical_id is added only when non-empty; selecting it still yields empty
+// JSON and text "-" (same as other selected-but-absent fields).
 func modelRecord(m modelsdev.Model, providerID, canonicalID string) *record {
 	r := newRecord(modelFieldSet)
 	r.add("id", m.ID, m.ID)
@@ -249,6 +251,7 @@ func providerRecord(p modelsdev.Provider, present map[string]bool) *record {
 
 // providerEnvCell folds presence for the browse ENV column: set vars get "(set)",
 // unset stay bare. Differs from get's symmetric (set)/(unset) to keep wide listings legible.
+// No declared env vars is "-", not a blank cell (same as other absent table values).
 func providerEnvCell(names []string, present map[string]bool) string {
 	parts := make([]string, 0, len(names))
 	for _, k := range names {
@@ -258,7 +261,7 @@ func providerEnvCell(names []string, present map[string]bool) string {
 		}
 		parts = append(parts, k)
 	}
-	return strings.Join(parts, ", ")
+	return orDash(strings.Join(parts, ", "))
 }
 
 type costKind int

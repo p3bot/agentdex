@@ -101,7 +101,7 @@ func TestListUnknownFieldRejectedRegardlessOfCardinality(t *testing.T) {
 }
 
 func TestListValidButAbsentFieldResolvesBlank(t *testing.T) {
-	// provider_env is declared but only populated by get; list selects it as blank.
+	// provider_env is declared but only populated by get; JSON val stays blank, text is "-".
 	newScenario(t, "", "alpha-cli")
 
 	got := runCLI("--json", "agents", "list", "--fields", "id,provider_env")
@@ -111,6 +111,31 @@ func TestListValidButAbsentFieldResolvesBlank(t *testing.T) {
 	row := got.envelope(t).Data.([]any)[0].(map[string]any)
 	if v, ok := row["provider_env"]; !ok || v != "" {
 		t.Errorf("provider_env = %v (present=%t), want present and blank", v, ok)
+	}
+
+	text := runCLI("agents", "list", "--fields", "id,provider_env")
+	if text.code != codeOK {
+		t.Fatalf("list --fields id,provider_env text exit = %d, stderr=%q", text.code, text.stderr)
+	}
+	// Parse cells: kebab-case ids contain "-", so a bare Contains("-") never fails.
+	cells := textRowCells(t, text.stdout, "alpha-cli")
+	if len(cells) != 2 || cells[1] != "-" {
+		t.Errorf("id,provider_env cells = %v, want [alpha-cli -]:\n%s", cells, text.stdout)
+	}
+}
+
+func TestListEmptyProvidersIsDashNotBlank(t *testing.T) {
+	// Agnostic / no-home-provider rows use text "-" for providers, matching models N/A.
+	newScenario(t, "", "delta-agent")
+
+	got := runCLI("agents", "list", "--fields", "id,providers,models")
+	if got.code != codeOK {
+		t.Fatalf("list exit = %d, stderr=%q", got.code, got.stderr)
+	}
+	// Three columns: blank providers would collapse the middle cell away.
+	cells := textRowCells(t, got.stdout, "delta-agent")
+	if len(cells) != 3 || cells[1] != "-" || cells[2] != "-" {
+		t.Errorf("delta-agent id,providers,models cells = %v, want [delta-agent - -]:\n%s", cells, got.stdout)
 	}
 }
 

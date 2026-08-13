@@ -92,15 +92,14 @@ func (a *app) newNounCmd(use, alias, short string, subs ...*cobra.Command) *cobr
 	return cmd
 }
 
-// Text mode prints group help; --json prints no help so the envelope alone stays parseable. Exit 2.
+// Short usage error with a help pointer; no full help dump (that is --help). Exit 2.
+// --json still gets the envelope alone via a.usage.
 func (a *app) nounUsage(cmd *cobra.Command, args []string) error {
-	if !a.jsonOut {
-		_ = cmd.Help()
-	}
+	hint := fmt.Sprintf(`run "agentdex %s --help"`, cmd.Name())
 	if len(args) > 0 {
-		return a.usage(cmd, fmt.Errorf("unknown %s subcommand %q: use list or get", cmd.Name(), args[0]))
+		return a.usage(cmd, fmt.Errorf("unknown %s subcommand %q: use list or get; %s", cmd.Name(), args[0], hint))
 	}
-	return a.usage(cmd, fmt.Errorf("%s requires a subcommand: list or get", cmd.Name()))
+	return a.usage(cmd, fmt.Errorf("%s requires a subcommand: list or get; %s", cmd.Name(), hint))
 }
 
 // Execute runs the command tree and returns the process exit code. Command failures

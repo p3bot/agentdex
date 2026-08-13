@@ -87,6 +87,41 @@ func renderFields(w io.Writer, fs []field) {
 	}
 }
 
+// --fields path: models expands to a table (or the field's scalar text when expand
+// is false). Sole models stays bare; any other selected field keeps its key even when
+// it is the only scalar left after models is peeled off.
+func renderSelectedFields(w io.Writer, fs []field, expand bool, renderModels func(io.Writer)) {
+	rest := make([]field, 0, len(fs))
+	var modelsField *field
+	for i := range fs {
+		if fs[i].key == "models" {
+			modelsField = &fs[i]
+			continue
+		}
+		rest = append(rest, fs[i])
+	}
+	if modelsField == nil {
+		renderFields(w, fs)
+		return
+	}
+	// Multi-field selection: never bare the remainder (renderFields would, when len==1).
+	for _, f := range rest {
+		fmt.Fprintf(w, "%s: %s\n", f.key, f.text)
+	}
+	if !expand {
+		if len(rest) == 0 {
+			fmt.Fprintln(w, modelsField.text)
+			return
+		}
+		fmt.Fprintf(w, "models: %s\n", modelsField.text)
+		return
+	}
+	if len(rest) > 0 {
+		fmt.Fprintln(w, "models:")
+	}
+	renderModels(w)
+}
+
 func renderDetail(w io.Writer, fs []field) {
 	width := 0
 	for _, f := range fs {

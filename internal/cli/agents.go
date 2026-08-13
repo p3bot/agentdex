@@ -148,9 +148,10 @@ func (a *app) newAgentsGetCmd() *cobra.Command {
 		Short:   "Show detail for one agent",
 		Long: "Show detection detail for one agent, selected exactly by its catalog id: its " +
 			"binary, version, config and skills paths, and provider-env presence. Models are " +
-			"off by default; pass --models or include models in --fields to fill the per-model " +
-			"list. Provider-agnostic agents omit provider fields until --provider is supplied. " +
-			"An id that names no catalogued agent is not-found (exit 3).",
+			"off by default; pass --models or include models in --fields for the full per-model " +
+			"list (not the list-column count). Provider-agnostic agents omit provider fields " +
+			"until --provider is supplied. An id that names no catalogued agent is not-found " +
+			"(exit 3).",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			idx, err := a.index(cmd)
@@ -239,14 +240,15 @@ func agentGetError(err error, id string) error {
 }
 
 func (a *app) reportAgent(cmd *cobra.Command, agent *agentdex.Agent, fields, warnings []string) error {
-	r := agentReportRecord(agent)
+	r := agentReportRecord(agent, fields)
 	fs, err := r.resolve(fields)
 	if err != nil {
 		return a.usage(cmd, err)
 	}
 	return a.ok(cmd, jsonObject(fs), warnings, func(w io.Writer) {
 		if len(fields) > 0 {
-			renderFields(w, fs)
+			// models in --fields is the full list (same as --models), not the count cell.
+			renderAgentSelectedFields(w, agent, fs)
 			return
 		}
 		renderAgentDetail(w, agent, a.verbose)
@@ -255,25 +257,29 @@ func (a *app) reportAgent(cmd *cobra.Command, agent *agentdex.Agent, fields, war
 
 // Data-fault rows that surface the agent and still exit non-zero.
 func (a *app) reportAgentError(cmd *cobra.Command, agent *agentdex.Agent, fields []string, code int, cause error, warnings []string) error {
-	r := agentReportRecord(agent)
+	r := agentReportRecord(agent, fields)
 	fs, ferr := r.resolve(fields)
 	if ferr != nil {
 		return a.usage(cmd, ferr)
 	}
 	return a.failData(cmd, code, cause, jsonObject(fs), func(w io.Writer) {
 		if len(fields) > 0 {
-			renderFields(w, fs)
+			renderAgentSelectedFields(w, agent, fs)
 			return
 		}
 		renderAgentDetail(w, agent, a.verbose)
 	}, warnings)
 }
 
-func agentReportRecord(agent *agentdex.Agent) *record {
+func agentReportRecord(agent *agentdex.Agent, fields []string) *record {
 	r := agentRecord(agent)
 	withProviderEnv(r, agent.ProviderEnv)
-	if agent.Models != nil {
+	switch {
+	case agent.Models != nil:
 		withAgentModels(r, agent.Models)
+	case containsField(fields, "models"):
+		// Selected but unfilled (degrade): JSON null / text "-", not "".
+		withModelsNA(r)
 	}
 	return r
 }
@@ -338,7 +344,7 @@ func renderAgentDetailFields(w io.Writer, r *record, agent *agentdex.Agent, verb
 }
 
 func renderAgentDetail(w io.Writer, agent *agentdex.Agent, verbose bool) {
-	renderAgentDetailFields(w, agentReportRecord(agent), agent, verbose)
+	renderAgentDetailFields(w, agentReportRecord(agent, nil), agent, verbose)
 	renderSkillsSection(w, agent.Detection.Skills)
 
 	if agent.ProviderEnv != nil {
@@ -349,12 +355,26 @@ func renderAgentDetail(w io.Writer, agent *agentdex.Agent, verbose bool) {
 	if len(agent.Models) > 0 {
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, tui.Header.Sprint("Models"))
-		recs := make([]*record, len(agent.Models))
-		for i, m := range agent.Models {
-			recs[i] = modelRecord(m.Model, m.Provider, m.CanonicalID)
-		}
-		_, headers, rows, _ := tabulate(recs, nil, modelFieldSet.defaults, modelFieldSet)
-		renderTable(w, headers, rows, "  (none)")
+		renderAgentModelsTable(w, agent.Models)
+	}
+}
+
+// --fields path: models expands to the per-model table (same data as --models), not the
+// list-column count. Expand only when models were filled; absent/N/A keep scalar text.
+func renderAgentSelectedFields(w io.Writer, agent *agentdex.Agent, fs []field) {
+	renderSelectedFields(w, fs, agent.Models != nil, func(w io.Writer) {
+		renderAgentModelsTable(w, agent.Models)
+	})
+}
+
+func renderAgentModelsTable(w io.Writer, models []agentdex.Model) {
+	recs := make([]*record, len(models))
+	for i, m := range models {
+		recs[i] = modelRecord(m.Model, m.Provider, m.CanonicalID)
+	}
+	_, headers, rows, _ := tabulate(recs, nil, modelFieldSet.defaults, modelFieldSet)
+	renderTable(w, headers, rows, "(none)")
+	if len(rows) > 0 {
 		renderPriceFooter(w, modelFieldSet.defaults)
 	}
 }

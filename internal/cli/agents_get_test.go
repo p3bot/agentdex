@@ -87,6 +87,36 @@ func TestGetFieldsModelsDemandsFill(t *testing.T) {
 	if models, ok := data["models"].([]any); !ok || len(models) == 0 {
 		t.Errorf("--fields models should fill models: %v", data["models"])
 	}
+
+	// Text matches --models: the per-model table, not the list-column count.
+	text := runCLI("agents", "get", "alpha-cli", "--fields", "models")
+	if text.code != codeOK {
+		t.Fatalf("get --fields models text exit = %d, stderr=%q", text.code, text.stderr)
+	}
+	if strings.TrimSpace(text.stdout) == "1" || strings.TrimSpace(text.stdout) == "13" {
+		t.Errorf("--fields models text should not be a bare count:\n%s", text.stdout)
+	}
+	if !strings.Contains(text.stdout, "ID") || !strings.Contains(text.stdout, "NAME") {
+		t.Errorf("--fields models text should render the model table:\n%s", text.stdout)
+	}
+	if !strings.Contains(text.stdout, priceUnitNote) {
+		t.Errorf("--fields models text should carry the price footer:\n%s", text.stdout)
+	}
+
+	// Multi-field: the non-models field keeps its key (not bare), then models: table.
+	mixed := runCLI("agents", "get", "alpha-cli", "--fields", "id,models")
+	if mixed.code != codeOK {
+		t.Fatalf("get --fields id,models exit = %d, stderr=%q", mixed.code, mixed.stderr)
+	}
+	if !strings.Contains(mixed.stdout, "id: alpha-cli") {
+		t.Errorf("--fields id,models should key the id line:\n%s", mixed.stdout)
+	}
+	if !strings.Contains(mixed.stdout, "models:") {
+		t.Errorf("--fields id,models should label the models block:\n%s", mixed.stdout)
+	}
+	if !strings.Contains(mixed.stdout, "ID") || !strings.Contains(mixed.stdout, priceUnitNote) {
+		t.Errorf("--fields id,models should still render the model table:\n%s", mixed.stdout)
+	}
 }
 
 func TestGetFieldsOmitModelsKey(t *testing.T) {
@@ -421,6 +451,42 @@ func TestGetDegradesWhenModelsUnreachable(t *testing.T) {
 	data := env.Data.(map[string]any)
 	if _, ok := data["models"]; ok {
 		t.Errorf("degrade should omit models: %v", data)
+	}
+
+	// Selected but unfilled: JSON null (typed), not "".
+	sel := runCLI("--json", "agents", "get", "alpha-cli", "--fields", "models")
+	if sel.code != codeOK {
+		t.Fatalf("degrade --json --fields models exit = %d, stderr=%q", sel.code, sel.stderr)
+	}
+	if models, ok := sel.envelope(t).Data.(map[string]any)["models"]; !ok || models != nil {
+		t.Errorf("degrade --fields models JSON = %#v, want null", models)
+	}
+
+	// models never filled: --fields models stays scalar "-", not an empty table.
+	text := runCLI("agents", "get", "alpha-cli", "--fields", "models")
+	if text.code != codeOK {
+		t.Fatalf("degrade --fields models exit = %d, stderr=%q", text.code, text.stderr)
+	}
+	if got := strings.TrimSpace(text.stdout); got != "-" {
+		t.Errorf("degrade --fields models text = %q, want -", got)
+	}
+	if strings.Contains(text.stdout, "(none)") || strings.Contains(text.stdout, "ID") {
+		t.Errorf("degrade --fields models must not render a models table:\n%s", text.stdout)
+	}
+
+	// Multi-field degrade: id stays keyed; models is the scalar dash, not a table.
+	mixed := runCLI("agents", "get", "alpha-cli", "--fields", "id,models")
+	if mixed.code != codeOK {
+		t.Fatalf("degrade --fields id,models exit = %d, stderr=%q", mixed.code, mixed.stderr)
+	}
+	if !strings.Contains(mixed.stdout, "id: alpha-cli") {
+		t.Errorf("degrade --fields id,models should key the id line:\n%s", mixed.stdout)
+	}
+	if !strings.Contains(mixed.stdout, "models: -") {
+		t.Errorf("degrade --fields id,models should keep models as scalar dash:\n%s", mixed.stdout)
+	}
+	if strings.Contains(mixed.stdout, "(none)") || strings.Contains(mixed.stdout, "ID") {
+		t.Errorf("degrade --fields id,models must not render a models table:\n%s", mixed.stdout)
 	}
 }
 

@@ -51,12 +51,12 @@ func TestProviderRecordEnvAndPresence(t *testing.T) {
 	}
 }
 
-func TestProviderRecordNoEnvBlankCell(t *testing.T) {
+func TestProviderRecordNoEnvDashCell(t *testing.T) {
 	p := modelsdev.Provider{ID: "acme", Name: "Acme"}
 	fs, _ := providerRecord(p, nil).resolve(nil)
 	for _, f := range fs {
-		if f.key == "env" && f.text != "" {
-			t.Errorf("env cell for a provider with no declared var = %q, want blank", f.text)
+		if f.key == "env" && f.text != "-" {
+			t.Errorf("env cell for a provider with no declared var = %q, want -", f.text)
 		}
 	}
 }
@@ -296,6 +296,12 @@ func TestProvidersGetKnown(t *testing.T) {
 	if !strings.Contains(text.stdout, "(unset)") {
 		t.Errorf("providers get should use the symmetric (unset) marker:\n%s", text.stdout)
 	}
+	if !strings.Contains(text.stdout, "1 model") {
+		t.Errorf("providers get default Models section should name the count:\n%s", text.stdout)
+	}
+	if !strings.Contains(text.stdout, "--models") {
+		t.Errorf("providers get default Models section should hint --models:\n%s", text.stdout)
+	}
 }
 
 func TestProvidersGetUnknownIsNotFound(t *testing.T) {
@@ -305,6 +311,40 @@ func TestProvidersGetUnknownIsNotFound(t *testing.T) {
 	got := runCLI("providers", "get", "no-such-provider")
 	if got.code != codeNotFound {
 		t.Fatalf("providers get unknown exit = %d, want 3; stderr=%q", got.code, got.stderr)
+	}
+}
+
+func TestProvidersGetFieldsModelsFillsTable(t *testing.T) {
+	srv := modelsServer(t, []string{"anthropic"})
+	newScenario(t, srv.URL)
+
+	text := runCLI("providers", "get", "anthropic", "--fields", "models")
+	if text.code != codeOK {
+		t.Fatalf("providers get --fields models exit = %d, stderr=%q", text.code, text.stderr)
+	}
+	if strings.TrimSpace(text.stdout) == "1" {
+		t.Errorf("--fields models text should not be a bare count:\n%s", text.stdout)
+	}
+	if !strings.Contains(text.stdout, "ID") || !strings.Contains(text.stdout, "NAME") {
+		t.Errorf("--fields models text should render the model table:\n%s", text.stdout)
+	}
+	if !strings.Contains(text.stdout, priceUnitNote) {
+		t.Errorf("--fields models text should carry the price footer:\n%s", text.stdout)
+	}
+
+	// Multi-field: the non-models field keeps its key (not bare), then models: table.
+	mixed := runCLI("providers", "get", "anthropic", "--fields", "id,models")
+	if mixed.code != codeOK {
+		t.Fatalf("providers get --fields id,models exit = %d, stderr=%q", mixed.code, mixed.stderr)
+	}
+	if !strings.Contains(mixed.stdout, "id: anthropic") {
+		t.Errorf("--fields id,models should key the id line:\n%s", mixed.stdout)
+	}
+	if !strings.Contains(mixed.stdout, "models:") {
+		t.Errorf("--fields id,models should label the models block:\n%s", mixed.stdout)
+	}
+	if !strings.Contains(mixed.stdout, "ID") || !strings.Contains(mixed.stdout, priceUnitNote) {
+		t.Errorf("--fields id,models should still render the model table:\n%s", mixed.stdout)
 	}
 }
 

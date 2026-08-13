@@ -132,6 +132,9 @@ func TestModelsGetPriceFooter(t *testing.T) {
 	if !strings.Contains(got.stdout, priceUnitNote) {
 		t.Errorf("models get detail missing the price footer:\n%s", got.stdout)
 	}
+	if !hasTextSection(got.stdout, "Model") {
+		t.Errorf("models get detail missing Model section header:\n%s", got.stdout)
+	}
 }
 
 func TestModelsListGlobalAcrossProviders(t *testing.T) {
