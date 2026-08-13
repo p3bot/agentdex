@@ -26,13 +26,14 @@ import (
 const groupCore = "core"
 
 type app struct {
-	jsonOut    bool
-	verbose    bool
-	quiet      bool
-	color      string
-	debug      bool
-	searchDirs []string
-	binPaths   []string
+	jsonOut      bool
+	verbose      bool
+	quiet        bool
+	color        string
+	debug        bool
+	printVersion bool
+	searchDirs   []string
+	binPaths     []string
 
 	cfg    *config.Config
 	cfgErr error
@@ -55,6 +56,12 @@ func NewRootCommand() *cobra.Command {
 		SilenceUsage:      true,
 		SilenceErrors:     true,
 		PersistentPreRunE: a.preRun,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if a.printVersion {
+				return a.writeVersion(cmd)
+			}
+			return cmd.Help()
+		},
 	}
 
 	f := root.PersistentFlags()
@@ -63,6 +70,7 @@ func NewRootCommand() *cobra.Command {
 	f.BoolVar(&a.quiet, "quiet", false, "Suppress non-essential output")
 	f.StringVar(&a.color, "color", "auto", "Colour output: auto, always, never")
 	f.BoolVar(&a.debug, "debug", false, "Diagnostic logging to stderr")
+	root.Flags().BoolVar(&a.printVersion, "version", false, "Print the agentdex version, commit, and build date")
 
 	root.AddGroup(&cobra.Group{ID: groupCore, Title: "Core Commands:"})
 	root.AddCommand(

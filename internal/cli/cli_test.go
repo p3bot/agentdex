@@ -10,15 +10,69 @@ import (
 )
 
 func TestVersionEnvelope(t *testing.T) {
-	got := runCLI("--json", "version")
-	if got.code != codeOK {
-		t.Fatalf("version exit = %d", got.code)
-	}
-	data := got.envelope(t).Data.(map[string]any)
-	for _, k := range []string{"version", "commit", "date"} {
-		if _, ok := data[k]; !ok {
-			t.Errorf("version data missing %q: %v", k, data)
+	cmd := runCLI("--json", "version")
+	flag := runCLI("--json", "--version")
+	for name, got := range map[string]result{"version": cmd, "--version": flag} {
+		if got.code != codeOK {
+			t.Fatalf("%s exit = %d", name, got.code)
 		}
+		data := got.envelope(t).Data.(map[string]any)
+		for _, k := range []string{"version", "commit", "date"} {
+			if _, ok := data[k]; !ok {
+				t.Errorf("%s data missing %q: %v", name, k, data)
+			}
+		}
+	}
+	if cmd.stdout != flag.stdout {
+		t.Errorf("--json --version envelope differs from --json version:\ncommand:\n%s\nflag:\n%s", cmd.stdout, flag.stdout)
+	}
+}
+
+func TestVersionFlagMatchesCommand(t *testing.T) {
+	cmd := runCLI("version")
+	flag := runCLI("--version")
+	if cmd.code != codeOK || flag.code != codeOK {
+		t.Fatalf("version/--version exits = %d/%d, want 0/0", cmd.code, flag.code)
+	}
+	if cmd.stdout != flag.stdout {
+		t.Errorf("--version stdout differs from version:\ncommand:\n%s\nflag:\n%s", cmd.stdout, flag.stdout)
+	}
+}
+
+func TestVersionShorthandIsUnknown(t *testing.T) {
+	got := runCLI("-v")
+	if got.code != codeUsage {
+		t.Fatalf("-v exit = %d, want 2; stderr=%q", got.code, got.stderr)
+	}
+	if !strings.Contains(got.stderr, "unknown shorthand flag") {
+		t.Errorf("-v stderr should be an unknown-flag usage error:\n%s", got.stderr)
+	}
+}
+
+func TestHelpListsVersionFlagWithoutShorthand(t *testing.T) {
+	got := runCLI("--help")
+	if got.code != codeOK {
+		t.Fatalf("--help exit = %d, want 0; stderr=%q", got.code, got.stderr)
+	}
+	if !strings.Contains(got.stdout, "--version") {
+		t.Errorf("--help should list --version:\n%s", got.stdout)
+	}
+	if strings.Contains(got.stdout, "-v, --version") {
+		t.Errorf("--help should not list -v:\n%s", got.stdout)
+	}
+}
+
+func TestBareRootPrintsHelp(t *testing.T) {
+	got := runCLI()
+	if got.code != codeOK {
+		t.Fatalf("bare agentdex exit = %d, want 0; stderr=%q", got.code, got.stderr)
+	}
+	if !strings.Contains(got.stdout, "Usage:") {
+		t.Errorf("bare agentdex should print help:\n%s", got.stdout)
+	}
+	banner := "agentdex " + Version + " (commit " + Commit + ", built " + Date + ")"
+	if strings.Contains(got.stdout, banner) {
+		t.Errorf("bare agentdex should not print version:\n%s", got.stdout)
 	}
 }
 
@@ -54,9 +108,20 @@ func TestMalformedConfigDoesNotBreakVersion(t *testing.T) {
 	s := newScenario(t, "", "alpha-cli")
 	s.writeConfig(t, `bogus_field: 1`)
 
-	got := runCLI("version")
-	if got.code != codeOK {
-		t.Fatalf("version with malformed config exit = %d, want 0", got.code)
+	cmd := runCLI("version")
+	flag := runCLI("--version")
+	if cmd.code != codeOK {
+		t.Fatalf("version with malformed config exit = %d, want 0", cmd.code)
+	}
+	if flag.code != codeOK {
+		t.Fatalf("--version with malformed config exit = %d, want 0", flag.code)
+	}
+	if cmd.stdout != flag.stdout {
+		t.Errorf("--version stdout differs from version under malformed config:\ncommand:\n%s\nflag:\n%s", cmd.stdout, flag.stdout)
+	}
+	banner := "agentdex " + Version + " (commit " + Commit + ", built " + Date + ")"
+	if !strings.Contains(cmd.stdout, banner) {
+		t.Errorf("malformed-config version should still print the version banner:\n%s", cmd.stdout)
 	}
 }
 

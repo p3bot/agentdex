@@ -48,7 +48,7 @@ agentdex models get <id>          one model by provider-id/model-id
 agentdex providers list [filter]  models.dev providers and API-key env status
 agentdex providers get <id>       detail for one provider
 agentdex refresh [target]         force refresh: catalog | models.dev | all
-agentdex version
+agentdex version                  also --version
 agentdex completion               shell completion script
 ```
 
@@ -116,6 +116,12 @@ Global:
 | `--color auto\|always\|never` | Table colour (default `auto`) |
 | `--verbose` / `--quiet` | More or less text detail |
 | `--debug` | Diagnostic logging on stderr |
+
+On the root command:
+
+| Flag | Effect |
+|---|---|
+| `--version` | Same output as `version` |
 
 On every `list` and `get`:
 

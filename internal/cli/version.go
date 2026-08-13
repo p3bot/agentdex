@@ -16,6 +16,13 @@ var (
 	Date    = "unknown"
 )
 
+func (a *app) writeVersion(cmd *cobra.Command) error {
+	data := map[string]any{"version": Version, "commit": Commit, "date": Date}
+	return a.ok(cmd, data, nil, func(w io.Writer) {
+		fmt.Fprintf(w, "agentdex %s (commit %s, built %s)\n", Version, Commit, Date)
+	})
+}
+
 func (a *app) newVersionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:     "version",
@@ -23,10 +30,7 @@ func (a *app) newVersionCmd() *cobra.Command {
 		Short:   "Print the agentdex version, commit, and build date",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			data := map[string]any{"version": Version, "commit": Commit, "date": Date}
-			return a.ok(cmd, data, nil, func(w io.Writer) {
-				fmt.Fprintf(w, "agentdex %s (commit %s, built %s)\n", Version, Commit, Date)
-			})
+			return a.writeVersion(cmd)
 		},
 	}
 }
