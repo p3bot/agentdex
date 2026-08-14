@@ -147,7 +147,7 @@ func (a *app) newAgentsGetCmd() *cobra.Command {
 		Aliases: []string{"view", "show"},
 		Short:   "Show detail for one agent",
 		Long: "Show detection detail for one agent, selected exactly by its catalog id: its " +
-			"binary, version, config and skills paths, and provider-env presence. Models are " +
+			"binary, config and skills paths, and provider-env presence. Models are " +
 			"off by default; pass --models or include models in --fields for the full per-model " +
 			"list (not the list-column count). Provider-agnostic agents omit provider fields " +
 			"until --provider is supplied. An id that names no catalogued agent is not-found " +

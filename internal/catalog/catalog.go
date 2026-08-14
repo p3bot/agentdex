@@ -22,7 +22,6 @@ type KnownAgent struct {
 	Description string
 	Config      PathPair
 	Skills      *SkillsPaths
-	Version     *VersionProbe
 	Agnostic    bool
 	Provider    []string
 	Homepage    string
@@ -48,10 +47,4 @@ type SkillsScope struct {
 	Agents       string
 	Native       string
 	Alternatives []string
-}
-
-// VersionProbe describes how to read an agent's version from its binary.
-type VersionProbe struct {
-	Args    []string
-	Pattern string
 }

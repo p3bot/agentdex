@@ -17,10 +17,6 @@ agents: "agy": {
 			alternatives: [".claude/skills", ".opencode/skills"]
 		}
 	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
-	}
 	provider: ["google"]
 	homepage: "https://github.com/google-antigravity/antigravity-cli"
 }
@@ -31,10 +27,6 @@ agents: "aider": {
 	description: "AI pair programming in the terminal."
 	config: {
 		global: "~/.aider"
-	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
 	}
 	agnostic: true
 	homepage: "https://github.com/Aider-AI/aider"
@@ -58,10 +50,6 @@ agents: "amp": {
 			agents:       ".agents/skills"
 			alternatives: [".claude/skills"]
 		}
-	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+(?:-g[0-9a-f]+)?)"
 	}
 	agnostic: true
 	homepage: "https://ampcode.com/"
@@ -87,10 +75,6 @@ agents: "augment": {
 			alternatives: [".claude/skills"]
 		}
 	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
-	}
 	agnostic: true
 	homepage: "https://augmentcode.com"
 }
@@ -110,10 +94,6 @@ agents: "claude-code": {
 		local: {
 			native: ".claude/skills"
 		}
-	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
 	}
 	provider: ["anthropic"]
 	homepage: "https://github.com/anthropics/claude-code"
@@ -137,10 +117,6 @@ agents: "cline": {
 			native: ".cline/skills"
 			alternatives: [".clinerules/skills"]
 		}
-	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
 	}
 	agnostic: true
 	homepage: "https://cline.bot"
@@ -166,10 +142,6 @@ agents: "codewhale": {
 			alternatives: ["skills", ".opencode/skills", ".claude/skills", ".cursor/skills"]
 		}
 	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
-	}
 	agnostic: true
 	homepage: "https://github.com/Hmbown/CodeWhale"
 }
@@ -191,10 +163,6 @@ agents: "codex": {
 			agents: ".agents/skills"
 			native: ".codex/skills"
 		}
-	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
 	}
 	provider: ["openai"]
 	homepage: "https://github.com/openai/codex"
@@ -218,10 +186,6 @@ agents: "copilot": {
 			native: ".github/skills"
 			alternatives: [".claude/skills"]
 		}
-	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
 	}
 	provider: ["github-copilot"]
 	homepage: "https://github.com/github/copilot-cli"
@@ -247,10 +211,6 @@ agents: "crush": {
 			alternatives: [".claude/skills", ".cursor/skills"]
 		}
 	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
-	}
 	agnostic: true
 	homepage: "https://github.com/charmbracelet/crush"
 }
@@ -271,10 +231,6 @@ agents: "forge": {
 		local: {
 			native: ".forge/skills"
 		}
-	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
 	}
 	agnostic: true
 	homepage: "https://github.com/antinomyhq/forgecode"
@@ -298,10 +254,6 @@ agents: "goose": {
 			native: ".goose/skills"
 			alternatives: [".claude/skills"]
 		}
-	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
 	}
 	agnostic: true
 	homepage: "https://github.com/aaif-goose/goose"
@@ -327,10 +279,6 @@ agents: "kilo": {
 			alternatives: [".kilo/skill", ".claude/skills"]
 		}
 	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
-	}
 	provider: ["kilo"]
 	homepage: "https://kilo.ai/"
 }
@@ -353,10 +301,6 @@ agents: "kimi-code": {
 			native: ".kimi-code/skills"
 		}
 	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
-	}
 	provider: ["kimi-for-coding"]
 	homepage: "https://github.com/MoonshotAI/kimi-code"
 }
@@ -372,10 +316,6 @@ agents: "kiro": {
 	skills: {
 		global: {native: "~/.kiro/skills"}
 		local:  {native: ".kiro/skills"}
-	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
 	}
 	agnostic: true
 	homepage: "https://kiro.dev"
@@ -401,10 +341,6 @@ agents: "grok": {
 			alternatives: [".claude/skills", ".cursor/skills"]
 		}
 	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
-	}
 	provider: ["xai"]
 	homepage: "https://x.ai/cli"
 }
@@ -420,10 +356,6 @@ agents: "hermes": {
 		global: {
 			native: "~/.hermes/skills"
 		}
-	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
 	}
 	agnostic: true
 	homepage: "https://github.com/NousResearch/hermes-agent"
@@ -448,10 +380,6 @@ agents: "opencode": {
 			alternatives: [".claude/skills"]
 		}
 	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
-	}
 	agnostic: true
 	homepage: "https://opencode.ai"
 }
@@ -474,10 +402,6 @@ agents: "open-interpreter": {
 			native: ".openinterpreter/skills"
 		}
 	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
-	}
 	agnostic: true
 	homepage: "https://github.com/openinterpreter/openinterpreter"
 }
@@ -495,10 +419,6 @@ agents: "openclaw": {
 			native: "~/.openclaw/skills"
 			alternatives: ["~/.openclaw/workspace/skills", "~/.openclaw/workspace/.agents/skills"]
 		}
-	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]{4}\\.[0-9]+\\.[0-9]+(?:-[0-9]+)?)"
 	}
 	agnostic: true
 	homepage: "https://github.com/openclaw/openclaw"
@@ -524,10 +444,6 @@ agents: "openhands": {
 			alternatives: [".openhands/microagents"]
 		}
 	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
-	}
 	agnostic: true
 	homepage: "https://github.com/OpenHands/OpenHands-CLI"
 }
@@ -550,10 +466,6 @@ agents: "pi": {
 			native: ".pi/skills"
 		}
 	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
-	}
 	agnostic: true
 	homepage: "https://pi.dev"
 }
@@ -565,10 +477,6 @@ agents: "plandex": {
 	config: {
 		global: "~/.plandex-home-v2"
 		local:  ".plandex-v2"
-	}
-	version: {
-		args:    ["version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
 	}
 	agnostic: true
 	homepage: "https://plandex.ai"
@@ -591,10 +499,6 @@ agents: "qwen-code": {
 			agents: ".agents/skills"
 			native: ".qwen/skills"
 		}
-	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
 	}
 	agnostic: true
 	homepage: "https://github.com/QwenLM/qwen-code"

@@ -1,7 +1,6 @@
 package agentdex
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,12 +8,9 @@ import (
 	"github.com/p3bot/agentdex/internal/catalog"
 )
 
-// Caps concurrent version-probe execs; work is I/O-bound so above GOMAXPROCS is fine.
-const maxConcurrentDetections = 16
-
-// detect resolves outside facts only. Found gates binary path and version, never
-// provider set or paths.
-func (c *core) detect(ctx context.Context, ka catalog.KnownAgent) Agent {
+// detect resolves outside facts only. Found gates binary path, never provider
+// set or paths. Detection never executes the binary.
+func (c *core) detect(ka catalog.KnownAgent) Agent {
 	a := Agent{
 		KnownAgent: KnownAgent{
 			ID:               ka.ID,
@@ -30,9 +26,6 @@ func (c *core) detect(ctx context.Context, ka catalog.KnownAgent) Agent {
 	a.Detection.Config = c.resolvePathPair(ka.Config)
 	if ka.Skills != nil {
 		a.Detection.Skills = c.resolveSkillsPaths(*ka.Skills)
-	}
-	if a.Detection.Found && ka.Version != nil {
-		a.Detection.Version = probeVersion(ctx, a.Detection.BinaryPath, *ka.Version)
 	}
 	return a
 }

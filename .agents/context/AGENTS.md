@@ -2,7 +2,7 @@
 
 ## Repository Overview
 
-Project-local context library under `.agents/context/` for agentdex. Holds shallow clones of terminal AI coding agents used as primary sources when cataloguing outside facts (bin, config paths, skills roots, version flags, providers). Prefer these trees over web queries when researching catalog entries.
+Project-local context library under `.agents/context/` for agentdex. Holds shallow clones of terminal AI coding agents used as primary sources when cataloguing outside facts (bin, config paths, skills roots, providers). Prefer these trees over web queries when researching catalog entries.
 
 ## Repository Structure
 
@@ -74,7 +74,7 @@ When indexing agent clones, prefer outside facts useful to catalog entries:
 
 - README and install docs (bin name, install methods)
 - Config and skills path docs or source modules that define discovery roots
-- Version flag / CLI entrypoints
+- CLI entrypoints that confirm the executable name
 - Changelog notes that change path conventions
 
 Exclude contributor-only and CI/test trees from child indexes unless they are the only place path constants live (then point at the specific module path).

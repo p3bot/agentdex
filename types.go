@@ -90,11 +90,11 @@ type SkillsPaths struct {
 }
 
 // Detection is what locating an agent found on this machine. Found gates only
-// BinaryPath and Version; paths resolve the same whether or not the binary is installed.
+// BinaryPath; paths resolve the same whether or not the binary is installed.
+// Detection never executes the binary.
 type Detection struct {
 	Found      bool
 	BinaryPath string
-	Version    string
 	Config     ResolvedPaths
 	Skills     SkillsPaths
 }

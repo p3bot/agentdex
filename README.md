@@ -2,7 +2,7 @@
 
 agentdex indexes AI coding agents, the [models.dev](https://models.dev) providers that power them, and the models those providers offer — and serves all three as browsable data.
 
-For each catalogued agent it reports the outside facts: whether it is installed, where its binary lives, its version, config and skills directories, which model provider(s) it uses, and (from models.dev) the models available to it. Providers and models are queryable on their own. It never reads an agent's internal configuration, so other tools can resolve paths and capability without hardcoding product layouts.
+For each catalogued agent it reports the outside facts: whether it is installed, where its binary lives, config and skills directories, which model provider(s) it uses, and (from models.dev) the models available to it. Providers and models are queryable on their own. It never reads an agent's internal configuration, and it never executes a detected binary, so other tools can resolve paths and capability without hardcoding product layouts.
 
 Ships as a Go library and a thin CLI over it. Only catalogued agents are reported (never arbitrary PATH executables). The catalog is fetched from the CUE Central Registry at runtime and cached, so the known-agent set can change without an agentdex release.
 
@@ -59,10 +59,10 @@ agentdex agents list
 ```
 
 ```
-ID           NAME                VERSION  PROVIDERS       MODELS  BIN
-claude-code  Claude Code         2.1.220  anthropic       13      /usr/local/bin/claude
-codex        Codex CLI           -        openai          47      missing
-opencode     opencode            -        -               -       missing
+ID           NAME         PROVIDERS  MODELS  BIN
+claude-code  Claude Code  anthropic  13      /usr/local/bin/claude
+codex        Codex CLI    openai     47      missing
+opencode     opencode     -          -       missing
 ```
 
 Installed agents lead; other rows show `missing` when the binary is not on `PATH`. `--installed` keeps only detected agents. Agnostic agents (no home provider) show `-` under providers/models unless you pass `--provider`.
@@ -75,7 +75,6 @@ agentdex agents get claude-code
 Agent
 id                claude-code
 name              Claude Code
-version           2.1.220
 bin               /usr/local/bin/claude (found)
 config_dir        /home/you/.claude
 config_local_dir  /home/you/project/.claude
@@ -313,7 +312,7 @@ detail, err := idx.Agents.Get(ctx, "claude-code", agentdex.AgentGetQuery{
 
 `Agent.Enrichment` records applied, not-requested, not-applicable (agnostic with no providers), or degraded.
 
-Detection always resolves config and skills paths whether or not the binary is installed. `Found` gates only `BinaryPath` and `Version`.
+Detection always resolves config and skills paths whether or not the binary is installed. `Found` gates only `BinaryPath`. Detection never executes the binary.
 
 Skills are classified per scope (global, local): `agents` (shared `.agents` roots), `native` (product tree), `alternatives` (priority order). Primary is derived: agents, else native, else `alternatives[0]`. Full layout on `Detection.Skills` (path + exists per role). Zero `SkillsPaths` means no skills concept.
 

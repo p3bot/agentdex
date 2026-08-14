@@ -139,13 +139,13 @@ func TestConfigRejectsRemovedEnrichModels(t *testing.T) {
 func TestListFieldsSelection(t *testing.T) {
 	newScenario(t, "", "alpha-cli")
 
-	got := runCLI("--json", "agents", "list", "--fields", "id,version")
+	got := runCLI("--json", "agents", "list", "--fields", "id,found")
 	if got.code != codeOK {
 		t.Fatalf("list --fields exit = %d, stderr=%q", got.code, got.stderr)
 	}
 	row := got.envelope(t).Data.([]any)[0].(map[string]any)
 	if len(row) != 2 {
-		t.Errorf("expected exactly id,version: %v", row)
+		t.Errorf("expected exactly id,found: %v", row)
 	}
 	if _, ok := row["id"]; !ok {
 		t.Errorf("missing id: %v", row)
@@ -165,13 +165,13 @@ func TestFieldSingularAliasSelectsFields(t *testing.T) {
 	// Singular --field is a normalize-func alias so a common slip still selects.
 	newScenario(t, "", "alpha-cli")
 
-	got := runCLI("--json", "agents", "list", "--field", "id,version")
+	got := runCLI("--json", "agents", "list", "--field", "id,found")
 	if got.code != codeOK {
 		t.Fatalf("list --field exit = %d, stderr=%q", got.code, got.stderr)
 	}
 	row := got.envelope(t).Data.([]any)[0].(map[string]any)
 	if len(row) != 2 {
-		t.Errorf("--field should select exactly id,version: %v", row)
+		t.Errorf("--field should select exactly id,found: %v", row)
 	}
 	if _, ok := row["id"]; !ok {
 		t.Errorf("--field selection missing id: %v", row)

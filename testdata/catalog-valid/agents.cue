@@ -18,10 +18,6 @@ agents: "alpha-cli": {
 			native: ".alpha/skills"
 		}
 	}
-	version: {
-		args:    ["--version"]
-		pattern: "v([0-9.]+)"
-	}
 	provider: ["anthropic"]
 	homepage: "https://example.com/alpha"
 }
@@ -31,9 +27,6 @@ agents: "beta-tool": {
 	bin:  "agentdex-fixture-beta"
 	config: {
 		global: "~/.config/beta"
-	}
-	version: {
-		args: ["version"]
 	}
 	provider: ["openai"]
 }
@@ -75,10 +68,6 @@ agents: "delta-agent": {
 		local: {
 			agents: ".agents/skills"
 		}
-	}
-	version: {
-		args:    ["--version"]
-		pattern: "v([0-9.]+)"
 	}
 	agnostic: true
 	homepage: "https://example.com/delta"

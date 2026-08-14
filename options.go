@@ -76,7 +76,7 @@ func WithSearchDirs(dirs ...string) Option {
 }
 
 // WithBinPaths overrides agents' binary paths by id (filesystem path, not PATH-
-// resolved; relative roots at working directory; used for the version exec).
+// resolved; relative roots at working directory).
 func WithBinPaths(m map[string]string) Option {
 	return func(o *options) {
 		if o.binPaths == nil {

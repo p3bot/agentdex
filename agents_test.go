@@ -33,7 +33,6 @@ agents: "alpha-cli": {
 		global: {native: "~/.alpha/skills"}
 		local:  {native: ".alpha/skills"}
 	}
-	version: {args: ["--version"], pattern: "v([0-9.]+)"}
 	provider: ["anthropic"]
 	homepage: "https://example.com/alpha"
 }
@@ -71,13 +70,13 @@ func openAgents(t *testing.T, body string, opts ...Option) *Index {
 	return idx
 }
 
-// Executable fakes that print a version banner for detection + version probe.
+// Executable fakes for detection. Empty on purpose so a stray exec is obvious.
 func binDir(t *testing.T, names ...string) string {
 	t.Helper()
 	dir := t.TempDir()
 	for _, n := range names {
 		p := filepath.Join(dir, n)
-		if err := os.WriteFile(p, []byte("#!/bin/sh\necho v1.0.0\n"), 0o755); err != nil {
+		if err := os.WriteFile(p, nil, 0o755); err != nil {
 			t.Fatalf("write fake bin: %v", err)
 		}
 		if err := os.Chmod(p, 0o755); err != nil {
@@ -122,7 +121,7 @@ func warningMsg(ws []Warning, kind WarningKind) (string, bool) {
 func TestWithLookPathBoundary(t *testing.T) {
 	hostDir := t.TempDir()
 	hostBin := filepath.Join(hostDir, fixtureBinAlpha)
-	if err := os.WriteFile(hostBin, []byte("#!/bin/sh\necho v9.9.9\n"), 0o755); err != nil {
+	if err := os.WriteFile(hostBin, nil, 0o755); err != nil {
 		t.Fatalf("write host-style bin: %v", err)
 	}
 	t.Setenv("PATH", hostDir)
@@ -147,9 +146,6 @@ func TestWithLookPathBoundary(t *testing.T) {
 	}
 	if d.Detection.BinaryPath != hostBin {
 		t.Errorf("default BinaryPath = %q, want %q", d.Detection.BinaryPath, hostBin)
-	}
-	if d.Detection.Version != "9.9.9" {
-		t.Errorf("default Version = %q, want 9.9.9", d.Detection.Version)
 	}
 
 	closed := openAgents(t, testCatalog,
@@ -254,9 +250,6 @@ func TestWithBinPathsOverride(t *testing.T) {
 	if d.Detection.BinaryPath != wantAbs {
 		t.Errorf("BinaryPath = %q, want override %q", d.Detection.BinaryPath, wantAbs)
 	}
-	if d.Detection.Version != "1.0.0" {
-		t.Errorf("Version = %q, want 1.0.0 from the override binary", d.Detection.Version)
-	}
 
 	// Non-executable override must not Found and must not fall through to lookPath/searchDirs.
 	missing := filepath.Join(t.TempDir(), "absent")
@@ -285,7 +278,7 @@ func TestWithBinPathsOverride(t *testing.T) {
 	wd := t.TempDir()
 	relName := "rel-bin"
 	relPath := filepath.Join(wd, relName)
-	if err := os.WriteFile(relPath, []byte("#!/bin/sh\necho v1.0.0\n"), 0o755); err != nil {
+	if err := os.WriteFile(relPath, nil, 0o755); err != nil {
 		t.Fatalf("write relative bin: %v", err)
 	}
 	if err := os.Chmod(relPath, 0o755); err != nil {
@@ -319,7 +312,7 @@ func TestRelativeSearchDirRootsAtWorkingDir(t *testing.T) {
 		t.Fatalf("mkdir search dir: %v", err)
 	}
 	binPath := filepath.Join(absDir, fixtureBinAlpha)
-	if err := os.WriteFile(binPath, []byte("#!/bin/sh\necho v1.0.0\n"), 0o755); err != nil {
+	if err := os.WriteFile(binPath, nil, 0o755); err != nil {
 		t.Fatalf("write bin: %v", err)
 	}
 	if err := os.Chmod(binPath, 0o755); err != nil {
@@ -427,6 +420,40 @@ agents: "gamma-agent": {
 	}
 }
 
+func TestDetectionDoesNotExecuteBinary(t *testing.T) {
+	dir := t.TempDir()
+	counter := filepath.Join(dir, "ran")
+	bin := filepath.Join(dir, fixtureBinAlpha)
+	script := fmt.Sprintf("#!/bin/sh\necho ran >> %q\n", counter)
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatalf("write bin: %v", err)
+	}
+	if err := os.Chmod(bin, 0o755); err != nil {
+		t.Fatalf("chmod bin: %v", err)
+	}
+	idx := openAgents(t, testCatalog,
+		WithSearchDirs(dir),
+		WithEnvLookup(envFn(t.TempDir())),
+		WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+	d, err := idx.Agents.Get(context.Background(), "alpha-cli", AgentGetQuery{Enrich: EnrichNone})
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if !d.Detection.Found {
+		t.Fatal("alpha-cli should be found")
+	}
+	if _, err := os.Stat(counter); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("Get executed the agent binary")
+	}
+	if _, err := idx.Agents.List(context.Background(), AgentQuery{Enrich: EnrichNone, Installed: true}); err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if _, err := os.Stat(counter); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("List executed the agent binary")
+	}
+}
+
 func TestGetDetectionFactsOfflineAtEnrichNone(t *testing.T) {
 	home := t.TempDir()
 	wd := t.TempDir()
@@ -443,9 +470,6 @@ func TestGetDetectionFactsOfflineAtEnrichNone(t *testing.T) {
 	}
 	if !d.Detection.Found {
 		t.Fatal("alpha-cli should be found")
-	}
-	if d.Detection.Version != "1.0.0" {
-		t.Errorf("Version = %q, want 1.0.0", d.Detection.Version)
 	}
 	if d.Detection.Config.Global != filepath.Join(home, ".alpha") {
 		t.Errorf("Config.Global = %q, want %s/.alpha", d.Detection.Config.Global, home)

@@ -1,8 +1,8 @@
 // Package agentdex indexes three kinds of data and serves them through one
 // coherent surface: the AI coding agents in a published catalog, the models.dev
 // providers that power them, and the models those providers offer. It owns the
-// outside of an agent — identity, location, paths, version, capability — and never
-// reads an agent's internal configuration.
+// outside of an agent — identity, location, paths, capability — and never
+// reads an agent's internal configuration or executes its binary.
 //
 // Open constructs an *Index with no network I/O; catalogs resolve lazily once under
 // a guard. Options configure catalog source (registry module or local WithCatalogDir),

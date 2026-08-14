@@ -8,7 +8,7 @@ Maintain indexes and clones under `.agents/context/` for agentdex catalog resear
 - Each clone has `indexes/{dirname}.csv`
 - Each clone is listed in `repos.csv` so refresh-repos can update it
 - Clones are gitignored; indexes and scripts are tracked
-- Index for outside-facts research (paths, bin, version, skills), not contributor noise
+- Index for outside-facts research (paths, bin, skills, providers), not contributor noise
 
 ## When adding an agent clone
 

@@ -13,13 +13,13 @@ import (
 )
 
 var agentFieldSet = newFieldSet(
-	[]string{"id", "name", "version", "bin", "found", "config_dir", "config_local_dir", "skills_dir", "skills_local_dir", "skills", "providers", "homepage", "provider_env", "models"},
-	[]string{"id", "name", "version", "providers", "models", "bin"},
+	[]string{"id", "name", "bin", "found", "config_dir", "config_local_dir", "skills_dir", "skills_local_dir", "skills", "providers", "homepage", "provider_env", "models"},
+	[]string{"id", "name", "providers", "models", "bin"},
 ).ordered("id")
 
 // agentVerboseFields widens the default list columns with config_dir. bin stays last
 // as the widest column whose "missing" cell is the detection signal.
-var agentVerboseFields = []string{"id", "name", "version", "config_dir", "providers", "models", "bin"}
+var agentVerboseFields = []string{"id", "name", "config_dir", "providers", "models", "bin"}
 
 type skillsPathPayload struct {
 	Path   string `json:"path"`
@@ -54,7 +54,6 @@ func buildAgentRecord(a *agentdex.Agent, includeProviders bool) *record {
 	r := newRecord(agentFieldSet)
 	r.add("id", a.ID, a.ID)
 	r.add("name", a.Name, a.Name)
-	r.add("version", d.Version, orDash(d.Version))
 	// Not-found bin cell is "missing"; JSON value stays blank with found carrying the fact.
 	binText := orDash(d.BinaryPath)
 	if !d.Found {

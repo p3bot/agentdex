@@ -1,6 +1,6 @@
 # agentdex
 
-agentdex is a Go library plus thin CLI that indexes three kinds of data — AI coding agents, the models.dev providers that power them, and the models those providers offer — and serves all three as browsable data. For an agent it reports the binary, version, config and skills directories, providers, and available models (enriched from models.dev), and whether it is installed on the local machine; providers and models are browsable in their own right. It owns the outside of an agent — identity, location, paths, version, capability — and never reads an agent's internal configuration.
+agentdex is a Go library plus thin CLI that indexes three kinds of data — AI coding agents, the models.dev providers that power them, and the models those providers offer — and serves all three as browsable data. For an agent it reports the binary, config and skills directories, providers, and available models (enriched from models.dev), and whether it is installed on the local machine; providers and models are browsable in their own right. It owns the outside of an agent — identity, location, paths, capability — and never reads an agent's internal configuration. Detection locates the binary; it never executes it.
 
 ## Module layout
 
@@ -43,9 +43,9 @@ Caching is version-resolution caching layered over CUE's own module content cach
 An agent is a catalog edit, not a code change. Each entry is one map key in
 `catalog/agents.cue`; the key is the kebab-case id (`^[a-z0-9]+(-[a-z0-9]+)*$`)
 and the single source of identity, so there is no `id` field inside the entry.
-Report only the outside of the agent (identity, location, paths, version,
-capability); never add a field that requires reading the agent's internal
-configuration.
+Report only the outside of the agent (identity, location, paths, capability);
+never add a field that requires reading the agent's internal configuration or
+executing its binary.
 
 ### 1. Research the outside facts
 
@@ -55,10 +55,10 @@ release, clearly non-terminal (IDE-only), or outside the Linux/macOS/WSL target
 set. Prefer primary sources in this order:
 
 - Run the real binary when practical: resolve it on PATH, or download a current
-  release package for the target OS when it is not installed. Print version and
-  help, and use any inspect or doctor command that reports discovered paths.
-  A release binary is enough for `bin` and `version` verification; do not invent
-  those from docs alone.
+  release package for the target OS when it is not installed. Confirm the
+  executable name and use any inspect or doctor command that reports discovered
+  paths. A release binary is enough for `bin` verification; do not invent that
+  from docs alone.
 - Read the product's own docs (README, user guide, file-locations pages) for
   config and skills roots. Prefer docs shipped with the install when present.
 - If the agent is open source and a public repository exists, make that source
@@ -74,8 +74,8 @@ set. Prefer primary sources in this order:
   - Create or update `indexes/<directory>.csv` and the root `index.csv` row
     (they may land with the catalog apply; the clone must exist before source
     is treated as authoritative).
-  - Inspect the local tree for path constants, discovery order, version flags,
-    and provider defaults. Prefer the clone over web queries for those facts.
+  - Inspect the local tree for path constants, discovery order, and provider
+    defaults. Prefer the clone over web queries for those facts.
   - Treat source as authoritative when docs and binary disagree.
   When the binary is not installed and the product is open source, the context
   clone plus published docs are required, not optional.
@@ -103,11 +103,6 @@ corresponding outside path; do not store empty placeholders):
   `alternatives` by preference: when agents and native are unset,
   `alternatives[0]` becomes primary. Empty `skills: {}` or an empty scope is
   rejected by the schema (`struct.MinFields(1)`).
-- `version.args` and optional `version.pattern`: the flag that prints the
-  version and a regex to extract it. Confirm the pattern against real binary
-  output (PATH install or a downloaded release asset) before cataloguing;
-  match date-style or other non-semver forms when that is what the product
-  prints (e.g. `2026.7.1-2`).
 - `provider`: one or more real models.dev provider ids. This is the join key to
   models.dev enrichment; a wrong id silently drops model data. An agent that can
   drive any models.dev provider (e.g. opencode) is provider-agnostic: set
@@ -137,10 +132,6 @@ agents: "claude-code": {
 		global: {native: "~/.claude/skills"}
 		local:  {native: ".claude/skills"}
 	}
-	version: {
-		args:    ["--version"]
-		pattern: "([0-9]+\\.[0-9]+\\.[0-9]+)"
-	}
 	provider: ["anthropic"]
 	homepage: "https://github.com/anthropics/claude-code"
 }
@@ -169,8 +160,6 @@ Fields, per `catalog/schema.cue`:
 | `skills.*.agents` | no | Shared `.agents` skills path when supported |
 | `skills.*.native` | no | This product's own skills path when supported |
 | `skills.*.alternatives` | no | Other supported roots (compat trees, etc.); priority order, first is primary fallback |
-| `version.args` | no | Appended to the binary, e.g. `["--version"]` |
-| `version.pattern` | no | Regex to extract the version string |
 | `homepage` | no | Project URL |
 
 ### 3. Validate locally
@@ -217,8 +206,8 @@ agentdex agents list
 agentdex agents get <id>
 ```
 
-Check that version extraction, config and skills paths, and provider model
-counts look right on `agents get` before publishing.
+Check that config and skills paths, and provider model counts, look right on
+`agents get` before publishing.
 
 ### 5. Publish a new catalog version
 

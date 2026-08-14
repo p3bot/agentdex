@@ -490,8 +490,7 @@ func TestGetDegradesWhenModelsUnreachable(t *testing.T) {
 	}
 }
 
-func TestGetProbesVersionOnce(t *testing.T) {
-	// Enriched detection must not re-exec the version probe.
+func TestGetDoesNotExecuteBinary(t *testing.T) {
 	srv := modelsServer(t, []string{"anthropic"})
 	s := newScenario(t, srv.URL)
 	counter := filepath.Join(s.home, "probe-count")
@@ -501,11 +500,15 @@ func TestGetProbesVersionOnce(t *testing.T) {
 	if got.code != codeOK {
 		t.Fatalf("get exit = %d, stderr=%q", got.code, got.stderr)
 	}
-	if n := probeCount(t, counter); n != 1 {
-		t.Errorf("version probe ran %d times, want 1", n)
+	if n := probeCount(t, counter); n != 0 {
+		t.Errorf("detection executed the agent binary %d times", n)
 	}
-	if !strings.Contains(got.stdout, "1.0.0") {
-		t.Errorf("get detail missing the probed version:\n%s", got.stdout)
+	listed := runCLI("agents", "list", "--installed")
+	if listed.code != codeOK {
+		t.Fatalf("list exit = %d, stderr=%q", listed.code, listed.stderr)
+	}
+	if n := probeCount(t, counter); n != 0 {
+		t.Errorf("list executed the agent binary %d times", n)
 	}
 }
 
@@ -555,7 +558,7 @@ func TestGetTextDetailDrivenByRecord(t *testing.T) {
 		t.Fatalf("get exit = %d, stderr=%q", got.code, got.stderr)
 	}
 	for _, key := range []string{
-		"id", "name", "version", "bin", "config_dir", "config_local_dir",
+		"id", "name", "bin", "config_dir", "config_local_dir",
 		"skills_dir", "skills_local_dir", "providers", "homepage",
 	} {
 		if !strings.Contains(got.stdout, key) {

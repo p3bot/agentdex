@@ -16,10 +16,6 @@ import "struct"
 		local?:  #SkillsScope
 		struct.MinFields(1)
 	}
-	version?: {
-		args: [string, ...string]
-		pattern?: string
-	}
 	agnostic: bool | *false
 	if !agnostic {
 		provider: [string, ...string]

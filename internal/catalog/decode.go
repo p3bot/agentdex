@@ -22,10 +22,6 @@ type cueAgent struct {
 		Global *cueSkillsScope `json:"global,omitempty"`
 		Local  *cueSkillsScope `json:"local,omitempty"`
 	} `json:"skills,omitempty"`
-	Version *struct {
-		Args    []string `json:"args"`
-		Pattern string   `json:"pattern,omitempty"`
-	} `json:"version,omitempty"`
 	Agnostic bool     `json:"agnostic,omitempty"`
 	Provider []string `json:"provider,omitempty"`
 	Homepage string   `json:"homepage,omitempty"`
@@ -91,9 +87,6 @@ func loadCatalogModule(sourceDir string) (*Catalog, error) {
 		}
 		if a.Skills != nil {
 			ka.Skills = mapSkills(a.Skills.Global, a.Skills.Local)
-		}
-		if a.Version != nil {
-			ka.Version = &VersionProbe{Args: a.Version.Args, Pattern: a.Version.Pattern}
 		}
 		agents[id] = ka
 	}

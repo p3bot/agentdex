@@ -75,9 +75,6 @@ func TestLoadValidFixture(t *testing.T) {
 	if got["beta-tool"].Config.Local != "" {
 		t.Errorf("beta-tool local config = %q, want empty", got["beta-tool"].Config.Local)
 	}
-	if got["gamma-agent"].Version != nil {
-		t.Error("gamma-agent should have no version probe")
-	}
 	if sk := got["gamma-agent"].Skills; sk == nil {
 		t.Error("gamma-agent should have skills")
 	} else {

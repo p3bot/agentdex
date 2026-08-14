@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"sync"
 
 	"github.com/p3bot/agentdex/internal/catalog"
 	"github.com/p3bot/agentdex/modelsdev"
@@ -37,7 +36,7 @@ func (s AgentService) Get(ctx context.Context, id string, q AgentGetQuery) (Agen
 		return AgentDetail{Warnings: warnings}, errf(ErrProvidersNotAllowed, "agent %q has catalog providers", id)
 	}
 
-	detail := AgentDetail{Agent: c.detect(ctx, ka)}
+	detail := AgentDetail{Agent: c.detect(ka)}
 	if !detail.Detection.Found {
 		warnings = append(warnings, notInstalledWarning(id))
 	}
@@ -132,9 +131,9 @@ func (s AgentService) Get(ctx context.Context, id string, q AgentGetQuery) (Agen
 }
 
 // List browses the catalog with local detection and, from EnrichProviders upward,
-// the resolved provider set and models.dev enrichment. Detection fans out
-// concurrently; no per-agent coverage is probed. Providers is validated once at
-// the boundary at every level; an unknown id fails the whole listing.
+// the resolved provider set and models.dev enrichment. No per-agent coverage is
+// probed. Providers is validated once at the boundary at every level; an unknown
+// id fails the whole listing.
 func (s AgentService) List(ctx context.Context, q AgentQuery) (Result[Agent], error) {
 	c := s.core
 	cat, info, err := c.resolveCatalog(ctx)
@@ -332,37 +331,15 @@ func (c *core) probeCoverage(ctx context.Context, mc *modelsdev.Client, provider
 	}
 }
 
-// detectAll fans out under maxConcurrentDetections. Version-probe failures are
-// non-fatal; only a cancelled or expired context is returned.
+// detectAll locates every catalogued agent. Only a cancelled or expired context
+// is returned; filesystem misses are Found=false, not errors.
 func (c *core) detectAll(ctx context.Context, cat *catalog.Catalog) ([]Agent, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	sem := make(chan struct{}, maxConcurrentDetections)
-	var (
-		wg     sync.WaitGroup
-		mu     sync.Mutex
-		agents = make([]Agent, 0, len(cat.Agents))
-	)
+	agents := make([]Agent, 0, len(cat.Agents))
 	for _, ka := range cat.Agents {
-		wg.Add(1)
-		go func(ka catalog.KnownAgent) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			if ctx.Err() != nil {
-				return
-			}
-			a := c.detect(ctx, ka)
-			mu.Lock()
-			agents = append(agents, a)
-			mu.Unlock()
-		}(ka)
-	}
-	wg.Wait()
-
-	if err := ctx.Err(); err != nil {
-		return nil, err
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		agents = append(agents, c.detect(ka))
 	}
 	return agents, nil
 }

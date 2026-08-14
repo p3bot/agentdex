@@ -50,7 +50,7 @@ func NewRootCommand() *cobra.Command {
 		Short: "Browse AI coding agents, providers, and models as data",
 		Long: "agentdex indexes AI coding agents, the models.dev providers that power " +
 			"them, and the models those providers offer, and serves all three as " +
-			"browsable data. For an agent it reports the binary, version, config and " +
+			"browsable data. For an agent it reports the binary, config and " +
 			"skills directories, providers, and available models, and whether it is " +
 			"installed on the local machine.",
 		SilenceUsage:      true,
