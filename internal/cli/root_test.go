@@ -68,25 +68,32 @@ func TestSingularNounAliasIsSynonym(t *testing.T) {
 func TestJSONEnvelopeCoversCobraUsageErrors(t *testing.T) {
 	// Find / ValidateArgs fail before preRun; no catalog or models.dev.
 	tests := []struct {
-		name    string
-		args    []string
-		errPart string
+		name string
+		args []string
+		want string
 	}{
-		{"agents get arity", []string{"--json", "agents", "get"}, "accepts 1 arg"},
-		{"agents get arity flag last", []string{"agents", "get", "--json"}, "accepts 1 arg"},
-		{"agents get extra args", []string{"--json", "agents", "get", "a", "b"}, "accepts 1 arg"},
-		{"models get arity", []string{"--json", "models", "get"}, "accepts 1 arg"},
-		{"providers get arity", []string{"--json", "providers", "get"}, "accepts 1 arg"},
-		{"unknown command", []string{"--json", "foobar"}, "unknown command"},
-		{"unknown command flag last", []string{"foobar", "--json"}, "unknown command"},
-		{"unknown flag", []string{"--json", "--not-a-flag"}, "unknown flag"},
-		{"unknown shorthand then json", []string{"-v", "--json"}, "unknown shorthand"},
+		{"agents get arity", []string{"--json", "agents", "get"}, `agents get requires an agent id; run "agentdex agents list" to see agent ids`},
+		{"agents get arity flag last", []string{"agents", "get", "--json"}, `agents get requires an agent id; run "agentdex agents list" to see agent ids`},
+		{"agents get extra args", []string{"--json", "agents", "get", "a", "b"}, `agents get takes one agent id, got "a" "b"; run "agentdex agents get --help"`},
+		{"models get arity", []string{"--json", "models", "get"}, `models get requires a provider-id/model-id; run "agentdex models list" to see model ids`},
+		{"models get extra args", []string{"--json", "models", "get", "a", "b"}, `models get takes one provider-id/model-id, got "a" "b"; run "agentdex models get --help"`},
+		{"providers get arity", []string{"--json", "providers", "get"}, `providers get requires a provider id; run "agentdex providers list" to see provider ids`},
+		{"providers get extra args", []string{"--json", "providers", "get", "a", "b"}, `providers get takes one provider id, got "a" "b"; run "agentdex providers get --help"`},
+		{"agents list extra args", []string{"--json", "agents", "list", "a", "b"}, `agents list takes at most one filter, got "a" "b"; run "agentdex agents list --help"`},
+		{"models list extra args", []string{"--json", "models", "list", "a", "b"}, `models list takes at most one filter, got "a" "b"; run "agentdex models list --help"`},
+		{"providers list extra args", []string{"--json", "providers", "list", "a", "b"}, `providers list takes at most one filter, got "a" "b"; run "agentdex providers list --help"`},
+		{"refresh extra args", []string{"--json", "refresh", "a", "b"}, `refresh takes at most one target, got "a" "b"; run "agentdex refresh --help"`},
+		{"version extra args", []string{"--json", "version", "x"}, `version takes no arguments, got "x"; run "agentdex version --help"`},
+		{"unknown command", []string{"--json", "foobar"}, `unknown command "foobar" for "agentdex"`},
+		{"unknown command flag last", []string{"foobar", "--json"}, `unknown command "foobar" for "agentdex"`},
+		{"unknown flag", []string{"--json", "--not-a-flag"}, "unknown flag: --not-a-flag"},
+		{"unknown shorthand then json", []string{"-v", "--json"}, "unknown shorthand flag: 'v' in -v"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			m := assertErrorEnvelope(t, runCLI(tc.args...), codeUsage)
-			if msg, _ := m["error"].(string); !strings.Contains(msg, tc.errPart) {
-				t.Errorf("error %q, want substring %q", msg, tc.errPart)
+			if msg, _ := m["error"].(string); msg != tc.want {
+				t.Errorf("error %q, want %q", msg, tc.want)
 			}
 		})
 	}
@@ -120,7 +127,10 @@ func TestCobraUsageErrorsStayTextWithoutJSON(t *testing.T) {
 		args    []string
 		errPart string
 	}{
-		{"agents get arity", []string{"agents", "get"}, "accepts 1 arg"},
+		{"agents get arity", []string{"agents", "get"}, `agents get requires an agent id; run "agentdex agents list" to see agent ids`},
+		{"agents get extra args", []string{"agents", "get", "a", "b"}, `agents get takes one agent id, got "a" "b"; run "agentdex agents get --help"`},
+		{"agents list extra args", []string{"agents", "list", "a", "b"}, `agents list takes at most one filter, got "a" "b"; run "agentdex agents list --help"`},
+		{"version extra args", []string{"version", "x"}, `version takes no arguments, got "x"; run "agentdex version --help"`},
 		{"unknown command", []string{"foobar"}, "unknown command"},
 		{"json explicitly off", []string{"--json=false", "foobar"}, "unknown command"},
 	}

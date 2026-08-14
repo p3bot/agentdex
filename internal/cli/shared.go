@@ -1,12 +1,69 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+
+	"github.com/p3bot/agentdex"
 )
+
+func quoteArgs(args []string) string {
+	quoted := make([]string, len(args))
+	for i, a := range args {
+		quoted[i] = fmt.Sprintf("%q", a)
+	}
+	return strings.Join(quoted, " ")
+}
+
+func commandPath(cmd *cobra.Command) string {
+	return strings.TrimPrefix(cmd.CommandPath(), "agentdex ")
+}
+
+// ValidateArgs runs before preRun, so a missing get id stays offline.
+func exactGetID(required, kind, listWhat string) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		noun := cmd.Parent().Name()
+		switch len(args) {
+		case 1:
+			return nil
+		case 0:
+			return fmt.Errorf("%s get requires %s; run \"agentdex %s list\" to see %s", noun, required, noun, listWhat)
+		default:
+			return fmt.Errorf("%s get takes one %s, got %s; run \"agentdex %s get --help\"", noun, kind, quoteArgs(args), noun)
+		}
+	}
+}
+
+func atMostOne(kind string) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if len(args) <= 1 {
+			return nil
+		}
+		path := commandPath(cmd)
+		return fmt.Errorf("%s takes at most one %s, got %s; run \"agentdex %s --help\"", path, kind, quoteArgs(args), path)
+	}
+}
+
+func noPositionalArgs() cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return nil
+		}
+		path := commandPath(cmd)
+		return fmt.Errorf("%s takes no arguments, got %s; run \"agentdex %s --help\"", path, quoteArgs(args), path)
+	}
+}
+
+func withProviderList(err error) error {
+	if errors.Is(err, agentdex.ErrUnknownProvider) {
+		return errors.New(err.Error() + "; run \"agentdex providers list\" to see provider ids")
+	}
+	return err
+}
 
 // Non-empty filter names itself so narrowing is distinguishable from a genuine empty catalog.
 func emptyListMessage(filter, noun, fallback string) string {

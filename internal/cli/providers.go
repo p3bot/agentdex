@@ -36,7 +36,7 @@ func (a *app) newProvidersListCmd() *cobra.Command {
 			"optional filter narrows the list to providers whose id or name contains it " +
 			"(case-insensitive); it is a browse narrowing, not a selector, so a filter matching " +
 			"nothing prints an empty listing and exits 0.",
-		Args: cobra.MaximumNArgs(1),
+		Args: atMostOne("filter"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			idx, err := a.index(cmd)
 			if err != nil {
@@ -101,7 +101,7 @@ func (a *app) newProvidersGetCmd() *cobra.Command {
 			"its facts (id, name, doc, npm, api), its API-key env presence, and its model count. " +
 			"Pass --models or include models in --fields for the full model table (not the count). " +
 			"An id that names no provider is not-found (exit 3).",
-		Args: cobra.ExactArgs(1),
+		Args: exactGetID("a provider id", "provider id", "provider ids"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			idx, err := a.index(cmd)
 			if err != nil {

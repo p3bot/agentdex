@@ -483,12 +483,28 @@ func TestOracleErrorMessagesVerbatim(t *testing.T) {
 		{
 			name: "composite unknown provider",
 			args: []string{"models", "get", "nope/some-model"},
-			want: `no model "nope/some-model": unknown provider "nope"`,
+			want: `no model "nope/some-model": unknown provider "nope"; run "agentdex models list" to see model ids`,
 		},
 		{
 			name: "composite unknown model key",
 			args: []string{"models", "get", "anthropic/no-such-model"},
-			want: `no model "anthropic/no-such-model" in provider "anthropic"`,
+			want: `no model "anthropic/no-such-model" in provider "anthropic"; run "agentdex models list" to see model ids`,
+		},
+		{
+			name: "unknown --provider on agents get",
+			bins: []string{"delta-agent"},
+			args: []string{"agents", "get", "delta-agent", "--provider", "bogus"},
+			want: `unknown provider id: "bogus"; run "agentdex providers list" to see provider ids`,
+		},
+		{
+			name: "unknown --provider on agents list",
+			args: []string{"agents", "list", "--provider", "bogus"},
+			want: `unknown provider id: "bogus"; run "agentdex providers list" to see provider ids`,
+		},
+		{
+			name: "unknown --provider on models list",
+			args: []string{"models", "list", "--provider", "bogus"},
+			want: `unknown provider id: "bogus"; run "agentdex providers list" to see provider ids`,
 		},
 	}
 	for _, tc := range cases {

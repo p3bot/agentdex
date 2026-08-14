@@ -72,7 +72,7 @@ func (a *app) newRefreshCmd() *cobra.Command {
 		Short:   "Force a refresh: " + refreshTargetList(),
 		Long: "Force a refresh of the agentdex catalog (agent data) and/or the " +
 			"models.dev catalog (provider and model data). The target defaults to all.",
-		Args: cobra.MaximumNArgs(1),
+		Args: atMostOne("target"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			idx, err := a.index(cmd)
 			if err != nil {

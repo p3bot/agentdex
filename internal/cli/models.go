@@ -38,7 +38,7 @@ func (a *app) newModelsListCmd() *cobra.Command {
 			"listing to models whose id or name contains it (case-insensitive) and composes with " +
 			"any scope. A provider-agnostic --agent requires --provider; a home-provider --agent " +
 			"rejects it.",
-		Args: cobra.MaximumNArgs(1),
+		Args: atMostOne("filter"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			idx, err := a.index(cmd)
 			if err != nil {
@@ -125,7 +125,7 @@ func (a *app) newModelsGetCmd() *cobra.Command {
 			"prefix is the provider id and the whole remainder is the model key, which may itself " +
 			"contain slashes. A value with no slash is a usage error; an unknown provider or model " +
 			"is not-found (exit 3).",
-		Args: cobra.ExactArgs(1),
+		Args: exactGetID("a provider-id/model-id", "provider-id/model-id", "model ids"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			idx, err := a.index(cmd)
 			if err != nil {
@@ -163,10 +163,11 @@ func (a *app) modelsGet(cmd *cobra.Command, idx *agentdex.Index, composite strin
 	})
 }
 
-// modelGetError appends a CLI-only remedy for a malformed composite. Exit code is
-// taken from the sentinel before wrapping so the clause does not disturb classification.
+// modelGetError appends a CLI-only list remedy for a malformed composite or
+// unknown model. Exit code is taken from the sentinel before wrapping so the
+// clause does not disturb classification.
 func modelGetError(err error) error {
-	if errors.Is(err, agentdex.ErrMalformedModelID) {
+	if errors.Is(err, agentdex.ErrMalformedModelID) || errors.Is(err, agentdex.ErrNotFound) {
 		return errors.New(err.Error() + "; run \"agentdex models list\" to see model ids")
 	}
 	return err
@@ -182,6 +183,6 @@ func modelScopeError(err error) error {
 	case errors.Is(err, agentdex.ErrAgentUnknown):
 		return errors.New(err.Error() + "; run \"agentdex agents list\" to see agent ids")
 	default:
-		return err
+		return withProviderList(err)
 	}
 }

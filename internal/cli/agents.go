@@ -51,7 +51,7 @@ func (a *app) newAgentsListCmd() *cobra.Command {
 			"sorts by any field and --reverse flips the direction. An optional filter narrows the " +
 			"list to agents whose id or name contains it (case-insensitive); a filter matching " +
 			"nothing prints an empty listing and exits 0.",
-		Args: cobra.MaximumNArgs(1),
+		Args: atMostOne("filter"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			idx, err := a.index(cmd)
 			if err != nil {
@@ -71,7 +71,7 @@ func (a *app) newAgentsListCmd() *cobra.Command {
 			})
 			warnings := libWarnings(res.Warnings)
 			if err != nil {
-				return a.fail(cmd, codeFor(err), err, warnings...)
+				return a.fail(cmd, codeFor(err), withProviderList(err), warnings...)
 			}
 			a.log.Debug("list agents", "count", len(res.Items), "installed", installed, "filter", filter)
 
@@ -152,7 +152,7 @@ func (a *app) newAgentsGetCmd() *cobra.Command {
 			"list (not the list-column count). Provider-agnostic agents omit provider fields " +
 			"until --provider is supplied. An id that names no catalogued agent is not-found " +
 			"(exit 3).",
-		Args: cobra.ExactArgs(1),
+		Args: exactGetID("an agent id", "agent id", "agent ids"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			idx, err := a.index(cmd)
 			if err != nil {
@@ -166,7 +166,7 @@ func (a *app) newAgentsGetCmd() *cobra.Command {
 			})
 			warnings := libWarnings(detail.Warnings)
 			if err != nil {
-				return a.fail(cmd, codeFor(err), agentGetError(err, id), warnings...)
+				return a.fail(cmd, codeFor(err), agentGetError(err), warnings...)
 			}
 
 			// Agnostic without providers: soft-path browse at exit 0. Naming an
@@ -228,14 +228,14 @@ func containsField(fields []string, key string) bool {
 
 // agentGetError appends CLI-only remedy clauses (subcommand/flag names the library
 // does not own). Exit code is taken from the sentinel before wrapping.
-func agentGetError(err error, id string) error {
+func agentGetError(err error) error {
 	switch {
 	case errors.Is(err, agentdex.ErrAgentUnknown):
 		return errors.New(err.Error() + "; run \"agentdex agents list\" to see agent ids")
 	case errors.Is(err, agentdex.ErrProvidersNotAllowed):
 		return errors.New(err.Error() + "; --provider is only valid for provider-agnostic agents")
 	default:
-		return err
+		return withProviderList(err)
 	}
 }
 

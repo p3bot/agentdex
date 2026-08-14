@@ -28,7 +28,7 @@ func (a *app) newVersionCmd() *cobra.Command {
 		Use:     "version",
 		GroupID: groupCore,
 		Short:   "Print the agentdex version, commit, and build date",
-		Args:    cobra.NoArgs,
+		Args:    noPositionalArgs(),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return a.writeVersion(cmd)
 		},
