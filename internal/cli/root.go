@@ -13,6 +13,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -110,10 +111,15 @@ func (a *app) nounUsage(cmd *cobra.Command, args []string) error {
 	return a.usage(cmd, fmt.Errorf("%s requires a subcommand: list or get; %s", cmd.Name(), hint))
 }
 
-// Execute runs the command tree and returns the process exit code. Command failures
-// arrive as *exitError; cobra-originated errors are usage (exit 2).
+// Execute runs the command tree and returns the process exit code. Command
+// failures arrive as *exitError (already rendered). Cobra-originated errors
+// are usage (exit 2) and, under --json, share the same stdout envelope as a.fail.
 func Execute() int {
-	root := NewRootCommand()
+	return execute(NewRootCommand(), os.Args[1:])
+}
+
+func execute(root *cobra.Command, args []string) int {
+	root.SetArgs(args)
 	err := root.Execute()
 	if err == nil {
 		return codeOK
@@ -122,7 +128,48 @@ func Execute() int {
 	if errors.As(err, &ee) {
 		return ee.code
 	}
-	fmt.Fprintln(os.Stderr, "error: "+err.Error())
+	if jsonRequested(root, args) {
+		writeJSON(root.OutOrStdout(), envelope{Status: "error", Error: err.Error()})
+		return exitCodeOf(err)
+	}
+	fmt.Fprintln(root.ErrOrStderr(), "error: "+err.Error())
+	return exitCodeOf(err)
+}
+
+func jsonRequested(cmd *cobra.Command, args []string) bool {
+	if f := cmd.PersistentFlags().Lookup("json"); f != nil && f.Changed {
+		v, err := cmd.PersistentFlags().GetBool("json")
+		if err == nil {
+			return v
+		}
+	}
+	// Cobra can fail in Find before ParseFlags binds --json.
+	return argsWantJSON(args)
+}
+
+func argsWantJSON(args []string) bool {
+	want := false
+	for _, a := range args {
+		if a == "--" {
+			break
+		}
+		if a == "--json" {
+			want = true
+			continue
+		}
+		if v, ok := strings.CutPrefix(a, "--json="); ok {
+			b, err := strconv.ParseBool(v)
+			want = err != nil || b
+		}
+	}
+	return want
+}
+
+func exitCodeOf(err error) int {
+	var ec interface{ ExitCode() int }
+	if errors.As(err, &ec) {
+		return ec.ExitCode()
+	}
 	return codeUsage
 }
 

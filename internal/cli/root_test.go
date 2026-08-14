@@ -65,6 +65,81 @@ func TestSingularNounAliasIsSynonym(t *testing.T) {
 	}
 }
 
+func TestJSONEnvelopeCoversCobraUsageErrors(t *testing.T) {
+	// Find / ValidateArgs fail before preRun; no catalog or models.dev.
+	tests := []struct {
+		name    string
+		args    []string
+		errPart string
+	}{
+		{"agents get arity", []string{"--json", "agents", "get"}, "accepts 1 arg"},
+		{"agents get arity flag last", []string{"agents", "get", "--json"}, "accepts 1 arg"},
+		{"agents get extra args", []string{"--json", "agents", "get", "a", "b"}, "accepts 1 arg"},
+		{"models get arity", []string{"--json", "models", "get"}, "accepts 1 arg"},
+		{"providers get arity", []string{"--json", "providers", "get"}, "accepts 1 arg"},
+		{"unknown command", []string{"--json", "foobar"}, "unknown command"},
+		{"unknown command flag last", []string{"foobar", "--json"}, "unknown command"},
+		{"unknown flag", []string{"--json", "--not-a-flag"}, "unknown flag"},
+		{"unknown shorthand then json", []string{"-v", "--json"}, "unknown shorthand"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m := assertErrorEnvelope(t, runCLI(tc.args...), codeUsage)
+			if msg, _ := m["error"].(string); !strings.Contains(msg, tc.errPart) {
+				t.Errorf("error %q, want substring %q", msg, tc.errPart)
+			}
+		})
+	}
+}
+
+func TestJSONEnvelopePreservesClassifiedFailures(t *testing.T) {
+	newScenario(t, "", "alpha-cli")
+
+	tests := []struct {
+		name    string
+		args    []string
+		code    int
+		errPart string
+	}{
+		{"unknown noun subcommand", []string{"--json", "agents", "foobar"}, codeUsage, "unknown agents subcommand"},
+		{"unknown agent id", []string{"--json", "agents", "get", "no-such-thing"}, codeNotFound, "no agent"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			m := assertErrorEnvelope(t, runCLI(tc.args...), tc.code)
+			if msg, _ := m["error"].(string); !strings.Contains(msg, tc.errPart) {
+				t.Errorf("error %q, want substring %q", msg, tc.errPart)
+			}
+		})
+	}
+}
+
+func TestCobraUsageErrorsStayTextWithoutJSON(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		errPart string
+	}{
+		{"agents get arity", []string{"agents", "get"}, "accepts 1 arg"},
+		{"unknown command", []string{"foobar"}, "unknown command"},
+		{"json explicitly off", []string{"--json=false", "foobar"}, "unknown command"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := runCLI(tc.args...)
+			if got.code != codeUsage {
+				t.Fatalf("exit = %d, want 2; stderr=%q stdout=%q", got.code, got.stderr, got.stdout)
+			}
+			if !strings.Contains(got.stderr, "error:") || !strings.Contains(got.stderr, tc.errPart) {
+				t.Errorf("stderr = %q, want error: line containing %q", got.stderr, tc.errPart)
+			}
+			if strings.TrimSpace(got.stdout) != "" {
+				t.Errorf("stdout should stay empty in text mode: %q", got.stdout)
+			}
+		})
+	}
+}
+
 func TestRemovedFlatCommandsAreGone(t *testing.T) {
 	// Old flat get/list are unknown top-level commands; bare providers/models are
 	// noun usage faults, never the old listing.

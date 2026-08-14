@@ -18,16 +18,6 @@ import (
 // envelope shapes, verbatim warning/error wording, stream discipline, empty-state
 // and stale-catalog handling, and models rendering.
 
-// Generic map so tests can distinguish an absent (omitempty) key from an empty value.
-func rawEnvelope(t *testing.T, stdout string) map[string]any {
-	t.Helper()
-	var m map[string]any
-	if err := json.Unmarshal([]byte(stdout), &m); err != nil {
-		t.Fatalf("decode raw envelope from %q: %v", stdout, err)
-	}
-	return m
-}
-
 // staleScenario warms the catalog under a zero TTL then takes the registry offline
 // so the next load falls back to the last resolved version and reports stale.
 func staleScenario(t *testing.T, modelsURL string, bins ...string) *scenario {
@@ -44,26 +34,6 @@ func staleScenario(t *testing.T, modelsURL string, bins ...string) *scenario {
 func TestOracleFailureEnvelopeShapes(t *testing.T) {
 	// Pin failure envelope on config (78), transient (75), and permission (4):
 	// status "error", non-empty error, omitempty for data and warnings.
-	assertErrorEnvelope := func(t *testing.T, r result, wantCode int) {
-		t.Helper()
-		if r.code != wantCode {
-			t.Fatalf("exit = %d, want %d; stderr=%q", r.code, wantCode, r.stderr)
-		}
-		m := rawEnvelope(t, r.stdout)
-		if m["status"] != "error" {
-			t.Errorf("status = %v, want error", m["status"])
-		}
-		if msg, ok := m["error"].(string); !ok || msg == "" {
-			t.Errorf("error = %v, want a non-empty message", m["error"])
-		}
-		if _, ok := m["data"]; ok {
-			t.Errorf("failure envelope should omit data: %v", m["data"])
-		}
-		if _, ok := m["warnings"]; ok {
-			t.Errorf("failure envelope with no warnings should omit the warnings key: %v", m["warnings"])
-		}
-	}
-
 	t.Run("config", func(t *testing.T) {
 		s := newScenario(t, "", "alpha-cli")
 		s.writeConfig(t, `color: "not-a-mode"`)

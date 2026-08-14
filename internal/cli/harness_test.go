@@ -36,23 +36,45 @@ func (r result) envelope(t *testing.T) envelope {
 	return env
 }
 
+func rawEnvelope(t *testing.T, stdout string) map[string]any {
+	t.Helper()
+	var m map[string]any
+	if err := json.Unmarshal([]byte(stdout), &m); err != nil {
+		t.Fatalf("decode raw envelope from %q: %v", stdout, err)
+	}
+	return m
+}
+
+func assertErrorEnvelope(t *testing.T, r result, wantCode int) map[string]any {
+	t.Helper()
+	if r.code != wantCode {
+		t.Fatalf("exit = %d, want %d; stderr=%q stdout=%q", r.code, wantCode, r.stderr, r.stdout)
+	}
+	if r.stderr != "" {
+		t.Errorf("stderr must be empty under --json: %q", r.stderr)
+	}
+	m := rawEnvelope(t, r.stdout)
+	if m["status"] != "error" {
+		t.Errorf("status = %v, want error", m["status"])
+	}
+	if msg, ok := m["error"].(string); !ok || msg == "" {
+		t.Errorf("error = %v, want a non-empty message", m["error"])
+	}
+	if _, ok := m["data"]; ok {
+		t.Errorf("failure envelope should omit data: %v", m["data"])
+	}
+	if _, ok := m["warnings"]; ok {
+		t.Errorf("failure envelope with no warnings should omit the warnings key: %v", m["warnings"])
+	}
+	return m
+}
+
 func runCLI(args ...string) result {
 	root := NewRootCommand()
 	var out, errb bytes.Buffer
 	root.SetOut(&out)
 	root.SetErr(&errb)
-	root.SetArgs(args)
-
-	code := codeOK
-	if err := root.Execute(); err != nil {
-		var ee *exitError
-		if errors.As(err, &ee) {
-			code = ee.code
-		} else {
-			code = codeUsage
-			fmt.Fprintln(&errb, "error: "+err.Error())
-		}
-	}
+	code := execute(root, args)
 	return result{stdout: out.String(), stderr: errb.String(), code: code}
 }
 
