@@ -19,6 +19,20 @@ func quoteArgs(args []string) string {
 	return strings.Join(quoted, " ")
 }
 
+// Oxford-style list ("a, b, or c") for usage errors that name a valid set.
+func orList(names []string) string {
+	switch len(names) {
+	case 0:
+		return ""
+	case 1:
+		return names[0]
+	case 2:
+		return names[0] + " or " + names[1]
+	default:
+		return strings.Join(names[:len(names)-1], ", ") + ", or " + names[len(names)-1]
+	}
+}
+
 func commandPath(cmd *cobra.Command) string {
 	return strings.TrimPrefix(cmd.CommandPath(), "agentdex ")
 }

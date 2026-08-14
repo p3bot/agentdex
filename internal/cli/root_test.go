@@ -84,8 +84,8 @@ func TestJSONEnvelopeCoversCobraUsageErrors(t *testing.T) {
 		{"providers list extra args", []string{"--json", "providers", "list", "a", "b"}, `providers list takes at most one filter, got "a" "b"; run "agentdex providers list --help"`},
 		{"refresh extra args", []string{"--json", "refresh", "a", "b"}, `refresh takes at most one target, got "a" "b"; run "agentdex refresh --help"`},
 		{"version extra args", []string{"--json", "version", "x"}, `version takes no arguments, got "x"; run "agentdex version --help"`},
-		{"unknown command", []string{"--json", "foobar"}, `unknown command "foobar" for "agentdex"`},
-		{"unknown command flag last", []string{"foobar", "--json"}, `unknown command "foobar" for "agentdex"`},
+		{"unknown command", []string{"--json", "foobar"}, `unknown command "foobar": use agents, models, providers, refresh, or version; run "agentdex --help"`},
+		{"unknown command flag last", []string{"foobar", "--json"}, `unknown command "foobar": use agents, models, providers, refresh, or version; run "agentdex --help"`},
 		{"unknown flag", []string{"--json", "--not-a-flag"}, "unknown flag: --not-a-flag"},
 		{"unknown shorthand then json", []string{"-v", "--json"}, "unknown shorthand flag: 'v' in -v"},
 	}
@@ -131,8 +131,8 @@ func TestCobraUsageErrorsStayTextWithoutJSON(t *testing.T) {
 		{"agents get extra args", []string{"agents", "get", "a", "b"}, `agents get takes one agent id, got "a" "b"; run "agentdex agents get --help"`},
 		{"agents list extra args", []string{"agents", "list", "a", "b"}, `agents list takes at most one filter, got "a" "b"; run "agentdex agents list --help"`},
 		{"version extra args", []string{"version", "x"}, `version takes no arguments, got "x"; run "agentdex version --help"`},
-		{"unknown command", []string{"foobar"}, "unknown command"},
-		{"json explicitly off", []string{"--json=false", "foobar"}, "unknown command"},
+		{"unknown command", []string{"foobar"}, `unknown command "foobar": use agents, models, providers, refresh, or version; run "agentdex --help"`},
+		{"json explicitly off", []string{"--json=false", "foobar"}, `unknown command "foobar": use agents, models, providers, refresh, or version; run "agentdex --help"`},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -147,6 +147,67 @@ func TestCobraUsageErrorsStayTextWithoutJSON(t *testing.T) {
 				t.Errorf("stdout should stay empty in text mode: %q", got.stdout)
 			}
 		})
+	}
+}
+
+func TestHelpWinsOverUnknownCommand(t *testing.T) {
+	for _, args := range [][]string{
+		{"foobar", "--help"},
+		{"--help", "foobar"},
+	} {
+		got := runCLI(args...)
+		if got.code != codeOK {
+			t.Errorf("%v exit = %d, want 0; stderr=%q", args, got.code, got.stderr)
+		}
+		if !strings.Contains(got.stdout, "Usage:") {
+			t.Errorf("%v stdout should be help:\n%s", args, got.stdout)
+		}
+		if strings.Contains(got.stderr, "unknown command") {
+			t.Errorf("%v should not treat the verb as usage:\n%s", args, got.stderr)
+		}
+	}
+}
+
+func TestUnknownHelpTopicIsUsageFault(t *testing.T) {
+	want := `unknown help topic "foobar": use agents, models, providers, refresh, or version; run "agentdex --help"`
+
+	got := runCLI("help", "foobar")
+	if got.code != codeUsage {
+		t.Fatalf("help foobar exit = %d, want 2; stderr=%q stdout=%q", got.code, got.stderr, got.stdout)
+	}
+	if !strings.Contains(got.stderr, "error:") || !strings.Contains(got.stderr, want) {
+		t.Errorf("stderr = %q, want error: line containing %q", got.stderr, want)
+	}
+	if strings.TrimSpace(got.stdout) != "" {
+		t.Errorf("stdout should stay empty in text mode: %q", got.stdout)
+	}
+
+	m := assertErrorEnvelope(t, runCLI("--json", "help", "foobar"), codeUsage)
+	if msg, _ := m["error"].(string); msg != want {
+		t.Errorf("error %q, want %q", msg, want)
+	}
+}
+
+func TestHelpKnownTopicStillWorks(t *testing.T) {
+	tests := []struct {
+		args []string
+		want string
+	}{
+		{[]string{"help"}, "Usage:\n  agentdex [flags]"},
+		{[]string{"help", "agents"}, "Usage:\n  agentdex agents"},
+		{[]string{"help", "agents", "list"}, "Usage:\n  agentdex agents list"},
+		// Positionals of a found command are not unknown topics.
+		{[]string{"help", "refresh", "catalog"}, "Usage:\n  agentdex refresh"},
+		{[]string{"help", "agents", "foobar"}, "Usage:\n  agentdex agents"},
+	}
+	for _, tc := range tests {
+		got := runCLI(tc.args...)
+		if got.code != codeOK {
+			t.Errorf("%v exit = %d, want 0; stderr=%q", tc.args, got.code, got.stderr)
+		}
+		if !strings.Contains(got.stdout, tc.want) {
+			t.Errorf("%v stdout should contain %q:\n%s", tc.args, tc.want, got.stdout)
+		}
 	}
 }
 

@@ -47,22 +47,12 @@ func refreshNote(name string) string {
 	return ""
 }
 
-// Oxford-style list ("a, b, or c") for the unknown-target error.
 func refreshTargetList() string {
 	names := make([]string, len(refreshTargets))
 	for i, t := range refreshTargets {
 		names[i] = t.name
 	}
-	switch len(names) {
-	case 0:
-		return ""
-	case 1:
-		return names[0]
-	case 2:
-		return names[0] + " or " + names[1]
-	default:
-		return strings.Join(names[:len(names)-1], ", ") + ", or " + names[len(names)-1]
-	}
+	return orList(names)
 }
 
 func (a *app) newRefreshCmd() *cobra.Command {

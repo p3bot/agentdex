@@ -13,6 +13,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -57,6 +58,9 @@ func NewRootCommand() *cobra.Command {
 		SilenceUsage:      true,
 		SilenceErrors:     true,
 		PersistentPreRunE: a.preRun,
+		// Named Args replaces cobra's nil-Args legacyArgs so unknown verbs get a
+		// remedial message instead of "unknown command X for Y".
+		Args: a.unknownRootCommand(),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if a.printVersion {
 				return a.writeVersion(cmd)
@@ -81,6 +85,7 @@ func NewRootCommand() *cobra.Command {
 		a.newRefreshCmd(),
 		a.newVersionCmd(),
 	)
+	root.SetHelpCommand(a.newHelpCmd())
 	return root
 }
 
@@ -99,6 +104,68 @@ func (a *app) newNounCmd(use, alias, short string, subs ...*cobra.Command) *cobr
 	}
 	cmd.AddCommand(subs...)
 	return cmd
+}
+
+// Core group only: help and completion are cobra's, not product verbs.
+func coreCommandList(cmd *cobra.Command) string {
+	var names []string
+	for _, c := range cmd.Commands() {
+		if c.GroupID == groupCore {
+			names = append(names, c.Name())
+		}
+	}
+	sort.Strings(names)
+	return orList(names)
+}
+
+func (a *app) unknownRootCommand() cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return nil
+		}
+		return a.usage(cmd, fmt.Errorf("unknown command %q: use %s; run \"agentdex --help\"", args[0], coreCommandList(cmd)))
+	}
+}
+
+// cobra's default help treats Find success as a known topic; named Args on root
+// makes Find("foobar") succeed. Reject leftover args only then; on a found
+// subcommand they are that command's positionals.
+func (a *app) newHelpCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "help [command]",
+		Short: "Help about any command",
+		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]cobra.Completion, cobra.ShellCompDirective) {
+			target, _, err := cmd.Root().Find(args)
+			if err != nil || target == nil {
+				return nil, cobra.ShellCompDirectiveNoFileComp
+			}
+			var out []cobra.Completion
+			for _, sub := range target.Commands() {
+				if !sub.IsAvailableCommand() {
+					continue
+				}
+				if strings.HasPrefix(sub.Name(), toComplete) {
+					out = append(out, cobra.CompletionWithDesc(sub.Name(), sub.Short))
+				}
+			}
+			return out, cobra.ShellCompDirectiveNoFileComp
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			root := cmd.Root()
+			target, extra, err := root.Find(args)
+			if err != nil || target == nil || (len(extra) > 0 && target == root) {
+				topic := ""
+				if len(extra) > 0 {
+					topic = extra[0]
+				} else if len(args) > 0 {
+					topic = args[0]
+				}
+				return a.usage(cmd, fmt.Errorf("unknown help topic %q: use %s; run \"agentdex --help\"", topic, coreCommandList(root)))
+			}
+			target.InitDefaultHelpFlag()
+			return target.Help()
+		},
+	}
 }
 
 // Short usage error with a help pointer; no full help dump (that is --help). Exit 2.
