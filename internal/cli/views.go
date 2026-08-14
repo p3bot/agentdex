@@ -219,11 +219,12 @@ func modelRecord(m modelsdev.Model, providerID, canonicalID string) *record {
 	return r
 }
 
-// providerFieldSet: env is presence-folded text; present is the structured map so
+// providerFieldSet: set is any-listed-key presence (boolean, orderable); env is
+// the name list with optional (set) markers; present is the structured map so
 // scripts avoid parsing "(set)". models stays array-typed (cell is the count).
 var providerFieldSet = newFieldSet(
-	[]string{"id", "name", "env", "present", "models", "doc", "npm", "api"},
-	[]string{"id", "name", "env", "models"},
+	[]string{"id", "name", "set", "env", "present", "models", "doc", "npm", "api"},
+	[]string{"id", "name", "set", "env", "models"},
 ).ordered("id")
 
 // present is resolved at the library boundary so the builder is testable from inputs.
@@ -235,6 +236,8 @@ func providerRecord(p modelsdev.Provider, present map[string]bool) *record {
 	envNames := make([]string, len(p.Env))
 	copy(envNames, p.Env)
 	sort.Strings(envNames)
+	setVal, setText := providerSetField(envNames, present)
+	r.add("set", setVal, setText)
 	r.add("env", envNames, providerEnvCell(envNames, present))
 	r.add("present", present, formatProviderEnv(present))
 	models := make([]modelsdev.Model, 0, len(p.Models))
@@ -246,6 +249,20 @@ func providerRecord(p modelsdev.Provider, present map[string]bool) *record {
 	r.add("npm", p.NPM, orDash(p.NPM))
 	r.add("api", p.API, orDash(p.API))
 	return r
+}
+
+// Any-set, not all-set: models.dev env lists have no required/optional metadata.
+// No declared names is JSON null / text "-", not a false unset.
+func providerSetField(names []string, present map[string]bool) (any, string) {
+	if len(names) == 0 {
+		return nil, "-"
+	}
+	for _, k := range names {
+		if present[k] {
+			return true, "set"
+		}
+	}
+	return false, "unset"
 }
 
 // providerEnvCell folds presence for the browse ENV column: set vars get "(set)",

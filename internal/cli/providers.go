@@ -30,12 +30,14 @@ func (a *app) newProvidersListCmd() *cobra.Command {
 		Use:   "list [filter]",
 		Short: "List model providers from models.dev",
 		Long: "List the models.dev providers usable with --provider on agents and models, " +
-			"with each provider's id, display name, API-key environment variables and whether they " +
-			"are set, and its model count. Rows are ordered by id by default; --order-by sorts by " +
-			"any field (for example models for model count) and --reverse flips the direction. The " +
-			"optional filter narrows the list to providers whose id or name contains it " +
-			"(case-insensitive); it is a browse narrowing, not a selector, so a filter matching " +
-			"nothing prints an empty listing and exits 0.",
+			"with each provider's id, display name, set column, API-key environment variable " +
+			"names, and model count. The set column shows set when any listed name is present " +
+			"and unset when none are; per-variable (set)/(unset) detail is on --fields present " +
+			"or providers get. Rows are ordered by id by default; --order-by sorts by any field " +
+			"(for example set to group by key presence, or models for model count) and " +
+			"--reverse flips the direction. The optional filter narrows the list to providers " +
+			"whose id or name contains it (case-insensitive); it is a browse narrowing, not a " +
+			"selector, so a filter matching nothing prints an empty listing and exits 0.",
 		Args: atMostOne("filter"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			idx, err := a.index(cmd)

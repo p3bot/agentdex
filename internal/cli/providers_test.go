@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 
 func TestProviderRecordEnvAndPresence(t *testing.T) {
 	// Set vars gain "(set)" in the env cell; present map carries bare booleans.
+	// Partial presence is still set, not a third state.
 	p := modelsdev.Provider{
 		ID:   "acme",
 		Name: "Acme",
@@ -31,6 +33,12 @@ func TestProviderRecordEnvAndPresence(t *testing.T) {
 		by[f.key] = f
 	}
 
+	if got, ok := by["set"].val.(bool); !ok || !got {
+		t.Errorf("set val = %v, want true", by["set"].val)
+	}
+	if by["set"].text != "set" {
+		t.Errorf("set cell = %q, want set", by["set"].text)
+	}
 	if got, want := by["env"].text, "BAR_KEY, FOO_KEY (set)"; got != want {
 		t.Errorf("env cell = %q, want %q", got, want)
 	}
@@ -58,6 +66,36 @@ func TestProviderRecordNoEnvDashCell(t *testing.T) {
 		if f.key == "env" && f.text != "-" {
 			t.Errorf("env cell for a provider with no declared var = %q, want -", f.text)
 		}
+		if f.key == "set" {
+			if f.text != "-" {
+				t.Errorf("set cell for a provider with no declared var = %q, want -", f.text)
+			}
+			if f.val != nil {
+				t.Errorf("set val for a provider with no declared var = %v, want nil", f.val)
+			}
+		}
+	}
+}
+
+func TestProviderSetField(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		names   []string
+		present map[string]bool
+		wantVal any
+		wantTxt string
+	}{
+		{"no names", nil, nil, nil, "-"},
+		{"all unset", []string{"A", "B"}, map[string]bool{"A": false, "B": false}, false, "unset"},
+		{"all set", []string{"A", "B"}, map[string]bool{"A": true, "B": true}, true, "set"},
+		{"partial is set", []string{"A", "B"}, map[string]bool{"A": true, "B": false}, true, "set"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			gotVal, gotTxt := providerSetField(tc.names, tc.present)
+			if gotVal != tc.wantVal || gotTxt != tc.wantTxt {
+				t.Errorf("providerSetField = (%v, %q), want (%v, %q)", gotVal, gotTxt, tc.wantVal, tc.wantTxt)
+			}
+		})
 	}
 }
 
@@ -197,6 +235,7 @@ func TestProvidersJSONModelsIsArrayCellIsCount(t *testing.T) {
 func TestProvidersFieldsSelectionAndValidation(t *testing.T) {
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL)
+	unsetEnv(t, "ANTHROPIC_API_KEY")
 
 	got := runCLI("--json", "providers", "list", "anthropic", "--fields", "id,present")
 	if got.code != codeOK {
@@ -218,7 +257,10 @@ func TestProvidersFieldsSelectionAndValidation(t *testing.T) {
 	if !strings.Contains(text.stdout, "PRESENT") {
 		t.Errorf("--fields id,present text output should include the PRESENT column:\n%s", text.stdout)
 	}
-	for _, col := range []string{"NAME", "ENV", "MODELS"} {
+	if !strings.Contains(text.stdout, "(unset)") {
+		t.Errorf("--fields present should keep per-variable (unset) markers:\n%s", text.stdout)
+	}
+	for _, col := range []string{"NAME", "SET", "ENV", "MODELS"} {
 		if strings.Contains(text.stdout, col) {
 			t.Errorf("--fields id,present text output should drop the default %s column:\n%s", col, text.stdout)
 		}
@@ -228,6 +270,209 @@ func TestProvidersFieldsSelectionAndValidation(t *testing.T) {
 	if bad.code != codeUsage {
 		t.Fatalf("unknown --fields exit = %d, want 2; stderr=%q", bad.code, bad.stderr)
 	}
+}
+
+func TestProvidersListDefaultSetColumn(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		setup    func(t *testing.T)
+		filter   string
+		wantSet  string
+		wantJSON any
+	}{
+		{
+			name: "all unset",
+			setup: func(t *testing.T) {
+				newScenario(t, modelsServer(t, []string{"anthropic"}).URL)
+				unsetEnv(t, "ANTHROPIC_API_KEY")
+			},
+			filter:   "anthropic",
+			wantSet:  "unset",
+			wantJSON: false,
+		},
+		{
+			name: "all set",
+			setup: func(t *testing.T) {
+				newScenario(t, modelsServer(t, []string{"anthropic"}).URL)
+				t.Setenv("ANTHROPIC_API_KEY", "test")
+			},
+			filter:   "anthropic",
+			wantSet:  "set",
+			wantJSON: true,
+		},
+		{
+			name: "partial multi-var is set",
+			setup: func(t *testing.T) {
+				newScenario(t, multiEnvProviderServer(t))
+				t.Setenv("ACME_KEY", "test")
+				unsetEnv(t, "ACME_ALT")
+			},
+			filter:   "acme",
+			wantSet:  "set",
+			wantJSON: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.setup(t)
+
+			text := runCLI("providers", "list", tc.filter)
+			if text.code != codeOK {
+				t.Fatalf("providers list exit = %d, stderr=%q", text.code, text.stderr)
+			}
+			if !strings.Contains(text.stdout, "SET") {
+				t.Errorf("default list missing SET column:\n%s", text.stdout)
+			}
+			if got := tableCell(t, text.stdout, tc.filter, "set"); got != tc.wantSet {
+				t.Errorf("SET cell = %q, want %q:\n%s", got, tc.wantSet, text.stdout)
+			}
+
+			js := runCLI("--json", "providers", "list", tc.filter)
+			if js.code != codeOK {
+				t.Fatalf("providers list --json exit = %d, stderr=%q", js.code, js.stderr)
+			}
+			row := js.envelope(t).Data.([]any)[0].(map[string]any)
+			if row["set"] != tc.wantJSON {
+				t.Errorf("JSON set = %v (%T), want %v", row["set"], row["set"], tc.wantJSON)
+			}
+		})
+	}
+}
+
+func TestProvidersListDefaultSetColumnContrastsInOneTable(t *testing.T) {
+	newScenario(t, modelsServer(t, []string{"anthropic", "openai"}).URL)
+	unsetEnv(t, "ANTHROPIC_API_KEY")
+	t.Setenv("OPENAI_API_KEY", "test")
+
+	text := runCLI("providers", "list")
+	if text.code != codeOK {
+		t.Fatalf("providers list exit = %d, stderr=%q", text.code, text.stderr)
+	}
+	if got, want := tableCell(t, text.stdout, "anthropic", "set"), "unset"; got != want {
+		t.Errorf("anthropic SET = %q, want %q:\n%s", got, want, text.stdout)
+	}
+	if got, want := tableCell(t, text.stdout, "openai", "set"), "set"; got != want {
+		t.Errorf("openai SET = %q, want %q:\n%s", got, want, text.stdout)
+	}
+}
+
+func TestProvidersListOrderBySet(t *testing.T) {
+	newScenario(t, modelsServer(t, []string{"anthropic", "openai"}).URL)
+	unsetEnv(t, "ANTHROPIC_API_KEY")
+	t.Setenv("OPENAI_API_KEY", "test")
+
+	got := runCLI("--json", "providers", "list", "--order-by", "set")
+	if got.code != codeOK {
+		t.Fatalf("providers list --order-by set exit = %d, stderr=%q", got.code, got.stderr)
+	}
+	rows := got.envelope(t).Data.([]any)
+	order := make([]string, len(rows))
+	for i, row := range rows {
+		order[i], _ = row.(map[string]any)["id"].(string)
+	}
+	assertOrder(t, order, []string{"anthropic", "openai"})
+
+	text := runCLI("providers", "list", "--order-by", "set")
+	if text.code != codeOK {
+		t.Fatalf("providers list --order-by set text exit = %d, stderr=%q", text.code, text.stderr)
+	}
+	if got := strings.Index(text.stdout, "SET"); got < 0 || strings.Index(text.stdout, "ID") < got {
+		t.Errorf("--order-by set should lead with the SET column:\n%s", text.stdout)
+	}
+}
+
+func TestProvidersListHelpDescribesSetColumn(t *testing.T) {
+	got := runCLI("providers", "list", "--help")
+	if got.code != codeOK {
+		t.Fatalf("providers list --help exit = %d, stderr=%q", got.code, got.stderr)
+	}
+	if !strings.Contains(got.stdout, "The set column shows set") {
+		t.Errorf("Long should name the set column and its set/unset cells:\n%s", got.stdout)
+	}
+	if !strings.Contains(got.stdout, "--fields present") {
+		t.Errorf("Long should point at --fields present for per-variable status:\n%s", got.stdout)
+	}
+	if strings.Contains(got.stdout, "API-key environment variables and whether they are set") {
+		t.Errorf("Long still oversells ENV as full per-variable status:\n%s", got.stdout)
+	}
+}
+
+func multiEnvProviderServer(t *testing.T) string {
+	t.Helper()
+	cat := modelsdev.Catalog{
+		Models: map[string]modelsdev.Model{
+			"acme/m1": {ID: "acme/m1", Name: "M1", Limit: modelsdev.Limit{Context: 1}},
+		},
+		Providers: map[string]modelsdev.Provider{
+			"acme": {
+				ID:   "acme",
+				Name: "Acme",
+				Env:  []string{"ACME_KEY", "ACME_ALT"},
+				Models: map[string]modelsdev.Model{
+					"m1": {ID: "m1", Name: "M1", Limit: modelsdev.Limit{Context: 1}},
+				},
+			},
+		},
+	}
+	data, err := json.Marshal(cat)
+	if err != nil {
+		t.Fatalf("marshal multi-env catalog: %v", err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(data)
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
+func tableCell(t *testing.T, stdout, rowID, col string) string {
+	t.Helper()
+	want := strings.ToUpper(col)
+	var header string
+	var rows []string
+	for line := range strings.SplitSeq(stdout, "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if header == "" {
+			header = line
+			continue
+		}
+		rows = append(rows, line)
+	}
+	if header == "" {
+		t.Fatalf("no table header in:\n%s", stdout)
+	}
+	cols := strings.Fields(header)
+	idx := -1
+	for i, c := range cols {
+		if c == want {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 {
+		t.Fatalf("column %q not in header %q", want, header)
+	}
+	start := strings.Index(header, want)
+	end := len(header)
+	if idx+1 < len(cols) {
+		end = strings.Index(header, cols[idx+1])
+	}
+	for _, row := range rows {
+		if !strings.HasPrefix(strings.TrimSpace(row), rowID) {
+			continue
+		}
+		if start >= len(row) {
+			t.Fatalf("row too short for column %s:\n%s", want, row)
+		}
+		cellEnd := end
+		if cellEnd > len(row) {
+			cellEnd = len(row)
+		}
+		return strings.TrimSpace(row[start:cellEnd])
+	}
+	t.Fatalf("no row starting with %q in:\n%s", rowID, stdout)
+	return ""
 }
 
 func TestProvidersUnknownFieldRejectedOnEmptyResult(t *testing.T) {
