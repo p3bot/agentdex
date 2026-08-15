@@ -17,10 +17,6 @@ var agentFieldSet = newFieldSet(
 	[]string{"id", "name", "providers", "models", "bin"},
 ).ordered("id")
 
-// agentVerboseFields widens the default list columns with config_dir. bin stays last
-// as the widest column whose "missing" cell is the detection signal.
-var agentVerboseFields = []string{"id", "name", "config_dir", "providers", "models", "bin"}
-
 type skillsPathPayload struct {
 	Path   string `json:"path"`
 	Exists bool   `json:"exists"`

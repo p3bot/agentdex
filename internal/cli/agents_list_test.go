@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -139,35 +140,25 @@ func TestListEmptyProvidersIsDashNotBlank(t *testing.T) {
 	}
 }
 
-func TestListVerboseAddsColumns(t *testing.T) {
-	// --verbose widens text columns only; --json always carries the full record.
+func TestListDefaultColumns(t *testing.T) {
+	// Default text columns omit config_dir; --fields is the way to add it.
 	newScenario(t, "", "alpha-cli")
 
 	plain := runCLI("agents", "list")
 	if plain.code != codeOK {
 		t.Fatalf("list exit = %d, stderr=%q", plain.code, plain.stderr)
 	}
-	if !strings.Contains(plain.stdout, "BIN") {
-		t.Errorf("plain list should show the bin column:\n%s", plain.stdout)
-	}
-	if strings.Contains(plain.stdout, "CONFIG_DIR") {
-		t.Errorf("plain list should not show the config_dir column:\n%s", plain.stdout)
+	want := []string{"ID", "NAME", "PROVIDERS", "MODELS", "BIN"}
+	if got := tableHeader(t, plain.stdout); !slices.Equal(got, want) {
+		t.Errorf("default headers = %v, want %v:\n%s", got, want, plain.stdout)
 	}
 
-	verbose := runCLI("agents", "list", "--verbose")
-	if verbose.code != codeOK {
-		t.Fatalf("list --verbose exit = %d, stderr=%q", verbose.code, verbose.stderr)
+	wider := runCLI("agents", "list", "--fields", "id,name,config_dir,bin")
+	if wider.code != codeOK {
+		t.Fatalf("list --fields exit = %d, stderr=%q", wider.code, wider.stderr)
 	}
-	for _, col := range []string{"BIN", "CONFIG_DIR"} {
-		if !strings.Contains(verbose.stdout, col) {
-			t.Errorf("list --verbose missing %q column:\n%s", col, verbose.stdout)
-		}
-	}
-
-	jsonPlain := runCLI("--json", "agents", "list")
-	jsonVerbose := runCLI("--json", "agents", "list", "--verbose")
-	if jsonPlain.stdout != jsonVerbose.stdout {
-		t.Errorf("--verbose changed list --json output:\nplain:\n%s\nverbose:\n%s", jsonPlain.stdout, jsonVerbose.stdout)
+	if !strings.Contains(wider.stdout, "CONFIG_DIR") {
+		t.Errorf("list --fields should show the config_dir column:\n%s", wider.stdout)
 	}
 }
 

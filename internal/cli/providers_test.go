@@ -465,10 +465,7 @@ func tableCell(t *testing.T, stdout, rowID, col string) string {
 		if start >= len(row) {
 			t.Fatalf("row too short for column %s:\n%s", want, row)
 		}
-		cellEnd := end
-		if cellEnd > len(row) {
-			cellEnd = len(row)
-		}
+		cellEnd := min(end, len(row))
 		return strings.TrimSpace(row[start:cellEnd])
 	}
 	t.Fatalf("no row starting with %q in:\n%s", rowID, stdout)

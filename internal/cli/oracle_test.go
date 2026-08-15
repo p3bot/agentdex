@@ -258,6 +258,17 @@ func TestOracleGetDataFaultReportsAgentAndError(t *testing.T) {
 	})
 }
 
+func tableHeader(t *testing.T, stdout string) []string {
+	t.Helper()
+	for line := range strings.SplitSeq(stdout, "\n") {
+		if strings.TrimSpace(line) != "" {
+			return strings.Fields(line)
+		}
+	}
+	t.Fatalf("no table header in:\n%s", stdout)
+	return nil
+}
+
 // textRowCells returns whitespace-split cells for the table row whose first
 // cell equals id. Fields splits on any space, so this is only for space-free
 // columns (ids, counts, dashes). A blank middle cell collapses, so callers

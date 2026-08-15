@@ -29,8 +29,6 @@ const groupCore = "core"
 
 type app struct {
 	jsonOut      bool
-	verbose      bool
-	quiet        bool
 	color        string
 	debug        bool
 	printVersion bool
@@ -71,8 +69,6 @@ func NewRootCommand() *cobra.Command {
 
 	f := root.PersistentFlags()
 	f.BoolVar(&a.jsonOut, "json", false, "Emit a JSON envelope on stdout")
-	f.BoolVar(&a.verbose, "verbose", false, "Add detail to output")
-	f.BoolVar(&a.quiet, "quiet", false, "Suppress non-essential output")
 	f.StringVar(&a.color, "color", "auto", "Colour output: auto, always, never")
 	f.BoolVar(&a.debug, "debug", false, "Diagnostic logging to stderr")
 	root.Flags().BoolVar(&a.printVersion, "version", false, "Print the agentdex version, commit, and build date")
@@ -327,15 +323,13 @@ func (a *app) mapFlags() (config.Flags, error) {
 	return config.Flags{SearchDirs: a.searchDirs, BinPaths: bin}, nil
 }
 
-// JSON envelope under --json; else warnings to stderr then text. --quiet suppresses warnings in text mode.
+// JSON envelope under --json; else warnings to stderr then text.
 func (a *app) ok(cmd *cobra.Command, data any, warnings []string, text func(io.Writer)) error {
 	if a.jsonOut {
 		writeJSON(cmd.OutOrStdout(), envelope{Status: "ok", Data: data, Warnings: warnings})
 		return nil
 	}
-	if !a.quiet {
-		emitWarnings(cmd.ErrOrStderr(), warnings)
-	}
+	emitWarnings(cmd.ErrOrStderr(), warnings)
 	if text != nil {
 		text(cmd.OutOrStdout())
 	}
@@ -348,9 +342,7 @@ func (a *app) fail(cmd *cobra.Command, code int, err error, warnings ...string) 
 	if a.jsonOut {
 		writeJSON(cmd.OutOrStdout(), envelope{Status: "error", Error: err.Error(), Warnings: warnings})
 	} else {
-		if !a.quiet {
-			emitWarnings(cmd.ErrOrStderr(), warnings)
-		}
+		emitWarnings(cmd.ErrOrStderr(), warnings)
 		fmt.Fprintln(cmd.ErrOrStderr(), "error: "+err.Error())
 	}
 	return &exitError{code: code}
@@ -361,9 +353,7 @@ func (a *app) failData(cmd *cobra.Command, code int, err error, data any, text f
 		writeJSON(cmd.OutOrStdout(), envelope{Status: "error", Data: data, Error: err.Error(), Warnings: warnings})
 		return &exitError{code: code}
 	}
-	if !a.quiet {
-		emitWarnings(cmd.ErrOrStderr(), warnings)
-	}
+	emitWarnings(cmd.ErrOrStderr(), warnings)
 	if text != nil {
 		text(cmd.OutOrStdout())
 	}

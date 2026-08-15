@@ -97,15 +97,11 @@ func (a *app) newAgentsListCmd() *cobra.Command {
 				sort.SliceStable(recs, func(i, j int) bool { return recordFound(recs[i]) && !recordFound(recs[j]) })
 			}
 
-			// Text-table only: --verbose widens columns and sort key moves leftmost.
-			// JSON always carries the full record; explicit --fields wins over both.
+			// Text-table only: sort key moves leftmost. JSON always carries the
+			// full record; explicit --fields wins over the default column set.
 			tableCols := fields
 			if len(tableCols) == 0 {
-				base := agentFieldSet.defaults
-				if a.verbose {
-					base = agentVerboseFields
-				}
-				tableCols = orderColumns(base, sortKey)
+				tableCols = orderColumns(agentFieldSet.defaults, sortKey)
 			}
 
 			data, headers, rows, err := tabulate(recs, fields, tableCols, agentFieldSet)
@@ -251,7 +247,7 @@ func (a *app) reportAgent(cmd *cobra.Command, agent *agentdex.Agent, fields, war
 			renderAgentSelectedFields(w, agent, fs)
 			return
 		}
-		renderAgentDetail(w, agent, a.verbose)
+		renderAgentDetail(w, agent)
 	})
 }
 
@@ -267,7 +263,7 @@ func (a *app) reportAgentError(cmd *cobra.Command, agent *agentdex.Agent, fields
 			renderAgentSelectedFields(w, agent, fs)
 			return
 		}
-		renderAgentDetail(w, agent, a.verbose)
+		renderAgentDetail(w, agent)
 	}, warnings)
 }
 
@@ -290,7 +286,7 @@ func (a *app) reportSoftPathAgent(cmd *cobra.Command, agent *agentdex.Agent, war
 	r := agentRecordWithoutProviders(agent)
 	fs, _ := r.resolve(nil)
 	return a.ok(cmd, jsonObject(fs), warnings, func(w io.Writer) {
-		renderAgentDetailFields(w, r, agent, a.verbose)
+		renderAgentDetailFields(w, r, agent)
 		renderSkillsSection(w, agent.Detection.Skills)
 	})
 }
@@ -304,16 +300,12 @@ var pathFields = map[string]bool{
 }
 
 // renderAgentDetailFields writes the Agent heading and inline scalars from the
-// record in declared order. found is verbose-only (implied on a found agent);
-// under verbose, path fields gain on-disk existence notes.
-func renderAgentDetailFields(w io.Writer, r *record, agent *agentdex.Agent, verbose bool) {
+// record in declared order. found is omitted — bin already states presence.
+func renderAgentDetailFields(w io.Writer, r *record, agent *agentdex.Agent) {
 	fs, _ := r.resolve(nil)
 	detail := make([]field, 0, len(fs))
 	for _, f := range fs {
-		if detailSections[f.key] {
-			continue
-		}
-		if f.key == "found" && !verbose {
+		if detailSections[f.key] || f.key == "found" {
 			continue
 		}
 		if pathFields[f.key] && f.text != "-" && f.text != "missing" {
@@ -330,11 +322,6 @@ func renderAgentDetailFields(w io.Writer, r *record, agent *agentdex.Agent, verb
 				f.text = tui.Warn.Sprint(f.text)
 			}
 		}
-		if verbose {
-			if note := existenceNote(f.key, agent); note != "" {
-				f.text += " " + styledState(note, note == "exists")
-			}
-		}
 		detail = append(detail, f)
 	}
 	// Leading blank line sets the first heading off from the shell prompt.
@@ -343,8 +330,8 @@ func renderAgentDetailFields(w io.Writer, r *record, agent *agentdex.Agent, verb
 	renderDetail(w, detail)
 }
 
-func renderAgentDetail(w io.Writer, agent *agentdex.Agent, verbose bool) {
-	renderAgentDetailFields(w, agentReportRecord(agent, nil), agent, verbose)
+func renderAgentDetail(w io.Writer, agent *agentdex.Agent) {
+	renderAgentDetailFields(w, agentReportRecord(agent, nil), agent)
 	renderSkillsSection(w, agent.Detection.Skills)
 
 	if agent.ProviderEnv != nil {
@@ -425,30 +412,4 @@ func renderSkillsScopeBlock(w io.Writer, scope string, s *skillsScopePayload) {
 	for _, l := range lines {
 		fmt.Fprintf(w, "    %s  %s\n", padRight(l.role, width), l.text)
 	}
-}
-
-// "" when the field has no path so an absent-concept "-" is not marked missing.
-func existenceNote(key string, agent *agentdex.Agent) string {
-	d := agent.Detection
-	var path string
-	var exists bool
-	switch key {
-	case "config_dir":
-		path, exists = d.Config.Global, d.Config.GlobalExists
-	case "config_local_dir":
-		path, exists = d.Config.Local, d.Config.LocalExists
-	case "skills_dir":
-		path, exists = d.Skills.Global.Primary.Path, d.Skills.Global.Primary.Exists
-	case "skills_local_dir":
-		path, exists = d.Skills.Local.Primary.Path, d.Skills.Local.Primary.Exists
-	default:
-		return ""
-	}
-	if path == "" {
-		return ""
-	}
-	if exists {
-		return "exists"
-	}
-	return "missing"
 }

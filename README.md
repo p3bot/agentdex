@@ -113,7 +113,6 @@ Global:
 |---|---|
 | `--json` | JSON envelope on stdout (see below) |
 | `--color auto\|always\|never` | Table colour (default `auto`) |
-| `--verbose` / `--quiet` | More or less text detail |
 | `--debug` | Diagnostic logging on stderr |
 
 On the root command:

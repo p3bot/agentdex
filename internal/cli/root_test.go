@@ -87,6 +87,8 @@ func TestJSONEnvelopeCoversCobraUsageErrors(t *testing.T) {
 		{"unknown command", []string{"--json", "foobar"}, `unknown command "foobar": use agents, models, providers, refresh, or version; run "agentdex --help"`},
 		{"unknown command flag last", []string{"foobar", "--json"}, `unknown command "foobar": use agents, models, providers, refresh, or version; run "agentdex --help"`},
 		{"unknown flag", []string{"--json", "--not-a-flag"}, "unknown flag: --not-a-flag"},
+		{"removed verbose", []string{"--json", "--verbose"}, "unknown flag: --verbose"},
+		{"removed quiet", []string{"--json", "--quiet"}, "unknown flag: --quiet"},
 		{"unknown shorthand then json", []string{"-v", "--json"}, "unknown shorthand flag: 'v' in -v"},
 	}
 	for _, tc := range tests {
@@ -147,6 +149,30 @@ func TestCobraUsageErrorsStayTextWithoutJSON(t *testing.T) {
 				t.Errorf("stdout should stay empty in text mode: %q", got.stdout)
 			}
 		})
+	}
+}
+
+func TestRootHelpOmitsVolumeFlags(t *testing.T) {
+	got := runCLI("--help")
+	if got.code != codeOK {
+		t.Fatalf("--help exit = %d, stderr=%q", got.code, got.stderr)
+	}
+	for _, flag := range []string{"--verbose", "--quiet"} {
+		if strings.Contains(got.stdout, flag) {
+			t.Errorf("--help should not list %s:\n%s", flag, got.stdout)
+		}
+	}
+}
+
+func TestRemovedVolumeFlagsAreUnknown(t *testing.T) {
+	for _, flag := range []string{"--verbose", "--quiet"} {
+		got := runCLI("agents", "list", flag)
+		if got.code != codeUsage {
+			t.Errorf("agents list %s exit = %d, want 2; stderr=%q", flag, got.code, got.stderr)
+		}
+		if !strings.Contains(got.stderr, "unknown flag: "+flag) {
+			t.Errorf("agents list %s stderr = %q, want unknown flag", flag, got.stderr)
+		}
 	}
 }
 

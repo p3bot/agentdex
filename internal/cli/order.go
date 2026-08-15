@@ -154,7 +154,7 @@ func insertAfter(cols []string, anchor, add string) []string {
 	return out
 }
 
-// Sort column leftmost so ordering is legible. Default/verbose only; never --fields.
+// Sort column leftmost so ordering is legible. Default columns only; never --fields.
 func orderColumns(cols []string, sortKey string) []string {
 	out := make([]string, 0, len(cols)+1)
 	out = append(out, sortKey)

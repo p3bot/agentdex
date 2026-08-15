@@ -512,44 +512,9 @@ func TestGetDoesNotExecuteBinary(t *testing.T) {
 	}
 }
 
-func TestGetVerboseAddsDetail(t *testing.T) {
-	// --verbose surfaces found and path existence; plain get shows neither. --json unaffected.
-	srv := modelsServer(t, []string{"anthropic"})
-	newScenario(t, srv.URL, "alpha-cli")
-
-	plain := runCLI("agents", "get", "alpha-cli")
-	if plain.code != codeOK {
-		t.Fatalf("get exit = %d, stderr=%q", plain.code, plain.stderr)
-	}
-	// found field key at line start; bin line's "(found)" is a different always-on surface.
-	if strings.Contains(plain.stdout, "\nfound") {
-		t.Errorf("plain get should not show the found field:\n%s", plain.stdout)
-	}
-	if !strings.Contains(plain.stdout, "(found)") {
-		t.Errorf("plain get should annotate the bin line with (found):\n%s", plain.stdout)
-	}
-
-	verbose := runCLI("agents", "get", "alpha-cli", "--verbose")
-	if verbose.code != codeOK {
-		t.Fatalf("get --verbose exit = %d, stderr=%q", verbose.code, verbose.stderr)
-	}
-	if !strings.Contains(verbose.stdout, "\nfound") {
-		t.Errorf("get --verbose should show the found field:\n%s", verbose.stdout)
-	}
-	if !strings.Contains(verbose.stdout, "exists") && !strings.Contains(verbose.stdout, "missing") {
-		t.Errorf("get --verbose should annotate paths with existence:\n%s", verbose.stdout)
-	}
-
-	jsonPlain := runCLI("--json", "agents", "get", "alpha-cli")
-	jsonVerbose := runCLI("--json", "agents", "get", "alpha-cli", "--verbose")
-	if jsonPlain.stdout != jsonVerbose.stdout {
-		t.Errorf("--verbose changed --json output:\nplain:\n%s\nverbose:\n%s", jsonPlain.stdout, jsonVerbose.stdout)
-	}
-}
-
 func TestGetTextDetailDrivenByRecord(t *testing.T) {
 	// Text detail must show every inline scalar the record carries so it cannot
-	// drift from JSON/--fields. found, skills, provider_env, models are sections.
+	// drift from JSON/--fields. found is omitted; skills, provider_env, and models are sections.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL, "alpha-cli")
 
@@ -567,6 +532,14 @@ func TestGetTextDetailDrivenByRecord(t *testing.T) {
 	}
 	if strings.Contains(got.stdout, "\nfound") {
 		t.Errorf("text detail should not render the found field inline:\n%s", got.stdout)
+	}
+	if !strings.Contains(got.stdout, "(found)") {
+		t.Errorf("text detail should annotate the bin line with (found):\n%s", got.stdout)
+	}
+	for line := range strings.SplitSeq(got.stdout, "\n") {
+		if strings.Contains(line, "config_dir") && (strings.Contains(line, "exists") || strings.Contains(line, "missing")) {
+			t.Errorf("config_dir should not carry an existence note:\n%s", line)
+		}
 	}
 	if !hasTextSection(got.stdout, "Skills") {
 		t.Errorf("text detail missing Skills section:\n%s", got.stdout)
