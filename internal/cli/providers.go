@@ -33,11 +33,9 @@ func (a *app) newProvidersListCmd() *cobra.Command {
 			"with each provider's id, display name, set column, API-key environment variable " +
 			"names, and model count. The set column shows set when any listed name is present " +
 			"and unset when none are; per-variable (set)/(unset) detail is on --fields present " +
-			"or providers get. Rows are ordered by id by default; --order-by sorts by any field " +
-			"(for example set to group by key presence, or models for model count) and " +
-			"--reverse flips the direction. The optional filter narrows the list to providers " +
-			"whose id or name contains it (case-insensitive); it is a browse narrowing, not a " +
-			"selector, so a filter matching nothing prints an empty listing and exits 0.",
+			"or providers get. An optional filter narrows the list to providers whose id or " +
+			"name contains it (case-insensitive); a filter matching nothing prints an empty " +
+			"listing and exits 0.",
 		Args: atMostOne("filter"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			idx, err := a.index(cmd)
@@ -52,7 +50,7 @@ func (a *app) newProvidersListCmd() *cobra.Command {
 		},
 	}
 	registerFieldsFlag(cmd, &fields)
-	registerOrderFlags(cmd, &orderBy, &reverse)
+	registerOrderFlags(cmd, &orderBy, &reverse, "Sort rows by this field (default: id)")
 	addFieldsHelpSection(cmd, providerFieldSet)
 	return cmd
 }

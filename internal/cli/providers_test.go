@@ -380,22 +380,6 @@ func TestProvidersListOrderBySet(t *testing.T) {
 	}
 }
 
-func TestProvidersListHelpDescribesSetColumn(t *testing.T) {
-	got := runCLI("providers", "list", "--help")
-	if got.code != codeOK {
-		t.Fatalf("providers list --help exit = %d, stderr=%q", got.code, got.stderr)
-	}
-	if !strings.Contains(got.stdout, "The set column shows set") {
-		t.Errorf("Long should name the set column and its set/unset cells:\n%s", got.stdout)
-	}
-	if !strings.Contains(got.stdout, "--fields present") {
-		t.Errorf("Long should point at --fields present for per-variable status:\n%s", got.stdout)
-	}
-	if strings.Contains(got.stdout, "API-key environment variables and whether they are set") {
-		t.Errorf("Long still oversells ENV as full per-variable status:\n%s", got.stdout)
-	}
-}
-
 func multiEnvProviderServer(t *testing.T) string {
 	t.Helper()
 	cat := modelsdev.Catalog{

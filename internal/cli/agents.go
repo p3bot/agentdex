@@ -39,18 +39,12 @@ func (a *app) newAgentsListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list [filter]",
 		Short: "List AI coding agents",
-		Long: "List the AI coding agents in the catalog with their local detection status: a " +
-			"detected agent shows its resolved binary in the BIN column, while an agent whose " +
-			"binary was not found on PATH shows \"missing\". --installed narrows the listing to the " +
-			"agents detected on this machine. Each agent's models are enriched from models.dev " +
-			"(served from the local cache when warm and degrading when models.dev cannot be " +
-			"reached): the text models column shows the count, while --json carries the full model " +
-			"array per agent so the list envelope shape stays stable without --fields (null when " +
-			"models are not applicable). Provider-agnostic agents show \"-\" unless --provider is " +
-			"given. Detected agents lead and the rows are ordered by id by default; --order-by " +
-			"sorts by any field and --reverse flips the direction. An optional filter narrows the " +
-			"list to agents whose id or name contains it (case-insensitive); a filter matching " +
-			"nothing prints an empty listing and exits 0.",
+		Long: "List catalogued AI coding agents and their local detection status. The BIN " +
+			"column shows the resolved binary or \"missing\". The models column is a count from " +
+			"models.dev (the full model array in --json, null when not applicable) and is served " +
+			"from cache when warm, degrading when models.dev cannot be reached. An optional " +
+			"filter narrows the list to agents whose id or name contains it (case-insensitive); " +
+			"a filter matching nothing prints an empty listing and exits 0.",
 		Args: atMostOne("filter"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			idx, err := a.index(cmd)
@@ -120,9 +114,9 @@ func (a *app) newAgentsListCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&installed, "installed", false, "Limit to agents detected on this machine")
-	cmd.Flags().StringSliceVar(&providers, "provider", nil, "models.dev provider ids for agnostic agents' model counts (repeatable or csv)")
+	cmd.Flags().StringSliceVar(&providers, "provider", nil, "models.dev provider ids for agnostic agents (repeatable or csv); without this, those agents show \"-\" for providers and models")
 	registerFieldsFlag(cmd, &fields)
-	registerOrderFlags(cmd, &orderBy, &reverse)
+	registerOrderFlags(cmd, &orderBy, &reverse, "Sort rows by this field (default: detected agents first, then id; an explicit value drops that grouping)")
 	addFieldsHelpSection(cmd, agentFieldSet)
 	return cmd
 }

@@ -28,8 +28,8 @@ func (r *record) value(key string) any {
 }
 
 // Unknown keys fail at apply time so help cannot drift from acceptance.
-func registerOrderFlags(cmd *cobra.Command, orderBy *string, reverse *bool) {
-	cmd.Flags().StringVar(orderBy, "order-by", "", "Sort rows by this field")
+func registerOrderFlags(cmd *cobra.Command, orderBy *string, reverse *bool, orderByUsage string) {
+	cmd.Flags().StringVar(orderBy, "order-by", "", orderByUsage)
 	cmd.Flags().BoolVar(reverse, "reverse", false, "Reverse the sort direction")
 }
 

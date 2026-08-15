@@ -31,13 +31,8 @@ func (a *app) newModelsListCmd() *cobra.Command {
 		Use:   "list [filter]",
 		Short: "List models across providers",
 		Long: "List models across models.dev providers, with pricing, limits, and capabilities. " +
-			"Rows are newest release first by default; --order-by sorts by any field (for example " +
-			"total for combined price) and --reverse flips the direction. With no scope it lists " +
-			"every provider's models; --provider scopes to the given models.dev provider ids and " +
-			"--agent scopes to a catalogued agent's providers. The optional filter narrows the " +
-			"listing to models whose id or name contains it (case-insensitive) and composes with " +
-			"any scope. A provider-agnostic --agent requires --provider; a home-provider --agent " +
-			"rejects it.",
+			"An optional filter narrows the listing to models whose id or name contains it " +
+			"(case-insensitive); a filter matching nothing prints an empty listing and exits 0.",
 		Args: atMostOne("filter"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			idx, err := a.index(cmd)
@@ -52,9 +47,9 @@ func (a *app) newModelsListCmd() *cobra.Command {
 		},
 	}
 	registerFieldsFlag(cmd, &fields)
-	registerOrderFlags(cmd, &orderBy, &reverse)
-	cmd.Flags().StringSliceVar(&providers, "provider", nil, "Scope to these models.dev provider ids (repeatable or csv)")
-	cmd.Flags().StringVar(&agent, "agent", "", "Scope to the providers of this catalogued agent id")
+	registerOrderFlags(cmd, &orderBy, &reverse, "Sort rows by this field (default: released, newest first)")
+	cmd.Flags().StringSliceVar(&providers, "provider", nil, "Scope to these models.dev provider ids (repeatable or csv); required with a provider-agnostic --agent, rejected with a home-provider --agent")
+	cmd.Flags().StringVar(&agent, "agent", "", "Scope to the providers of this catalogued agent id; a provider-agnostic agent requires --provider, a home-provider agent rejects it")
 	addFieldsHelpSection(cmd, modelFieldSet)
 	return cmd
 }

@@ -41,7 +41,7 @@ require github.com/p3bot/agentdex v1.0.0
 Noun groups (`agents`, `models`, `providers`, each aliased to its singular) with shared verbs `list` and `get`.
 
 ```
-agentdex agents list [filter]     catalogued agents with local detection
+agentdex agents list [filter]     catalogued agents with local detection (detected first)
 agentdex agents get <id>          detail for one agent (aliases: view, show)
 agentdex models list [filter]     models across providers (newest release first)
 agentdex models get <id>          one model by provider-id/model-id
@@ -103,7 +103,7 @@ agentdex models list --agent claude-code
 agentdex models get anthropic/claude-sonnet-4-5
 ```
 
-A provider-agnostic `--agent` on `models list` also requires `--provider`.
+A provider-agnostic `--agent` on `models list` requires `--provider`; a home-provider `--agent` rejects it.
 
 ### Flags
 
@@ -131,8 +131,14 @@ On every `list`:
 
 | Flag | Effect |
 |---|---|
-| `--order-by` | Sort by field (`models list` default: newest release; others: `id`) |
+| `--order-by` | Sort by field |
 | `--reverse` | Flip sort direction |
+
+`--order-by` defaults:
+
+- `agents list`: detected first, then id; an explicit value drops that grouping
+- `providers list`: id
+- `models list`: released, newest first
 
 On `agents`:
 
