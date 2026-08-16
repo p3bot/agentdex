@@ -39,6 +39,15 @@ func TestGetAgnosticModelsWithoutProviderIsUsage(t *testing.T) {
 	}
 }
 
+func TestGetAgnosticSpacedFieldsModelsIsUsage(t *testing.T) {
+	newScenario(t, "", "delta-agent")
+
+	got := runCLI("agents", "get", "delta-agent", "--fields", " models")
+	if got.code != codeUsage {
+		t.Fatalf("get --fields \" models\" exit = %d, want %d; stderr=%q", got.code, codeUsage, got.stderr)
+	}
+}
+
 func TestGetAgnosticEnrichesWithProvider(t *testing.T) {
 	newScenario(t, "", "delta-agent")
 

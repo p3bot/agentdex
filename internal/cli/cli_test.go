@@ -150,6 +150,32 @@ func TestListFieldsSelection(t *testing.T) {
 	}
 }
 
+func TestListFieldsCSVAllowsSpaces(t *testing.T) {
+	// Same habit as --provider "a, b": pflag keeps the space, we trim it.
+	newScenario(t, "", "alpha-cli")
+
+	got := runCLI("--json", "agents", "list", "--fields", "id, found")
+	if got.code != codeOK {
+		t.Fatalf("list --fields \"id, found\" exit = %d, stderr=%q", got.code, got.stderr)
+	}
+	row := got.envelope(t).Data.([]any)[0].(map[string]any)
+	if len(row) != 2 {
+		t.Errorf("expected exactly id,found: %v", row)
+	}
+	if _, ok := row["found"]; !ok {
+		t.Errorf("missing found after trim: %v", row)
+	}
+
+	empty := runCLI("--json", "agents", "list", "--fields", ",")
+	if empty.code != codeOK {
+		t.Fatalf("list --fields \",\" exit = %d, stderr=%q", empty.code, empty.stderr)
+	}
+	full := empty.envelope(t).Data.([]any)[0].(map[string]any)
+	if _, ok := full["name"]; !ok {
+		t.Errorf("empty CSV tokens should be unfiltered, got %v", full)
+	}
+}
+
 func TestUnknownFieldIsUsageError(t *testing.T) {
 	newScenario(t, "", "alpha-cli")
 

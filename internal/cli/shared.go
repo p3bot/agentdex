@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"strings"
@@ -87,16 +88,27 @@ func emptyListMessage(filter, noun, fallback string) string {
 	return fallback
 }
 
+// csvTokens trims pflag StringSlice pieces and drops empties so "a, b" and "a,,b"
+// are the same list. pflag splits on commas and keeps surrounding spaces.
+func csvTokens(raw []string) []string {
+	out := make([]string, 0, len(raw))
+	for _, s := range raw {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
 // flattenProviders drops empties and duplicates so a repeated id cannot double-list
 // models or break unique query resolution.
 func flattenProviders(raw []string) []string {
+	raw = csvTokens(raw)
 	out := make([]string, 0, len(raw))
 	seen := make(map[string]struct{}, len(raw))
 	for _, p := range raw {
-		p = strings.TrimSpace(p)
-		if p == "" {
-			continue
-		}
 		if _, dup := seen[p]; dup {
 			continue
 		}
@@ -121,9 +133,68 @@ func addFieldsHelpSection(cmd *cobra.Command, set fieldSet) {
 	addHelpSection(cmd, "Fields", rows)
 }
 
+// fieldsValue is a StringSlice that trims tokens and drops empties on Set, so
+// --fields "id, name" is ["id","name"] before any command reads the slice.
+type fieldsValue struct {
+	value   *[]string
+	changed bool
+}
+
+func newFieldsValue(p *[]string) *fieldsValue {
+	return &fieldsValue{value: p}
+}
+
+func readFieldsCSV(val string) ([]string, error) {
+	if val == "" {
+		return []string{}, nil
+	}
+	return csv.NewReader(strings.NewReader(val)).Read()
+}
+
+func (f *fieldsValue) Set(val string) error {
+	parts, err := readFieldsCSV(val)
+	if err != nil {
+		return err
+	}
+	parts = csvTokens(parts)
+	if !f.changed {
+		*f.value = parts
+	} else {
+		*f.value = append(*f.value, parts...)
+	}
+	f.changed = true
+	return nil
+}
+
+func (f *fieldsValue) Type() string { return "stringSlice" }
+
+func (f *fieldsValue) String() string {
+	if f.value == nil || len(*f.value) == 0 {
+		return ""
+	}
+	return "[" + strings.Join(*f.value, ",") + "]"
+}
+
+func (f *fieldsValue) Append(val string) error {
+	*f.value = append(*f.value, csvTokens([]string{val})...)
+	return nil
+}
+
+func (f *fieldsValue) Replace(val []string) error {
+	*f.value = csvTokens(val)
+	return nil
+}
+
+func (f *fieldsValue) GetSlice() []string {
+	if f.value == nil {
+		return nil
+	}
+	return *f.value
+}
+
 // Singular --field is an invisible alias.
 func registerFieldsFlag(cmd *cobra.Command, fields *[]string) {
-	cmd.Flags().StringSliceVar(fields, "fields", nil, "Select output fields (csv)")
+	cmd.Flags().Var(newFieldsValue(fields), "fields", "Select output fields (csv)")
 	cmd.Flags().SetNormalizeFunc(func(_ *pflag.FlagSet, name string) pflag.NormalizedName {
 		if name == "field" {
 			name = "fields"

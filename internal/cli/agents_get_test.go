@@ -119,6 +119,19 @@ func TestGetFieldsModelsDemandsFill(t *testing.T) {
 	}
 }
 
+func TestGetFieldsCSVAllowsSpaces(t *testing.T) {
+	newScenario(t, "", "alpha-cli")
+
+	got := runCLI("--json", "agents", "get", "alpha-cli", "--fields", "id, name")
+	if got.code != codeOK {
+		t.Fatalf("get --fields \"id, name\" exit = %d, stderr=%q", got.code, got.stderr)
+	}
+	sel := got.envelope(t).Data.(map[string]any)
+	if sel["id"] != "alpha-cli" || sel["name"] == nil || len(sel) != 2 {
+		t.Errorf("spaced CSV should select id,name: %v", sel)
+	}
+}
+
 func TestGetFieldsOmitModelsKey(t *testing.T) {
 	// Presentation only: field selection drops models from the record either way.
 	srv := modelsServer(t, []string{"anthropic"})
