@@ -33,7 +33,7 @@ func staleScenario(t *testing.T, modelsURL string, bins ...string) *scenario {
 
 func TestOracleFailureEnvelopeShapes(t *testing.T) {
 	// Pin failure envelope on config (78), transient (75), and permission (4):
-	// status "error", non-empty error, omitempty for data and warnings.
+	// status "error", non-empty error, omit data, warnings always an array.
 	t.Run("config", func(t *testing.T) {
 		s := newScenario(t, "", "alpha-cli")
 		s.writeConfig(t, `color: "not-a-mode"`)
@@ -72,9 +72,7 @@ func TestOracleFailureEnvelopeShapes(t *testing.T) {
 		if _, ok := m["error"]; ok {
 			t.Errorf("success envelope should omit the error key: %v", m["error"])
 		}
-		if _, ok := m["warnings"]; ok {
-			t.Errorf("success envelope with no warnings should omit the warnings key: %v", m["warnings"])
-		}
+		assertEmptyWarnings(t, m)
 	})
 }
 
@@ -181,15 +179,6 @@ func TestOracleWarningMessagesVerbatim(t *testing.T) {
 		got := runCLI("--json", "agents", "get", "gamma-agent")
 		if !hasExact(warningsOf(t, got), "some providers are absent from models.dev: openai") {
 			t.Errorf("some-present warning = %v", got.envelope(t).Warnings)
-		}
-	})
-
-	t.Run("not installed", func(t *testing.T) {
-		srv := modelsServer(t, []string{"anthropic"})
-		newScenario(t, srv.URL) // alpha-cli not installed
-		got := runCLI("--json", "agents", "get", "alpha-cli", "--fields", "bin")
-		if !hasExact(warningsOf(t, got), `agent "alpha-cli" is catalogued but not installed`) {
-			t.Errorf("not-installed warning = %v", got.envelope(t).Warnings)
 		}
 	})
 
@@ -468,8 +457,8 @@ func TestOracleErrorMessagesVerbatim(t *testing.T) {
 		{
 			name: "provider on home-provider agent",
 			bins: []string{"alpha-cli"},
-			args: []string{"agents", "get", "alpha-cli", "--provider", "anthropic"},
-			want: `agent "alpha-cli" has catalog providers; --provider is only valid for provider-agnostic agents`,
+			args: []string{"agents", "get", "alpha-cli", "--provider", "google"},
+			want: `agent "alpha-cli" does not include provider "google"; --provider must be a subset of the agent's catalog providers`,
 		},
 		{
 			name: "agnostic needs provider on agents get",
@@ -661,7 +650,7 @@ func modelIDsFromJSON(t *testing.T, v any) []string {
 }
 
 func TestOracleAgentModelsNewestFirst(t *testing.T) {
-	// Newest-release-first reaches both agent list and get surfaces.
+	// List carries the count; get --models carries the newest-release-first array.
 	// gamma spans google (2024-01-01) and openai (2025-01-01).
 	srv := modelsServer(t, []string{"google", "openai"})
 	newScenario(t, srv.URL, "gamma-agent")
@@ -680,8 +669,8 @@ func TestOracleAgentModelsNewestFirst(t *testing.T) {
 	if gamma == nil {
 		t.Fatalf("gamma-agent absent from listing: %v", list.envelope(t).Data)
 	}
-	if got := modelIDsFromJSON(t, gamma["models"]); !hasExactOrder(got, want) {
-		t.Errorf("agents list --json model order = %v, want newest-first %v", got, want)
+	if n, ok := gamma["models"].(float64); !ok || n != 2 {
+		t.Errorf("agents list --json models = %v, want count 2", gamma["models"])
 	}
 
 	get := runCLI("--json", "agents", "get", "gamma-agent", "--models")

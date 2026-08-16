@@ -22,7 +22,9 @@ type AgentQuery struct {
 	Enrich    Enrich
 }
 
-// AgentGetQuery selects enrichment level and the agnostic provider set for Agents.Get.
+// AgentGetQuery selects enrichment level and the provider set for Agents.Get.
+// Providers is required for an agnostic agent; for a home-provider agent it must
+// be empty or a subset of the catalog providers.
 type AgentGetQuery struct {
 	Providers []string
 	Enrich    Enrich
@@ -39,8 +41,9 @@ type ModelQuery struct {
 	Filter string
 }
 
-// ModelScope selects the provider set a model listing spans. Providers is also
-// the enrichment set for an agnostic Agent.
+// ModelScope selects the provider set a model listing spans. Providers is the
+// enrichment set for an agnostic Agent, or a subset of catalog providers for a
+// home-provider Agent.
 type ModelScope struct {
 	Agent     string
 	Providers []string

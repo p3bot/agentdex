@@ -12,8 +12,8 @@ import (
 )
 
 // Get returns detection detail for one agent, selected exactly by its catalog id.
-// Coverage verdicts and not-installed or agnostic-without-providers are data plus
-// warnings, never errors; warnings also ride the error return.
+// Coverage verdicts and agnostic-without-providers are data plus warnings, never
+// errors; not-installed is Found and bin only. Warnings also ride the error return.
 func (s AgentService) Get(ctx context.Context, id string, q AgentGetQuery) (AgentDetail, error) {
 	c := s.core
 	cat, info, err := c.resolveCatalog(ctx)
@@ -32,15 +32,16 @@ func (s AgentService) Get(ctx context.Context, id string, q AgentGetQuery) (Agen
 	}
 
 	caller := dedupeIDs(q.Providers)
-	// Rejected at every level: the set contradicts catalog data already in hand.
-	if !ka.Agnostic && len(caller) > 0 {
-		return AgentDetail{Warnings: warnings}, errf(ErrProvidersNotAllowed, "agent %q has catalog providers", id)
+	var homeSet []string
+	if !ka.Agnostic {
+		var rerr error
+		homeSet, rerr = restrictHomeProviders(id, ka.Provider, caller)
+		if rerr != nil {
+			return AgentDetail{Warnings: warnings}, rerr
+		}
 	}
 
 	detail := AgentDetail{Agent: c.detect(ka)}
-	if !detail.Detection.Found {
-		warnings = append(warnings, notInstalledWarning(id))
-	}
 
 	if q.Enrich == EnrichNone {
 		detail.Enrichment = EnrichmentNotRequested
@@ -61,7 +62,7 @@ func (s AgentService) Get(ctx context.Context, id string, q AgentGetQuery) (Agen
 	if ka.Agnostic {
 		providers = caller
 	} else {
-		providers = append([]string(nil), detail.CatalogProviders...)
+		providers = homeSet
 	}
 	detail.ResolvedProviders = providers
 
@@ -505,8 +506,36 @@ func appendModelsStale(ws []Warning, mc *modelsdev.Client, consulted bool) []War
 	return append(ws, modelsStaleWarning())
 }
 
-func notInstalledWarning(id string) Warning {
-	return Warning{Kind: WarnNotInstalled, Msg: fmt.Sprintf("agent %q is catalogued but not installed", id)}
+// Empty caller means the full catalog set. A non-empty caller must be a subset.
+func restrictHomeProviders(id string, catalog, caller []string) ([]string, error) {
+	if len(caller) == 0 {
+		return append([]string(nil), catalog...), nil
+	}
+	allowed := make(map[string]struct{}, len(catalog))
+	for _, p := range catalog {
+		allowed[p] = struct{}{}
+	}
+	var extra []string
+	for _, p := range caller {
+		if _, ok := allowed[p]; !ok {
+			extra = append(extra, p)
+		}
+	}
+	if len(extra) > 0 {
+		return nil, errf(ErrProvidersNotAllowed, "agent %q does not include %s", id, providerPhrase(extra))
+	}
+	return append([]string(nil), caller...), nil
+}
+
+func providerPhrase(ids []string) string {
+	if len(ids) == 1 {
+		return fmt.Sprintf("provider %q", ids[0])
+	}
+	parts := make([]string, len(ids))
+	for i, id := range ids {
+		parts[i] = fmt.Sprintf("%q", id)
+	}
+	return "providers " + strings.Join(parts, ", ")
 }
 
 func providersRequiredWarning(id string) Warning {

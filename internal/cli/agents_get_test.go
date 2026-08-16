@@ -334,8 +334,8 @@ func TestGetTopLevelSchemaIsDataErrorNotOutage(t *testing.T) {
 }
 
 func TestGetNotInstalled(t *testing.T) {
-	// Catalogued but not installed is success (exit 0): renders "missing" bin and
-	// warns, rather than failing.
+	// Catalogued but not installed is success (exit 0): renders "missing" bin,
+	// no warning — Found/bin already carry the fact.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL) // no binaries installed
 
@@ -348,8 +348,8 @@ func TestGetNotInstalled(t *testing.T) {
 			t.Errorf("not-installed detail missing %q:\n%s", want, got.stdout)
 		}
 	}
-	if !strings.Contains(got.stderr, "not installed") {
-		t.Errorf("not-installed warning missing from stderr: %q", got.stderr)
+	if strings.Contains(got.stderr, "not installed") {
+		t.Errorf("not-installed should not be a warning: %q", got.stderr)
 	}
 
 	js := runCLI("--json", "agents", "get", "alpha-cli")
@@ -360,8 +360,8 @@ func TestGetNotInstalled(t *testing.T) {
 	if env.Status != "ok" || env.Error != "" {
 		t.Errorf("envelope status/error = %q/%q, want ok with no error", env.Status, env.Error)
 	}
-	if !anyContains(env.Warnings, "not installed") {
-		t.Errorf("envelope warnings = %v, want one naming not installed", env.Warnings)
+	if anyContains(env.Warnings, "not installed") {
+		t.Errorf("envelope warnings = %v, want none naming not installed", env.Warnings)
 	}
 	data, ok := env.Data.(map[string]any)
 	if !ok || data["found"] != false || data["bin"] != "" {
@@ -371,7 +371,7 @@ func TestGetNotInstalled(t *testing.T) {
 
 func TestGetNotInstalledStillEnriches(t *testing.T) {
 	// Enrichment does not depend on installation. --models on a not-installed agent
-	// fills the same model list; the warning is bare status with no omission suffix.
+	// fills the same model list; Found/bin carry install status.
 	srv := modelsServer(t, []string{"anthropic"})
 	newScenario(t, srv.URL) // no binaries installed
 
@@ -380,8 +380,8 @@ func TestGetNotInstalledStillEnriches(t *testing.T) {
 		t.Fatalf("--models not-installed exit = %d, want 0; stderr=%q", enrich.code, enrich.stderr)
 	}
 	env := enrich.envelope(t)
-	if !hasExact(env.Warnings, `agent "alpha-cli" is catalogued but not installed`) {
-		t.Errorf("--models not-installed warnings = %v, want the bare not-installed status", env.Warnings)
+	if anyContains(env.Warnings, "not installed") {
+		t.Errorf("--models not-installed warnings = %v, want no not-installed warning", env.Warnings)
 	}
 	for _, w := range env.Warnings {
 		if strings.Contains(w, "omitted") {

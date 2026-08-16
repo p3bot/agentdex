@@ -58,7 +58,7 @@ func TestListHelpSurface(t *testing.T) {
 			orderBy: "default: released, newest first",
 			set:     modelFieldSet,
 			flagHas: map[string][]string{
-				"agent":    {"provider-agnostic agent requires --provider", "home-provider agent rejects"},
+				"agent":    {"provider-agnostic agent requires --provider", "home-provider agent accepts --provider only as a subset"},
 				"provider": {"provider-agnostic --agent", "home-provider --agent"},
 			},
 		},

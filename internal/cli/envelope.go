@@ -11,10 +11,10 @@ import (
 
 // envelope is the shared JSON output contract for every command.
 type envelope struct {
-	Status   string   `json:"status"`             // "ok" or "error"
-	Data     any      `json:"data,omitempty"`     // command payload on success
-	Error    string   `json:"error,omitempty"`    // message on failure
-	Warnings []string `json:"warnings,omitempty"` // non-fatal notes
+	Status   string   `json:"status"`          // "ok" or "error"
+	Data     any      `json:"data,omitempty"`  // command payload on success
+	Error    string   `json:"error,omitempty"` // message on failure
+	Warnings []string `json:"warnings"`        // always an array; never omitted or null
 }
 
 // field is one selectable output field: JSON value and text rendering kept together
@@ -104,6 +104,9 @@ func jsonObject(fields []field) map[string]any {
 }
 
 func writeJSON(w io.Writer, env envelope) {
+	if env.Warnings == nil {
+		env.Warnings = []string{}
+	}
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	enc.SetEscapeHTML(false)

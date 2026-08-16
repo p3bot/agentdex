@@ -70,8 +70,7 @@ func TestBareRootPrintsHelp(t *testing.T) {
 	if !strings.Contains(got.stdout, "Usage:") {
 		t.Errorf("bare agentdex should print help:\n%s", got.stdout)
 	}
-	banner := "agentdex " + Version + " (commit " + Commit + ", built " + Date + ")"
-	if strings.Contains(got.stdout, banner) {
+	if strings.Contains(got.stdout, versionBanner()) {
 		t.Errorf("bare agentdex should not print version:\n%s", got.stdout)
 	}
 }
@@ -119,8 +118,7 @@ func TestMalformedConfigDoesNotBreakVersion(t *testing.T) {
 	if cmd.stdout != flag.stdout {
 		t.Errorf("--version stdout differs from version under malformed config:\ncommand:\n%s\nflag:\n%s", cmd.stdout, flag.stdout)
 	}
-	banner := "agentdex " + Version + " (commit " + Commit + ", built " + Date + ")"
-	if !strings.Contains(cmd.stdout, banner) {
+	if !strings.Contains(cmd.stdout, versionBanner()) {
 		t.Errorf("malformed-config version should still print the version banner:\n%s", cmd.stdout)
 	}
 }

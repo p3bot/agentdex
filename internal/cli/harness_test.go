@@ -45,6 +45,19 @@ func rawEnvelope(t *testing.T, stdout string) map[string]any {
 	return m
 }
 
+func assertEmptyWarnings(t *testing.T, m map[string]any) {
+	t.Helper()
+	ws, ok := m["warnings"]
+	if !ok {
+		t.Errorf("envelope should include warnings")
+		return
+	}
+	arr, ok := ws.([]any)
+	if !ok || len(arr) != 0 {
+		t.Errorf("envelope with no warnings should be [], got %v", ws)
+	}
+}
+
 func assertErrorEnvelope(t *testing.T, r result, wantCode int) map[string]any {
 	t.Helper()
 	if r.code != wantCode {
@@ -63,9 +76,7 @@ func assertErrorEnvelope(t *testing.T, r result, wantCode int) map[string]any {
 	if _, ok := m["data"]; ok {
 		t.Errorf("failure envelope should omit data: %v", m["data"])
 	}
-	if _, ok := m["warnings"]; ok {
-		t.Errorf("failure envelope with no warnings should omit the warnings key: %v", m["warnings"])
-	}
+	assertEmptyWarnings(t, m)
 	return m
 }
 

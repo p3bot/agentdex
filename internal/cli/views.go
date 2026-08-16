@@ -173,6 +173,10 @@ func withProviderEnv(r *record, env map[string]bool) {
 	r.add("provider_env", env, formatProviderEnv(env))
 }
 
+func withModelCount(r *record, n int) {
+	r.add("models", n, fmt.Sprintf("%d", n))
+}
+
 // nil becomes [] so JSON matches the "0" cell and `jq '.models|length'` works.
 func withModels(r *record, models []modelsdev.Model) {
 	if models == nil {

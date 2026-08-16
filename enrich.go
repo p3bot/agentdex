@@ -119,7 +119,7 @@ const (
 	WarnModelsUnreachable
 	WarnModelsSchemaDrift
 	WarnSomeProvidersAbsent
-	WarnNotInstalled
+	WarnNotInstalled // unused; kept so Kind values stay stable
 	// WarnProvidersRequired is guidance: agnostic agent reported without providers.
 	WarnProvidersRequired
 	// WarnModelsStale: stale cache fallback after failed refetch; only when consulted.

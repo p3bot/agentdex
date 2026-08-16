@@ -653,21 +653,56 @@ func TestProviderSlicesDoNotAliasCatalog(t *testing.T) {
 	}
 }
 
-func TestGetHomeProviderRejectsExplicitProvidersEveryLevel(t *testing.T) {
+func TestGetHomeProviderRejectsNonSubsetEveryLevel(t *testing.T) {
 	idx := openAgents(t, testCatalog,
 		WithSearchDirs(binDir(t, fixtureBinAlpha)),
 		WithEnvLookup(envFn(t.TempDir())),
 		WithModelsURL(modelsdevtest.MustNotFetch(t)),
 	)
 	for _, lvl := range []Enrich{EnrichNone, EnrichProviders, EnrichCount, EnrichFull} {
-		d, err := idx.Agents.Get(context.Background(), "alpha-cli", AgentGetQuery{Enrich: lvl, Providers: []string{"anthropic"}})
+		d, err := idx.Agents.Get(context.Background(), "alpha-cli", AgentGetQuery{Enrich: lvl, Providers: []string{"google"}})
 		if !errors.Is(err, ErrProvidersNotAllowed) {
 			t.Errorf("level %v: err = %v, want ErrProvidersNotAllowed", lvl, err)
 		}
-		if err != nil && err.Error() != `agent "alpha-cli" has catalog providers` {
+		if err != nil && err.Error() != `agent "alpha-cli" does not include provider "google"` {
 			t.Errorf("level %v: message = %q", lvl, err.Error())
 		}
 		_ = d
+	}
+}
+
+func TestGetHomeProviderAcceptsCatalogSubset(t *testing.T) {
+	idx := openAgents(t, testCatalog,
+		WithSearchDirs(binDir(t, fixtureBinAlpha)),
+		WithEnvLookup(envFn(t.TempDir())),
+		WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+	for _, lvl := range []Enrich{EnrichNone, EnrichProviders} {
+		d, err := idx.Agents.Get(context.Background(), "alpha-cli", AgentGetQuery{Enrich: lvl, Providers: []string{"anthropic"}})
+		if err != nil {
+			t.Errorf("level %v: Get: %v", lvl, err)
+			continue
+		}
+		if lvl == EnrichNone {
+			continue
+		}
+		if got := d.ResolvedProviders; !equal(got, []string{"anthropic"}) {
+			t.Errorf("level %v: ResolvedProviders = %v, want [anthropic]", lvl, got)
+		}
+	}
+
+	srv := modelsdevtest.Server(t, []string{"google", "openai"})
+	multi := openAgents(t, testCatalog,
+		WithSearchDirs(binDir(t, fixtureBinGamma)),
+		WithEnvLookup(envFn(t.TempDir())),
+		WithModelsURL(srv.URL),
+	)
+	d, err := multi.Agents.Get(context.Background(), "gamma-agent", AgentGetQuery{Enrich: EnrichCount, Providers: []string{"openai"}})
+	if err != nil {
+		t.Fatalf("gamma subset Get: %v", err)
+	}
+	if got := d.ResolvedProviders; !equal(got, []string{"openai"}) {
+		t.Errorf("gamma ResolvedProviders = %v, want [openai]", got)
 	}
 }
 
@@ -996,11 +1031,8 @@ func TestGetNotInstalledEnrichesLikeInstalled(t *testing.T) {
 	if d.Detection.Found {
 		t.Fatal("alpha-cli should not be installed")
 	}
-	if !hasWarning(d.Warnings, WarnNotInstalled) {
-		t.Errorf("expected the not-installed warning: %v", d.Warnings)
-	}
-	if msg, _ := warningMsg(d.Warnings, WarnNotInstalled); msg != `agent "alpha-cli" is catalogued but not installed` {
-		t.Errorf("not-installed message = %q", msg)
+	if hasWarning(d.Warnings, WarnNotInstalled) {
+		t.Errorf("not-installed is Found/bin, not a warning: %v", d.Warnings)
 	}
 	// Enrichment does not depend on installation.
 	if d.Coverage.Status != CoverageAllPresent || d.Enrichment != EnrichmentApplied {

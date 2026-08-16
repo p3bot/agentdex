@@ -41,7 +41,7 @@ func (a *app) newAgentsListCmd() *cobra.Command {
 		Short: "List AI coding agents",
 		Long: "List catalogued AI coding agents and their local detection status. The BIN " +
 			"column shows the resolved binary or \"missing\". The models column is a count from " +
-			"models.dev (the full model array in --json, null when not applicable) and is served " +
+			"models.dev (the same number in --json, null when not applicable) and is served " +
 			"from cache when warm, degrading when models.dev cannot be reached. An optional " +
 			"filter narrows the list to agents whose id or name contains it (case-insensitive); " +
 			"a filter matching nothing prints an empty listing and exits 0.",
@@ -55,13 +55,11 @@ func (a *app) newAgentsListCmd() *cobra.Command {
 			if len(args) == 1 {
 				filter = args[0]
 			}
-			// Always EnrichFull: JSON carries each agent's full model array; a lower level
-			// would change the models key shape.
 			res, err := idx.Agents.List(cmd.Context(), agentdex.AgentQuery{
 				Filter:    filter,
 				Installed: installed,
 				Providers: flattenProviders(providers),
-				Enrich:    agentdex.EnrichFull,
+				Enrich:    agentdex.EnrichCount,
 			})
 			warnings := libWarnings(res.Warnings)
 			if err != nil {
@@ -74,10 +72,10 @@ func (a *app) newAgentsListCmd() *cobra.Command {
 				ag := &res.Items[i]
 				r := agentRecord(ag)
 				if ag.Enrichment == agentdex.EnrichmentNotApplicable {
-					// Not-applicable is JSON null / text "-", not the degrade [] / 0 shape.
+					// Not-applicable is JSON null / text "-", not the degrade 0 shape.
 					withModelsNA(r)
 				} else {
-					withAgentModels(r, ag.Models)
+					withModelCount(r, ag.ModelCount)
 				}
 				recs[i] = r
 			}
@@ -103,10 +101,12 @@ func (a *app) newAgentsListCmd() *cobra.Command {
 				return a.usage(cmd, err)
 			}
 			fallback := "No agents catalogued."
+			noun := "agents"
 			if installed {
 				fallback = "No agents detected."
+				noun = "installed agents"
 			}
-			empty := emptyListMessage(filter, "agents", fallback)
+			empty := emptyListMessage(filter, noun, fallback)
 			return a.ok(cmd, data, warnings, func(w io.Writer) {
 				fmt.Fprintln(w)
 				renderTable(w, headers, rows, empty)
@@ -185,7 +185,7 @@ func (a *app) newAgentsGetCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&models, "models", false, "Fill the per-model list from models.dev")
-	cmd.Flags().StringSliceVar(&providers, "provider", nil, "models.dev provider ids for agnostic agents (repeatable or csv)")
+	cmd.Flags().StringSliceVar(&providers, "provider", nil, "models.dev provider ids (repeatable or csv); required for agnostic agents, a subset of catalog providers for a home-provider agent")
 	registerFieldsFlag(cmd, &fields)
 	addFieldsHelpSection(cmd, agentFieldSet)
 	return cmd
@@ -223,7 +223,7 @@ func agentGetError(err error) error {
 	case errors.Is(err, agentdex.ErrAgentUnknown):
 		return errors.New(err.Error() + "; run \"agentdex agents list\" to see agent ids")
 	case errors.Is(err, agentdex.ErrProvidersNotAllowed):
-		return errors.New(err.Error() + "; --provider is only valid for provider-agnostic agents")
+		return errors.New(err.Error() + "; --provider must be a subset of the agent's catalog providers")
 	default:
 		return withProviderList(err)
 	}

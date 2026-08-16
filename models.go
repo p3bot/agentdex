@@ -99,10 +99,10 @@ func (c *core) resolveModelScope(ctx context.Context, mc *modelsdev.Client, scop
 				slog.String("agent", scope.Agent), slog.Any("providers", caller))
 			return caller, warnings, true, nil
 		}
-		if len(caller) > 0 {
-			return nil, warnings, false, errf(ErrProvidersNotAllowed, "agent %q has catalog providers", scope.Agent)
+		set, rerr := restrictHomeProviders(scope.Agent, ka.Provider, caller)
+		if rerr != nil {
+			return nil, warnings, false, rerr
 		}
-		set := append([]string(nil), ka.Provider...)
 		c.logger.LogAttrs(ctx, slog.LevelDebug, "model scope resolved",
 			slog.String("agent", scope.Agent), slog.Any("providers", set))
 		return set, warnings, false, nil

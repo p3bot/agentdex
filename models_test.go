@@ -137,8 +137,34 @@ func TestModelsListAgentHomeProviderRejectsProviderSet(t *testing.T) {
 	if !errors.Is(err, ErrProvidersNotAllowed) {
 		t.Fatalf("home-provider agent with --provider err = %v, want ErrProvidersNotAllowed", err)
 	}
-	if want := `agent "alpha-cli" has catalog providers`; err.Error() != want {
+	if want := `agent "alpha-cli" does not include provider "google"`; err.Error() != want {
 		t.Errorf("message = %q, want %q", err.Error(), want)
+	}
+}
+
+func TestModelsListAgentHomeProviderAcceptsSubset(t *testing.T) {
+	srv := modelsdevtest.Server(t, []string{"anthropic", "google", "openai"})
+	idx := openModels(t, testCatalog, srv.URL)
+
+	res, err := idx.Models.List(context.Background(), ModelQuery{Scope: ModelScope{Agent: "alpha-cli", Providers: []string{"anthropic"}}})
+	if err != nil {
+		t.Fatalf("exact catalog set: %v", err)
+	}
+	if len(res.Items) == 0 {
+		t.Fatal("exact catalog set listed no models")
+	}
+
+	narrow, err := idx.Models.List(context.Background(), ModelQuery{Scope: ModelScope{Agent: "gamma-agent", Providers: []string{"openai"}}})
+	if err != nil {
+		t.Fatalf("gamma subset: %v", err)
+	}
+	for _, m := range narrow.Items {
+		if m.Provider != "openai" {
+			t.Errorf("gamma subset item provider = %q, want openai", m.Provider)
+		}
+	}
+	if len(narrow.Items) == 0 {
+		t.Fatal("gamma subset listed no models")
 	}
 }
 

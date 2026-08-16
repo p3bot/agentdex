@@ -103,7 +103,7 @@ agentdex models list --agent claude-code
 agentdex models get anthropic/claude-sonnet-4-5
 ```
 
-A provider-agnostic `--agent` on `models list` requires `--provider`; a home-provider `--agent` rejects it.
+A provider-agnostic `--agent` on `models list` requires `--provider`; a home-provider `--agent` accepts `--provider` only as a subset of its catalog providers.
 
 ### Flags
 
@@ -145,7 +145,8 @@ On `agents`:
 | Flag | Effect |
 |---|---|
 | `--installed` | `list`: only agents detected on this machine |
-| `--provider` | models.dev provider ids for agnostic agents (repeatable or csv) |
+| `--provider` | `list`: models.dev ids that enrich agnostic rows (repeatable or csv) |
+| `--provider` | `get`: required if agnostic; a subset of catalog providers if home |
 | `--models` | `get`: fill the per-model list |
 | `--search-dir` | Extra binary search locations (repeatable) |
 | `--bin-path id=path` | Override an agent's binary path (repeatable) |
@@ -182,7 +183,7 @@ agentdex --json agents list --installed
 }
 ```
 
-Each element of `data` carries the selected fields for that command (more than `id` and `found` by default). On failure: `"status": "error"` with `"error"` set; `warnings` may still be present. `data` is omitted or empty as appropriate.
+Each element of `data` carries the selected fields for that command (more than `id` and `found` by default). On failure: `"status": "error"` with `"error"` set. `warnings` is always an array, empty when there are none. `data` is omitted or empty as appropriate.
 
 ### Exit codes
 
@@ -321,7 +322,7 @@ Detection always resolves config and skills paths whether or not the binary is i
 
 Skills are classified per scope (global, local): `agents` (shared `.agents` roots), `native` (product tree), `alternatives` (priority order). Primary is derived: agents, else native, else `alternatives[0]`. Full layout on `Detection.Skills` (path + exists per role). Zero `SkillsPaths` means no skills concept.
 
-Agnostic agents have no home provider. Supply models.dev ids via `Providers` on the query (CLI: `--provider`). Home-provider agents reject an explicit set (`ErrProvidersNotAllowed`).
+Agnostic agents have no home provider. Supply models.dev ids via `Providers` on the query (CLI: `--provider`). Home-provider agents accept an explicit set only as a subset of their catalog providers (`ErrProvidersNotAllowed` otherwise).
 
 ### Providers
 

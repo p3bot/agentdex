@@ -32,7 +32,8 @@ var (
 	// ErrProvidersRequired is a model listing scoped to an agnostic agent with no providers.
 	ErrProvidersRequired = errors.New("providers required for agnostic agent")
 
-	// ErrProvidersNotAllowed is a home-provider agent given an explicit provider set.
+	// ErrProvidersNotAllowed is a home-provider agent given a provider set that
+	// is not a subset of its catalog providers.
 	ErrProvidersNotAllowed = errors.New("providers not allowed for home-provider agent")
 
 	// ErrMalformedModelID is a model composite with no "/".

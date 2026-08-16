@@ -61,6 +61,22 @@ func TestListFilterNoMatchIsEmptyExitZero(t *testing.T) {
 	}
 }
 
+func TestListInstalledFilterNamesTheCut(t *testing.T) {
+	// Catalogued-but-missing plus --installed is an install miss, not an unknown id.
+	newScenario(t, "", "beta-tool")
+
+	got := runCLI("agents", "list", "alpha-cli", "--installed")
+	if got.code != codeOK {
+		t.Fatalf("list --installed filter exit = %d, want 0; stderr=%q", got.code, got.stderr)
+	}
+	if !strings.Contains(got.stdout, `No installed agents match "alpha-cli".`) {
+		t.Errorf("installed filter empty-state = %q, want the install cut named", got.stdout)
+	}
+	if strings.Contains(got.stdout, `No agents match "alpha-cli".`) {
+		t.Errorf("installed filter empty-state should not look like an unknown id:\n%s", got.stdout)
+	}
+}
+
 func TestListJSONEnvelope(t *testing.T) {
 	newScenario(t, "", "alpha-cli")
 
@@ -237,9 +253,8 @@ func TestListShowsModelsColumn(t *testing.T) {
 
 	j := runCLI("--json", "agents", "list")
 	row := j.envelope(t).Data.([]any)[0].(map[string]any)
-	models, ok := row["models"].([]any)
-	if !ok || len(models) != 1 {
-		t.Errorf("list --json should carry one enriched model for alpha-cli: %v", row["models"])
+	if n, ok := row["models"].(float64); !ok || n != 1 {
+		t.Errorf("list --json models = %v, want count 1", row["models"])
 	}
 }
 
@@ -255,16 +270,15 @@ func TestListDegradesWhenModelsUnreachable(t *testing.T) {
 		t.Errorf("degraded list should still show the models column:\n%s", got.stdout)
 	}
 
-	// Degraded JSON carries [] (not null) to match the "0" cell and stay scripting-safe.
+	// Degraded JSON carries 0 (not null) to match the "0" cell and stay scripting-safe.
 	j := runCLI("--json", "agents", "list")
 	env := j.envelope(t)
 	if !anyContains(env.Warnings, "unreachable") {
 		t.Errorf("degraded list should warn that model counts are unavailable: %v", env.Warnings)
 	}
 	row := env.Data.([]any)[0].(map[string]any)
-	models, ok := row["models"].([]any)
-	if !ok || len(models) != 0 {
-		t.Errorf("degraded list --json should carry an empty models array, got %#v", row["models"])
+	if n, ok := row["models"].(float64); !ok || n != 0 {
+		t.Errorf("degraded list --json models = %#v, want count 0", row["models"])
 	}
 }
 

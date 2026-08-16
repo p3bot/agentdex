@@ -48,8 +48,8 @@ func (a *app) newModelsListCmd() *cobra.Command {
 	}
 	registerFieldsFlag(cmd, &fields)
 	registerOrderFlags(cmd, &orderBy, &reverse, "Sort rows by this field (default: released, newest first)")
-	cmd.Flags().StringSliceVar(&providers, "provider", nil, "Scope to these models.dev provider ids (repeatable or csv); required with a provider-agnostic --agent, rejected with a home-provider --agent")
-	cmd.Flags().StringVar(&agent, "agent", "", "Scope to the providers of this catalogued agent id; a provider-agnostic agent requires --provider, a home-provider agent rejects it")
+	cmd.Flags().StringSliceVar(&providers, "provider", nil, "Scope to these models.dev provider ids (repeatable or csv); required with a provider-agnostic --agent, must be a subset of catalog providers with a home-provider --agent")
+	cmd.Flags().StringVar(&agent, "agent", "", "Scope to the providers of this catalogued agent id; a provider-agnostic agent requires --provider, a home-provider agent accepts --provider only as a subset of its catalog providers")
 	addFieldsHelpSection(cmd, modelFieldSet)
 	return cmd
 }
@@ -174,7 +174,7 @@ func modelScopeError(err error) error {
 	case errors.Is(err, agentdex.ErrProvidersRequired):
 		return errors.New(err.Error() + "; supply --provider with models.dev provider ids")
 	case errors.Is(err, agentdex.ErrProvidersNotAllowed):
-		return errors.New(err.Error() + "; --provider is only valid for provider-agnostic agents")
+		return errors.New(err.Error() + "; --provider must be a subset of the agent's catalog providers")
 	case errors.Is(err, agentdex.ErrAgentUnknown):
 		return errors.New(err.Error() + "; run \"agentdex agents list\" to see agent ids")
 	default:

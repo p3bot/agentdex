@@ -69,12 +69,21 @@ func TestGetAgnosticUnknownProviderIsUsage(t *testing.T) {
 }
 
 func TestGetProviderRejectedOnHomeProviderAgent(t *testing.T) {
-	// --provider is only for agnostic agents; home-provider rejects rather than ignoring.
+	// A set outside the catalog providers is still a usage fault.
 	newScenario(t, "", "alpha-cli")
 
-	got := runCLI("agents", "get", "alpha-cli", "--provider", "anthropic")
+	got := runCLI("agents", "get", "alpha-cli", "--provider", "google")
 	if got.code != codeUsage {
-		t.Fatalf("get --provider on home-provider agent exit = %d, want %d; stderr=%q", got.code, codeUsage, got.stderr)
+		t.Fatalf("get --provider outside catalog set exit = %d, want %d; stderr=%q", got.code, codeUsage, got.stderr)
+	}
+}
+
+func TestGetProviderAcceptedOnHomeProviderAgent(t *testing.T) {
+	newScenario(t, "", "alpha-cli")
+
+	got := runCLI("--json", "agents", "get", "alpha-cli", "--provider", "anthropic")
+	if got.code != codeOK {
+		t.Fatalf("get --provider catalog subset exit = %d, stderr=%q", got.code, got.stderr)
 	}
 }
 
@@ -129,14 +138,26 @@ func TestModelsAgnosticAgentUnknownProviderIsUsage(t *testing.T) {
 func TestModelsProviderRejectedOnHomeProviderAgent(t *testing.T) {
 	newScenario(t, "", "alpha-cli")
 
-	got := runCLI("models", "list", "--agent", "alpha-cli", "--provider", "anthropic")
+	got := runCLI("models", "list", "--agent", "alpha-cli", "--provider", "google")
 	if got.code != codeUsage {
-		t.Fatalf("models list --agent home-provider --provider exit = %d, want %d; stderr=%q", got.code, codeUsage, got.stderr)
+		t.Fatalf("models list --agent --provider outside catalog set exit = %d, want %d; stderr=%q", got.code, codeUsage, got.stderr)
+	}
+}
+
+func TestModelsProviderAcceptedOnHomeProviderAgent(t *testing.T) {
+	newScenario(t, "", "alpha-cli")
+
+	got := runCLI("--json", "models", "list", "--agent", "alpha-cli", "--provider", "anthropic")
+	if got.code != codeOK {
+		t.Fatalf("models list --agent --provider catalog subset exit = %d, stderr=%q", got.code, got.stderr)
+	}
+	if rows := got.envelope(t).Data.([]any); len(rows) == 0 {
+		t.Error("models list --agent alpha-cli --provider anthropic listed nothing")
 	}
 }
 
 func TestGetAgnosticSoftPathNotInstalled(t *testing.T) {
-	// Not installed is status, not miss: exit 0 with soft-path shape plus not-installed warning.
+	// Not installed is status, not miss: exit 0 with soft-path shape, no not-installed warning.
 	newScenario(t, "") // delta binary not installed
 
 	got := runCLI("--json", "agents", "get", "delta-agent")
@@ -150,8 +171,8 @@ func TestGetAgnosticSoftPathNotInstalled(t *testing.T) {
 	if !anyContains(env.Warnings, "provider-agnostic") {
 		t.Errorf("expected a provider-agnostic warning, got %v", env.Warnings)
 	}
-	if !anyContains(env.Warnings, "not installed") {
-		t.Errorf("expected a not-installed warning, got %v", env.Warnings)
+	if anyContains(env.Warnings, "not installed") {
+		t.Errorf("not-installed should not be a warning: %v", env.Warnings)
 	}
 	data := env.Data.(map[string]any)
 	for _, key := range []string{"providers", "provider_env", "models"} {
@@ -177,8 +198,8 @@ func TestGetAgnosticProviderNotInstalled(t *testing.T) {
 	if env.Status != "ok" || env.Error != "" {
 		t.Errorf("envelope status/error = %q/%q, want ok with no error", env.Status, env.Error)
 	}
-	if !anyContains(env.Warnings, "not installed") {
-		t.Errorf("expected a not-installed warning, got %v", env.Warnings)
+	if anyContains(env.Warnings, "not installed") {
+		t.Errorf("not-installed should not be a warning: %v", env.Warnings)
 	}
 	data := env.Data.(map[string]any)
 	provs, ok := data["providers"].([]any)
@@ -295,7 +316,7 @@ func TestGetAgnosticProviderDegradesWithWarningWhenUnreachable(t *testing.T) {
 }
 
 func TestListAgnosticProviderShowsCount(t *testing.T) {
-	// With --provider, agnostic row matches home-provider shape: array/count, not null/-.
+	// With --provider, agnostic row matches home-provider shape: count, not null/-.
 	newScenario(t, "", "delta-agent")
 
 	got := runCLI("--json", "agents", "list", "--installed", "--provider", "anthropic")
@@ -307,9 +328,8 @@ func TestListAgnosticProviderShowsCount(t *testing.T) {
 		t.Fatalf("list rows = %d, want 1", len(rows))
 	}
 	row := rows[0].(map[string]any)
-	models, ok := row["models"].([]any)
-	if !ok || len(models) == 0 {
-		t.Errorf("agnostic models with --provider = %v, want a non-empty array", row["models"])
+	if n, ok := row["models"].(float64); !ok || n < 1 {
+		t.Errorf("agnostic models with --provider = %v, want a positive count", row["models"])
 	}
 }
 
