@@ -200,9 +200,12 @@ func TestInvalidColorFlagIsUsageError(t *testing.T) {
 func TestMalformedBinPathIsUsageError(t *testing.T) {
 	newScenario(t, "", "alpha-cli")
 
-	got := runCLI("agents", "list", "--bin-path", "no-equals-sign")
+	got := runCLI("agents", "list", "--bin-path", "nopath")
 	if got.code != codeUsage {
 		t.Fatalf("malformed --bin-path exit = %d, want 2; stderr=%q", got.code, got.stderr)
+	}
+	if !strings.Contains(got.stderr, `invalid --bin-path "nopath"`) {
+		t.Errorf("usage error missing invalid-format message: %q", got.stderr)
 	}
 }
 
@@ -236,6 +239,88 @@ func TestBinPathOverridesDetection(t *testing.T) {
 	}
 	if rows := noOverride.envelope(t).Data.([]any); len(rows) != 0 {
 		t.Errorf("without --bin-path installed rows = %v, want empty", rows)
+	}
+}
+
+func TestUnknownBinPathWarnsAndContinues(t *testing.T) {
+	newScenario(t, "")
+
+	text := runCLI("agents", "list", "--bin-path", "no-such-agent=/usr/bin/true")
+	if text.code != codeOK {
+		t.Fatalf("list unknown id exit = %d, want 0; stderr=%q", text.code, text.stderr)
+	}
+	if !strings.Contains(text.stderr, "warning:") || !strings.Contains(text.stderr, "no-such-agent") {
+		t.Errorf("text stderr = %q, want warning: naming no-such-agent", text.stderr)
+	}
+	if !strings.Contains(text.stdout, "alpha-cli") {
+		t.Errorf("text list missing catalog rows:\n%s", text.stdout)
+	}
+
+	js := runCLI("--json", "agents", "list", "--bin-path", "no-such-agent=/usr/bin/true")
+	if js.code != codeOK {
+		t.Fatalf("list --json unknown id exit = %d, want 0; stderr=%q", js.code, js.stderr)
+	}
+	env := js.envelope(t)
+	if env.Status != "ok" {
+		t.Errorf("status = %q, want ok", env.Status)
+	}
+	if !anyContains(env.Warnings, "no-such-agent") {
+		t.Errorf("warnings = %v, want one naming no-such-agent", env.Warnings)
+	}
+	rows, ok := env.Data.([]any)
+	if !ok || len(rows) == 0 {
+		t.Fatalf("list data = %#v, want catalog rows", env.Data)
+	}
+	var listedID bool
+	for _, row := range rows {
+		if m, ok := row.(map[string]any); ok && m["id"] == "alpha-cli" {
+			listedID = true
+			break
+		}
+	}
+	if !listedID {
+		t.Errorf("list data missing alpha-cli: %v", env.Data)
+	}
+
+	get := runCLI("--json", "agents", "get", "alpha-cli", "--bin-path", "no-such-agent=/usr/bin/true")
+	if get.code != codeOK {
+		t.Fatalf("get unknown override exit = %d, want 0; stderr=%q", get.code, get.stderr)
+	}
+	getEnv := get.envelope(t)
+	if !anyContains(getEnv.Warnings, "no-such-agent") {
+		t.Errorf("get warnings = %v, want one naming no-such-agent", getEnv.Warnings)
+	}
+	data, ok := getEnv.Data.(map[string]any)
+	if !ok || data["id"] != "alpha-cli" {
+		t.Errorf("get data = %v, want id alpha-cli", getEnv.Data)
+	}
+}
+
+func TestCataloguedBinPathDoesNotWarnUnknown(t *testing.T) {
+	newScenario(t, "")
+
+	list := runCLI("--json", "agents", "list", "--bin-path", "alpha-cli=/nonexistent")
+	if list.code != codeOK {
+		t.Fatalf("list catalogued override exit = %d; stderr=%q", list.code, list.stderr)
+	}
+	if anyContains(list.envelope(t).Warnings, "unknown binary-path") {
+		t.Errorf("list warned on catalogued override: %v", list.envelope(t).Warnings)
+	}
+
+	get := runCLI("--json", "agents", "get", "alpha-cli", "--bin-path", "beta-tool=/nonexistent")
+	if get.code != codeOK {
+		t.Fatalf("get other catalogued override exit = %d; stderr=%q", get.code, get.stderr)
+	}
+	if anyContains(get.envelope(t).Warnings, "unknown binary-path") {
+		t.Errorf("get warned on catalogued override: %v", get.envelope(t).Warnings)
+	}
+
+	installed := runCLI("--json", "agents", "list", "--installed", "--bin-path", "alpha-cli=/nonexistent")
+	if installed.code != codeOK {
+		t.Fatalf("list --installed catalogued override exit = %d; stderr=%q", installed.code, installed.stderr)
+	}
+	if anyContains(installed.envelope(t).Warnings, "unknown binary-path") {
+		t.Errorf("installed list warned on catalogued override: %v", installed.envelope(t).Warnings)
 	}
 }
 

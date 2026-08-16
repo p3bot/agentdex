@@ -201,6 +201,14 @@ func TestOracleWarningMessagesVerbatim(t *testing.T) {
 			t.Errorf("agnostic guidance warning = %v", got.envelope(t).Warnings)
 		}
 	})
+
+	t.Run("unknown binary-path override", func(t *testing.T) {
+		newScenario(t, "")
+		got := runCLI("--json", "agents", "list", "--bin-path", "no-such-agent=/usr/bin/true")
+		if !hasExact(warningsOf(t, got), `unknown binary-path override id "no-such-agent"`) {
+			t.Errorf("unknown bin-path warning = %v", got.envelope(t).Warnings)
+		}
+	})
 }
 
 func TestOracleGetDataFaultReportsAgentAndError(t *testing.T) {

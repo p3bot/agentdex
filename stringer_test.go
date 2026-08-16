@@ -46,6 +46,7 @@ func TestStringers(t *testing.T) {
 			"WarnNotInstalled",
 			"WarnProvidersRequired",
 			"WarnModelsStale",
+			"WarnUnknownBinPath",
 		}, func(v int) string { return WarningKind(v).String() })
 	})
 

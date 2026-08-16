@@ -302,6 +302,98 @@ func TestWithBinPathsOverride(t *testing.T) {
 	}
 }
 
+func TestUnknownBinPathOverrideWarns(t *testing.T) {
+	ctx := context.Background()
+	q := AgentQuery{Enrich: EnrichNone}
+	gq := AgentGetQuery{Enrich: EnrichNone}
+
+	t.Run("unknown id", func(t *testing.T) {
+		idx := openAgents(t, testCatalog,
+			WithBinPaths(map[string]string{"no-such-agent": "/usr/bin/true"}),
+			WithEnvLookup(envFn(t.TempDir())),
+			WithModelsURL(modelsdevtest.MustNotFetch(t)),
+		)
+		want := `unknown binary-path override id "no-such-agent"`
+
+		res, err := idx.Agents.List(ctx, q)
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		if msg, ok := warningMsg(res.Warnings, WarnUnknownBinPath); !ok || msg != want {
+			t.Errorf("List warnings = %v, want %q", res.Warnings, want)
+		}
+		if got := agentIDs(res.Items); !equal(got, []string{"alpha-cli", "delta-agent", "gamma-agent"}) {
+			t.Errorf("List items = %v, want the full catalog", got)
+		}
+
+		d, err := idx.Agents.Get(ctx, "alpha-cli", gq)
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		if msg, ok := warningMsg(d.Warnings, WarnUnknownBinPath); !ok || msg != want {
+			t.Errorf("Get warnings = %v, want %q", d.Warnings, want)
+		}
+		if d.ID != "alpha-cli" {
+			t.Errorf("Get id = %q, want alpha-cli", d.ID)
+		}
+	})
+
+	t.Run("multiple unknown ids one warning", func(t *testing.T) {
+		idx := openAgents(t, testCatalog,
+			WithBinPaths(map[string]string{
+				"zeta-missing":  "/usr/bin/true",
+				"no-such-agent": "/usr/bin/true",
+			}),
+			WithEnvLookup(envFn(t.TempDir())),
+			WithModelsURL(modelsdevtest.MustNotFetch(t)),
+		)
+		want := `unknown binary-path override ids "no-such-agent", "zeta-missing"`
+		res, err := idx.Agents.List(ctx, q)
+		if err != nil {
+			t.Fatalf("List: %v", err)
+		}
+		var n int
+		for _, w := range res.Warnings {
+			if w.Kind == WarnUnknownBinPath {
+				n++
+				if w.Msg != want {
+					t.Errorf("Msg = %q, want %q", w.Msg, want)
+				}
+			}
+		}
+		if n != 1 {
+			t.Errorf("WarnUnknownBinPath count = %d, want 1; warnings = %v", n, res.Warnings)
+		}
+	})
+
+	t.Run("catalogued id omitted from result", func(t *testing.T) {
+		idx := openAgents(t, testCatalog,
+			WithBinPaths(map[string]string{"alpha-cli": "/nonexistent"}),
+			WithEnvLookup(envFn(t.TempDir())),
+			WithModelsURL(modelsdevtest.MustNotFetch(t)),
+		)
+
+		res, err := idx.Agents.List(ctx, AgentQuery{Enrich: EnrichNone, Installed: true})
+		if err != nil {
+			t.Fatalf("List installed: %v", err)
+		}
+		if hasWarning(res.Warnings, WarnUnknownBinPath) {
+			t.Errorf("installed List warned on catalogued override: %v", res.Warnings)
+		}
+		if len(res.Items) != 0 {
+			t.Errorf("installed List items = %v, want empty", agentIDs(res.Items))
+		}
+
+		d, err := idx.Agents.Get(ctx, "delta-agent", gq)
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		if hasWarning(d.Warnings, WarnUnknownBinPath) {
+			t.Errorf("Get of another agent warned on catalogued override: %v", d.Warnings)
+		}
+	})
+}
+
 func TestRelativeSearchDirRootsAtWorkingDir(t *testing.T) {
 	// Relative search dirs root at WorkingDir before the executable check (same
 	// order as WithBinPaths), so a dir that only exists under WorkingDir still finds.

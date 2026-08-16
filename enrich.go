@@ -124,6 +124,8 @@ const (
 	WarnProvidersRequired
 	// WarnModelsStale: stale cache fallback after failed refetch; only when consulted.
 	WarnModelsStale
+	// WarnUnknownBinPath: a WithBinPaths key is not a catalog id.
+	WarnUnknownBinPath
 )
 
 // String returns the constant name for known kinds, or WarningKind(n) for others.
@@ -143,6 +145,8 @@ func (k WarningKind) String() string {
 		return "WarnProvidersRequired"
 	case WarnModelsStale:
 		return "WarnModelsStale"
+	case WarnUnknownBinPath:
+		return "WarnUnknownBinPath"
 	default:
 		return fmt.Sprintf("WarningKind(%d)", int(k))
 	}

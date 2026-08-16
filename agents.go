@@ -24,6 +24,7 @@ func (s AgentService) Get(ctx context.Context, id string, q AgentGetQuery) (Agen
 	if info.Stale {
 		warnings = append(warnings, staleWarning())
 	}
+	warnings = appendUnknownBinPath(warnings, cat, c.binPaths)
 
 	ka, ok := cat.Agents[id]
 	if !ok {
@@ -144,6 +145,7 @@ func (s AgentService) List(ctx context.Context, q AgentQuery) (Result[Agent], er
 	if info.Stale {
 		warnings = append(warnings, staleWarning())
 	}
+	warnings = appendUnknownBinPath(warnings, cat, c.binPaths)
 
 	providers := dedupeIDs(q.Providers)
 	needModels := q.Enrich >= EnrichCount
@@ -446,6 +448,42 @@ func filterAgents(agents []Agent, filter string) []Agent {
 		}
 	}
 	return out
+}
+
+// Membership is the catalog, not this operation's result rows.
+func appendUnknownBinPath(ws []Warning, cat *catalog.Catalog, binPaths map[string]string) []Warning {
+	if w, ok := unknownBinPathWarning(cat, binPaths); ok {
+		return append(ws, w)
+	}
+	return ws
+}
+
+func unknownBinPathWarning(cat *catalog.Catalog, binPaths map[string]string) (Warning, bool) {
+	if len(binPaths) == 0 {
+		return Warning{}, false
+	}
+	var unknown []string
+	for id := range binPaths {
+		if _, ok := cat.Agents[id]; !ok {
+			unknown = append(unknown, id)
+		}
+	}
+	if len(unknown) == 0 {
+		return Warning{}, false
+	}
+	sort.Strings(unknown)
+	quoted := make([]string, len(unknown))
+	for i, id := range unknown {
+		quoted[i] = fmt.Sprintf("%q", id)
+	}
+	noun := "id"
+	if len(unknown) != 1 {
+		noun = "ids"
+	}
+	return Warning{
+		Kind: WarnUnknownBinPath,
+		Msg:  fmt.Sprintf("unknown binary-path override %s %s", noun, strings.Join(quoted, ", ")),
+	}, true
 }
 
 // Shared wording so catalog-stale messages never drift between surfaces.
