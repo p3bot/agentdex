@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -34,6 +35,15 @@ func mustJSON(t *testing.T, v any) []byte {
 		t.Fatalf("marshal fixture: %v", err)
 	}
 	return data
+}
+
+func mustUnavailable(t *testing.T, c *Client) error {
+	t.Helper()
+	_, err := c.Catalog(context.Background())
+	if !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("error = %v, want ErrUnavailable (not stale success)", err)
+	}
+	return err
 }
 
 func serveBytes(t *testing.T, body []byte) (url string, requests *atomic.Int64) {
@@ -222,7 +232,7 @@ func TestCacheWithinTTLReadsFile(t *testing.T) {
 	}
 
 	// Fresh Client over same cache dir within TTL must not hit the network.
-	if _, err := New(WithURL(url), WithCacheDir(dir), WithTTL(time.Hour)).Catalog(context.Background()); err != nil {
+	if _, err := New(WithURL(url), WithCacheDir(dir), WithFetch(FetchTTL), WithTTL(time.Hour)).Catalog(context.Background()); err != nil {
 		t.Fatalf("second Catalog: %v", err)
 	}
 	if got := requests.Load(); got != 1 {
@@ -238,7 +248,7 @@ func TestCacheExpiryRefetches(t *testing.T) {
 	}
 
 	// Clock past TTL forces refetch of an otherwise-fresh file.
-	c := New(WithURL(url), WithCacheDir(dir), WithTTL(time.Minute))
+	c := New(WithURL(url), WithCacheDir(dir), WithFetch(FetchTTL), WithTTL(time.Minute))
 	c.now = func() time.Time { return time.Now().Add(time.Hour) }
 	if _, err := c.Catalog(context.Background()); err != nil {
 		t.Fatalf("Catalog after expiry: %v", err)
@@ -263,7 +273,7 @@ func TestStaleServedOnFetchFailure(t *testing.T) {
 	}))
 	t.Cleanup(failing.Close)
 
-	c := New(WithURL(failing.URL), WithCacheDir(dir), WithTTL(0))
+	c := New(WithURL(failing.URL), WithCacheDir(dir), WithFetch(FetchTTL), WithTTL(0))
 	if c.Stale() {
 		t.Error("Stale before load must be false")
 	}
@@ -302,12 +312,124 @@ func TestStaleFalseOnFreshAndWithinTTL(t *testing.T) {
 		t.Error("fresh network fetch must report not-stale")
 	}
 
-	hit := New(WithURL(url), WithCacheDir(dir), WithTTL(time.Hour))
+	hit := New(WithURL(url), WithCacheDir(dir), WithFetch(FetchTTL), WithTTL(time.Hour))
 	if _, err := hit.Catalog(context.Background()); err != nil {
 		t.Fatalf("within-TTL Catalog: %v", err)
 	}
 	if hit.Stale() {
 		t.Error("within-TTL cache hit must report not-stale")
+	}
+}
+
+func TestCacheOnlyWarmDoesNotFetch(t *testing.T) {
+	dir := t.TempDir()
+	url, requests := serveBytes(t, mustJSON(t, smallCatalog()))
+	if _, err := New(WithURL(url), WithCacheDir(dir)).Catalog(context.Background()); err != nil {
+		t.Fatalf("seed cache: %v", err)
+	}
+
+	c := New(WithURL(url), WithCacheDir(dir), WithFetch(FetchCacheOnly), WithTTL(0))
+	if _, err := c.Catalog(context.Background()); err != nil {
+		t.Fatalf("CacheOnly Catalog: %v", err)
+	}
+	if got := requests.Load(); got != 1 {
+		t.Errorf("CacheOnly refetched: %d requests", got)
+	}
+	if c.Stale() {
+		t.Error("CacheOnly reported stale")
+	}
+}
+
+func TestCacheOnlyColdIsError(t *testing.T) {
+	url, requests := serveBytes(t, mustJSON(t, smallCatalog()))
+	c := New(WithURL(url), WithCacheDir(t.TempDir()), WithFetch(FetchCacheOnly))
+	if _, err := c.Catalog(context.Background()); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("CacheOnly cold error = %v, want ErrUnavailable", err)
+	}
+	if got := requests.Load(); got != 0 {
+		t.Errorf("CacheOnly cold fetched: %d requests", got)
+	}
+}
+
+func TestCachedIgnoresTTL(t *testing.T) {
+	dir := t.TempDir()
+	url, requests := serveBytes(t, mustJSON(t, smallCatalog()))
+	if _, err := New(WithURL(url), WithCacheDir(dir)).Catalog(context.Background()); err != nil {
+		t.Fatalf("seed cache: %v", err)
+	}
+
+	c := New(WithURL(url), WithCacheDir(dir), WithFetch(FetchCached), WithTTL(time.Minute))
+	c.now = func() time.Time { return time.Now().Add(time.Hour) }
+	if _, err := c.Catalog(context.Background()); err != nil {
+		t.Fatalf("Cached Catalog: %v", err)
+	}
+	if got := requests.Load(); got != 1 {
+		t.Errorf("Cached refetched after TTL expiry: %d requests", got)
+	}
+	if c.Stale() {
+		t.Error("Cached reported stale")
+	}
+}
+
+func TestCachedColdFetchesOnce(t *testing.T) {
+	url, requests := serveBytes(t, mustJSON(t, smallCatalog()))
+	dir := t.TempDir()
+	if _, err := New(WithURL(url), WithCacheDir(dir), WithFetch(FetchCached)).Catalog(context.Background()); err != nil {
+		t.Fatalf("cold Cached: %v", err)
+	}
+	if got := requests.Load(); got != 1 {
+		t.Fatalf("cold Cached fetches = %d, want 1", got)
+	}
+
+	offline := New(WithURL("http://127.0.0.1:0"), WithCacheDir(dir), WithFetch(FetchCacheOnly))
+	if _, err := offline.Catalog(context.Background()); err != nil {
+		t.Fatalf("CacheOnly after fill: %v", err)
+	}
+	if got := requests.Load(); got != 1 {
+		t.Errorf("subsequent CacheOnly fetched: %d requests", got)
+	}
+}
+
+func TestLatestFailsRatherThanServeStale(t *testing.T) {
+	dir := t.TempDir()
+	good, _ := serveBytes(t, mustJSON(t, smallCatalog()))
+	if _, err := New(WithURL(good), WithCacheDir(dir)).Catalog(context.Background()); err != nil {
+		t.Fatalf("seed cache: %v", err)
+	}
+
+	failing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(failing.Close)
+
+	c := New(WithURL(failing.URL), WithCacheDir(dir), WithFetch(FetchLatest))
+	err := mustUnavailable(t, c)
+	if !strings.Contains(err.Error(), "cached catalog unused") {
+		t.Errorf("Latest error = %q, want unused cache named", err)
+	}
+}
+
+func TestLatestColdDoesNotClaimUnusedCache(t *testing.T) {
+	failing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(failing.Close)
+
+	c := New(WithURL(failing.URL), WithCacheDir(t.TempDir()), WithFetch(FetchLatest))
+	err := mustUnavailable(t, c)
+	if strings.Contains(err.Error(), "unused") {
+		t.Errorf("cold Latest named an unused cache: %v", err)
+	}
+}
+
+func TestUnknownFetchFails(t *testing.T) {
+	c := New(WithURL("http://127.0.0.1:0"), WithCacheDir(t.TempDir()), WithFetch(Fetch(99)))
+	_, err := c.Catalog(context.Background())
+	if err == nil {
+		t.Fatal("unknown Fetch succeeded")
+	}
+	if errors.Is(err, ErrUnavailable) {
+		t.Errorf("unknown Fetch should not look like a cache miss: %v", err)
 	}
 }
 
@@ -326,8 +448,9 @@ func TestForceRefreshFailsRatherThanServeStale(t *testing.T) {
 	t.Cleanup(failing.Close)
 
 	c := New(WithURL(failing.URL), WithCacheDir(dir), WithForceRefresh())
-	if _, err := c.Catalog(context.Background()); err == nil {
-		t.Fatal("force refresh must report the fetch failure, not serve the stale cache")
+	err := mustUnavailable(t, c)
+	if !strings.Contains(err.Error(), "cached catalog unused") {
+		t.Errorf("force refresh error = %q, want unused cache named", err)
 	}
 }
 
@@ -340,7 +463,7 @@ func TestForceRefreshUpdatesCacheOnSuccess(t *testing.T) {
 		t.Fatalf("force refresh: %v", err)
 	}
 
-	offline := New(WithURL("http://127.0.0.1:0"), WithCacheDir(dir), WithTTL(time.Hour))
+	offline := New(WithURL("http://127.0.0.1:0"), WithCacheDir(dir), WithFetch(FetchTTL), WithTTL(time.Hour))
 	cat, err := offline.Catalog(context.Background())
 	if err != nil {
 		t.Fatalf("expected cached data served offline: %v", err)
@@ -362,12 +485,12 @@ func TestCorruptCacheNotServedAsStale(t *testing.T) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	t.Cleanup(failing.Close)
-	if _, err := New(WithURL(failing.URL), WithCacheDir(dir), WithTTL(time.Hour)).Catalog(context.Background()); err == nil {
-		t.Fatal("expected error: a corrupt cache must not be served as stale")
+	if _, err := New(WithURL(failing.URL), WithCacheDir(dir), WithFetch(FetchTTL), WithTTL(time.Hour)).Catalog(context.Background()); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("corrupt cache + fetch fail error = %v, want ErrUnavailable", err)
 	}
 
 	good, _ := serveBytes(t, mustJSON(t, smallCatalog()))
-	cat, err := New(WithURL(good), WithCacheDir(dir), WithTTL(time.Hour)).Catalog(context.Background())
+	cat, err := New(WithURL(good), WithCacheDir(dir), WithFetch(FetchTTL), WithTTL(time.Hour)).Catalog(context.Background())
 	if err != nil {
 		t.Fatalf("fetch over corrupt cache: %v", err)
 	}
@@ -393,8 +516,8 @@ func TestFirstFetchFailureIsRetryable(t *testing.T) {
 
 	c := New(WithURL(srv.URL), WithCacheDir(t.TempDir()))
 
-	if _, err := c.Catalog(context.Background()); err == nil {
-		t.Fatal("expected first fetch to fail")
+	if _, err := c.Catalog(context.Background()); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("first fetch error = %v, want ErrUnavailable", err)
 	}
 
 	fail.Store(false)
@@ -429,7 +552,7 @@ func TestTopLevelSchemaError(t *testing.T) {
 			t.Fatalf("seed cache: %v", err)
 		}
 		url, _ := serveBytes(t, empty)
-		cat, err := New(WithURL(url), WithCacheDir(dir), WithTTL(0)).Catalog(context.Background())
+		cat, err := New(WithURL(url), WithCacheDir(dir), WithFetch(FetchTTL), WithTTL(0)).Catalog(context.Background())
 		if err != nil {
 			t.Fatalf("expected stale served, got %v", err)
 		}

@@ -15,10 +15,11 @@ import (
 	"github.com/p3bot/agentdex/modelsdev"
 )
 
-// Open constructs an *Index over the configured catalog source and models.dev
+// Open constructs an *Index over the configured catalog and models.dev
 // client. No network I/O and no context: both catalogs resolve lazily once under
 // the first needing operation's context. Safe for concurrent use.
-// WithCatalogDir and WithCatalogModule are mutually exclusive.
+// WithCatalogDir and WithCatalogModule are mutually exclusive. Default Fetch
+// for catalog and models.dev is FetchCached.
 func Open(opts ...Option) (*Index, error) {
 	o := &options{}
 	for _, opt := range opts {
@@ -26,6 +27,12 @@ func Open(opts ...Option) (*Index, error) {
 	}
 	if o.catalogDir != "" && o.catalogModule != "" {
 		return nil, errors.New("agentdex: WithCatalogDir and WithCatalogModule are mutually exclusive")
+	}
+	if _, ok := o.catalogFetch.asCatalog(); !ok {
+		return nil, fmt.Errorf("agentdex: unknown catalog fetch %s", o.catalogFetch)
+	}
+	if _, ok := o.modelsFetch.asModels(); !ok {
+		return nil, fmt.Errorf("agentdex: unknown models.dev fetch %s", o.modelsFetch)
 	}
 	c := newCore(o)
 	return &Index{
@@ -50,11 +57,13 @@ type core struct {
 	catalogModule string
 	catalogTTL    time.Duration
 	catalogTTLSet bool
+	catalogFetch  Fetch
 	cacheDir      string
 
 	modelsURL    string
 	modelsTTL    time.Duration
 	modelsTTLSet bool
+	modelsFetch  Fetch
 	httpClient   *http.Client
 
 	catMu   sync.Mutex
@@ -97,10 +106,12 @@ func newCore(o *options) *core {
 		catalogModule: o.catalogModule,
 		catalogTTL:    o.catalogTTL,
 		catalogTTLSet: o.catalogTTLSet,
+		catalogFetch:  o.catalogFetch,
 		cacheDir:      o.cacheDir,
 		modelsURL:     o.modelsURL,
 		modelsTTL:     o.modelsTTL,
 		modelsTTLSet:  o.modelsTTLSet,
+		modelsFetch:   o.modelsFetch,
 		httpClient:    o.httpClient,
 	}
 }
@@ -123,7 +134,7 @@ func (c *core) resolveCatalog(ctx context.Context) (*catalog.Catalog, CatalogInf
 	if c.cat != nil {
 		return c.cat, c.catInfo, nil
 	}
-	cat, info, err := c.loadCatalog(ctx, false)
+	cat, info, err := c.loadCatalog(ctx, c.catalogFetch)
 	if err != nil {
 		return nil, CatalogInfo{}, err
 	}
@@ -139,16 +150,16 @@ func (c *core) catalogModulePath() string {
 	return catalog.DefaultModulePath
 }
 
-// Dir source is never stale; registry may report a stale fallback.
-func (c *core) loadCatalog(ctx context.Context, force bool) (*catalog.Catalog, CatalogInfo, error) {
+// Directory origin is never stale; registry may report a stale fallback.
+func (c *core) loadCatalog(ctx context.Context, src Fetch) (*catalog.Catalog, CatalogInfo, error) {
 	if c.catalogDir != "" {
 		cat, err := catalog.LoadDir(c.catalogDir)
 		if err != nil {
 			return nil, CatalogInfo{}, mapCatalogErr(err)
 		}
-		info := CatalogInfo{Source: CatalogSourceDir, Dir: c.catalogDir}
+		info := CatalogInfo{Origin: CatalogOriginDir, Dir: c.catalogDir}
 		c.logger.LogAttrs(ctx, slog.LevelDebug, "catalog resolved",
-			slog.String("source", "dir"), slog.String("dir", c.catalogDir))
+			slog.String("origin", "dir"), slog.String("dir", c.catalogDir))
 		return cat, info, nil
 	}
 
@@ -161,11 +172,12 @@ func (c *core) loadCatalog(ctx context.Context, force bool) (*catalog.Catalog, C
 	if c.catalogModule != "" {
 		lopts = append(lopts, catalog.WithModulePath(c.catalogModule))
 	}
-	switch {
-	case force:
-		// Zero TTL forces re-resolution past any cached resolution.
-		lopts = append(lopts, catalog.WithTTL(0))
-	case c.catalogTTLSet:
+	cs, ok := src.asCatalog()
+	if !ok {
+		return nil, CatalogInfo{}, fmt.Errorf("agentdex: unknown catalog fetch %s", src)
+	}
+	lopts = append(lopts, catalog.WithFetch(cs))
+	if src == FetchTTL && c.catalogTTLSet {
 		lopts = append(lopts, catalog.WithTTL(c.catalogTTL))
 	}
 	if c.cacheDir != "" {
@@ -176,13 +188,14 @@ func (c *core) loadCatalog(ctx context.Context, force bool) (*catalog.Catalog, C
 		return nil, CatalogInfo{}, mapCatalogErr(err)
 	}
 	info := CatalogInfo{
-		Source:  CatalogSourceRegistry,
+		Origin:  CatalogOriginRegistry,
 		Module:  module,
 		Version: res.Version,
 		Stale:   res.Stale,
 	}
 	c.logger.LogAttrs(ctx, slog.LevelDebug, "catalog resolved",
-		slog.String("source", "registry"),
+		slog.String("origin", "registry"),
+		slog.String("mode", src.String()),
 		slog.String("module", module),
 		slog.String("version", res.Version),
 		slog.Bool("stale", res.Stale))
@@ -225,10 +238,13 @@ func (c *core) modelsClient() *modelsdev.Client {
 	return c.md
 }
 
-// extra is applied last so force-refresh and similar can override base settings.
+// extra is applied last so Refresh can override Open-time Fetch with FetchLatest.
 func (c *core) newModelsClient(extra ...modelsdev.ClientOption) *modelsdev.Client {
 	var opts []modelsdev.ClientOption
-	if c.modelsTTLSet {
+	if ms, ok := c.modelsFetch.asModels(); ok {
+		opts = append(opts, modelsdev.WithFetch(ms))
+	}
+	if c.modelsTTLSet && c.modelsFetch == FetchTTL {
 		opts = append(opts, modelsdev.WithTTL(c.modelsTTL))
 	}
 	if c.modelsURL != "" {
@@ -244,21 +260,17 @@ func (c *core) newModelsClient(extra ...modelsdev.ClientOption) *modelsdev.Clien
 	return modelsdev.New(opts...)
 }
 
-// Dir source always current (not-refreshed, no error). Stale fallback is
-// ErrCatalogUnavailable and leaves installed state untouched.
+// Directory origin is always current (not-refreshed, no error). A failed Latest
+// load leaves installed state untouched.
 func (c *core) refreshCatalog(ctx context.Context) (bool, error) {
 	if c.catalogDir != "" {
 		c.logger.LogAttrs(ctx, slog.LevelDebug, "catalog refresh skipped",
-			slog.String("reason", "directory source is always current"), slog.String("dir", c.catalogDir))
+			slog.String("reason", "directory origin is always current"), slog.String("dir", c.catalogDir))
 		return false, nil
 	}
-	cat, info, err := c.loadCatalog(ctx, true)
+	cat, info, err := c.loadCatalog(ctx, FetchLatest)
 	if err != nil {
 		return false, err
-	}
-	if info.Stale {
-		return false, errf(ErrCatalogUnavailable,
-			"agentdex catalog refresh failed: could not re-resolve the latest version, the cached version is unchanged")
 	}
 	c.catMu.Lock()
 	c.cat, c.catInfo = cat, info
@@ -268,10 +280,10 @@ func (c *core) refreshCatalog(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-// refreshModels swaps in a force-refresh client; a throwaway fetch would leave
+// refreshModels swaps in a FetchLatest client; a throwaway fetch would leave
 // the Index on pre-refresh answers. Failure leaves the existing client in place.
 func (c *core) refreshModels(ctx context.Context) error {
-	fresh := c.newModelsClient(modelsdev.WithForceRefresh())
+	fresh := c.newModelsClient(modelsdev.WithFetch(modelsdev.FetchLatest))
 	if _, err := fresh.Catalog(ctx); err != nil {
 		return mapModelsErr(err)
 	}

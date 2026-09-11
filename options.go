@@ -17,10 +17,12 @@ type options struct {
 	catalogDir    string
 	catalogTTL    time.Duration
 	catalogTTLSet bool
+	catalogFetch  Fetch
 	cacheDir      string
 	modelsURL     string
 	modelsTTL     time.Duration
 	modelsTTLSet  bool
+	modelsFetch   Fetch
 	searchDirs    []string
 	binPaths      map[string]string
 	lookPath      func(string) (string, error)
@@ -43,12 +45,20 @@ func WithCatalogDir(dir string) Option {
 	return func(o *options) { o.catalogDir = dir }
 }
 
-// WithCatalogTTL sets the catalog version-resolution cache TTL. Inert under WithCatalogDir.
+// WithCatalogTTL sets the catalog version-resolution cache TTL. Meaningful only
+// for FetchTTL; ignored by CacheOnly, Cached, and Latest. Inert under WithCatalogDir.
 func WithCatalogTTL(d time.Duration) Option {
 	return func(o *options) {
 		o.catalogTTL = d
 		o.catalogTTLSet = true
 	}
+}
+
+// WithCatalogFetch sets when the registry catalog may use the network.
+// Default FetchCached. Inert under WithCatalogDir (directory origin never
+// contacts the registry).
+func WithCatalogFetch(s Fetch) Option {
+	return func(o *options) { o.catalogFetch = s }
 }
 
 // WithCacheDir sets the catalog resolution and models.dev cache directory.
@@ -62,12 +72,18 @@ func WithModelsURL(url string) Option {
 	return func(o *options) { o.modelsURL = url }
 }
 
-// WithModelsTTL sets the models.dev cache TTL.
+// WithModelsTTL sets the models.dev cache TTL. Meaningful only for FetchTTL;
+// ignored by CacheOnly, Cached, and Latest.
 func WithModelsTTL(d time.Duration) Option {
 	return func(o *options) {
 		o.modelsTTL = d
 		o.modelsTTLSet = true
 	}
+}
+
+// WithModelsFetch sets when models.dev may use HTTP. Default FetchCached.
+func WithModelsFetch(s Fetch) Option {
+	return func(o *options) { o.modelsFetch = s }
 }
 
 // WithSearchDirs adds binary search locations consulted after PATH.

@@ -10,7 +10,10 @@ import (
 // Exported sentinels for errors.Is. Detail rides the wrapping message (library-
 // owned). ErrModelsSchema aliases modelsdev.ErrModelsSchema (same value).
 var (
-	// ErrCatalogUnavailable is cold-offline with no fallback. Never raised under WithCatalogDir.
+	// ErrCatalogUnavailable is a catalog load that could not complete under the
+	// configured Fetch: no cached resolution, CacheOnly with no cache, or
+	// Latest/Refresh that refused to use a cached version. Never raised under
+	// WithCatalogDir.
 	ErrCatalogUnavailable = errors.New("agentdex catalog unavailable")
 
 	// ErrCatalogInvalid is a module that loaded but failed schema evaluation (data, not network).

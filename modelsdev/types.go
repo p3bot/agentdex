@@ -1,9 +1,9 @@
 // Package modelsdev is a reusable client for models.dev, the community database
 // of model specifications, pricing, and capabilities. It fetches the static
 // catalog.json, merges the per-provider and provider-agnostic maps into a single
-// enriched view, validates against gross schema drift, and caches with
-// stale-on-failure semantics. The package is a leaf: it imports no agentdex
-// internal package, so external consumers can depend on it directly.
+// enriched view, validates against gross schema drift, and caches according to
+// Fetch (default Cached). The package is a leaf: it imports
+// no agentdex internal package, so external consumers can depend on it directly.
 package modelsdev
 
 // Catalog is the merged result of fetching models.dev catalog.json: the

@@ -62,10 +62,10 @@ func TestProductionRegistryAgainstLocalOCI(t *testing.T) {
 
 	offlineRes, err := loader.Load(ctx)
 	if err != nil {
-		t.Fatalf("within-TTL Load with the registry offline: %v", err)
+		t.Fatalf("cached Load with the registry offline: %v", err)
 	}
 	if offlineRes.Stale {
-		t.Error("within-TTL offline load reported stale; the resolution is still fresh")
+		t.Error("cached offline load reported stale; Cached does not re-resolve")
 	}
 	assertFixtureAgents(t, offlineRes.Catalog)
 

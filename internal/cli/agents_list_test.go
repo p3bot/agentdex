@@ -320,7 +320,7 @@ func TestListJSONCarriesFullRecord(t *testing.T) {
 func TestListWarnsOnStaleCatalog(t *testing.T) {
 	// Zero catalog TTL forces re-resolution so the offline second run yields stale.
 	s := newScenario(t, "", "alpha-cli")
-	s.writeConfig(t, "color: \"never\"\nsearch_dirs: [\""+s.binDir+"\"]\ncatalog: ttl: \"0s\"\n")
+	s.writeConfig(t, "color: \"never\"\nsearch_dirs: [\""+s.binDir+"\"]\ncatalog: fetch: \"ttl\"\ncatalog: ttl: \"0s\"\n")
 
 	if got := runCLI("agents", "list"); got.code != codeOK {
 		t.Fatalf("warm list exit = %d; stderr=%q", got.code, got.stderr)

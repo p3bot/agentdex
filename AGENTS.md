@@ -35,8 +35,10 @@ Caching is version-resolution caching layered over CUE's own module content cach
 
 - agentdex caches the resolved catalog version under `$XDG_CACHE_HOME/agentdex/`, keyed by module path, for a TTL (24h default), and relies on CUE's content cache for the module data.
 - Resolving the latest version (`ModuleVersions`) requires the network. Fetching a canonical `module@version` is served from CUE's content cache offline. This is the basis for the two behaviours below.
-- On a failed re-resolution after the TTL expires, agentdex keeps using the last resolved version (the resolution is reported as stale so a caller can warn while still working).
+- `Open()` default is FetchCached for catalog and models.dev. Callers may set Fetch independently per catalog and models.dev: CacheOnly (catalog: no ModuleVersions, pin fetch via CUE content cache; models.dev: no HTTP), Cached (network only on a cold miss; default), TTL, Latest (network required; no silent stale). TTL options apply only to FetchTTL. CLI config.cue `catalog.fetch` and `models.fetch` (`ttl`, `cache-only`, `cached`, `latest`; default `cached`) map to those modes.
+- On a failed re-resolution after the TTL expires (FetchTTL), agentdex keeps using the last resolved version (the resolution is reported as stale so a caller can warn while still working). CacheOnly and Cached never re-resolve and never report that stale.
 - A first run with no network and no previously resolved version fails clearly with `ErrCatalogUnavailable`. This is accepted behaviour, not a defect.
+- `Index.Refresh` is always Latest for the requested target, regardless of the Fetch passed to Open.
 
 ## Adding an agent to the catalog
 

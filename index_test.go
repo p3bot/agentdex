@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
@@ -75,7 +76,7 @@ func TestOpenRejectsDirAndModuleTogether(t *testing.T) {
 		WithModelsURL(modelsdevtest.MustNotFetch(t)),
 	)
 	if err == nil {
-		t.Fatal("Open with both catalog sources: want error, got nil")
+		t.Fatal("Open with both catalog origins: want error, got nil")
 	}
 	const want = "agentdex: WithCatalogDir and WithCatalogModule are mutually exclusive"
 	if err.Error() != want {
@@ -98,7 +99,7 @@ func TestCatalogStaleColdOfflineIsErrCatalogUnavailable(t *testing.T) {
 	}
 }
 
-func TestCatalogInfoDirectorySource(t *testing.T) {
+func TestCatalogInfoDirectoryOrigin(t *testing.T) {
 	ctx := context.Background()
 	dir := catalogtest.WriteModule(t, testCatalog)
 	idx, err := Open(WithCatalogDir(dir),
@@ -111,18 +112,18 @@ func TestCatalogInfoDirectorySource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CatalogInfo: %v", err)
 	}
-	if info.Source != CatalogSourceDir {
-		t.Errorf("Source = %v, want CatalogSourceDir", info.Source)
+	if info.Origin != CatalogOriginDir {
+		t.Errorf("Origin = %v, want CatalogOriginDir", info.Origin)
 	}
 	if info.Dir != dir {
 		t.Errorf("Dir = %q, want %q", info.Dir, dir)
 	}
 	if info.Module != "" || info.Version != "" || info.Stale {
-		t.Errorf("dir source should have empty module/version and Stale=false: %+v", info)
+		t.Errorf("dir origin should have empty module/version and Stale=false: %+v", info)
 	}
 	stale, err := idx.CatalogStale(ctx)
 	if err != nil || stale {
-		t.Errorf("CatalogStale on dir source = (%v, %v), want (false, nil)", stale, err)
+		t.Errorf("CatalogStale on dir origin = (%v, %v), want (false, nil)", stale, err)
 	}
 }
 
@@ -143,7 +144,7 @@ func TestCatalogInfoDirectoryInvalidIsErrCatalogInvalid(t *testing.T) {
 	}
 }
 
-func TestCatalogInfoRegistrySource(t *testing.T) {
+func TestCatalogInfoRegistryOrigin(t *testing.T) {
 	ctx := context.Background()
 	idx, closeReg := openRegistry(t, t.TempDir())
 	t.Cleanup(closeReg)
@@ -152,8 +153,8 @@ func TestCatalogInfoRegistrySource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CatalogInfo: %v", err)
 	}
-	if info.Source != CatalogSourceRegistry {
-		t.Errorf("Source = %v, want CatalogSourceRegistry", info.Source)
+	if info.Origin != CatalogOriginRegistry {
+		t.Errorf("Origin = %v, want CatalogOriginRegistry", info.Origin)
 	}
 	if info.Module != "github.com/p3bot/agentdex/catalog@v1" {
 		t.Errorf("Module = %q, want default major-line path", info.Module)
@@ -183,7 +184,7 @@ func TestCatalogInfoHonoursModuleOverride(t *testing.T) {
 	if info.Module != module {
 		t.Errorf("Module = %q, want override %q", info.Module, module)
 	}
-	if info.Source != CatalogSourceRegistry || info.Version == "" {
+	if info.Origin != CatalogOriginRegistry || info.Version == "" {
 		t.Errorf("override load incomplete: %+v", info)
 	}
 
@@ -242,6 +243,7 @@ func TestCatalogStaleFreshThenStaleWithWarningInjection(t *testing.T) {
 	// Offline + TTL 0: re-resolution fails, last version reused as stale.
 	closeReg()
 	idx, err := Open(WithCacheDir(resCache),
+		WithCatalogFetch(FetchTTL),
 		WithCatalogTTL(0),
 		WithModelsURL(modelsdevtest.MustNotFetch(t)),
 	)
@@ -268,7 +270,7 @@ func TestCatalogStaleFreshThenStaleWithWarningInjection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CatalogInfo under stale: %v", err)
 	}
-	if !info.Stale || info.Source != CatalogSourceRegistry || info.Version == "" {
+	if !info.Stale || info.Origin != CatalogOriginRegistry || info.Version == "" {
 		t.Errorf("stale CatalogInfo = %+v, want Stale registry with a version", info)
 	}
 
@@ -318,8 +320,8 @@ func TestRefreshCatalogSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CatalogInfo after refresh: %v", err)
 	}
-	if after.Source != CatalogSourceRegistry || after.Module != before.Module {
-		t.Errorf("refresh changed source identity: before=%+v after=%+v", before, after)
+	if after.Origin != CatalogOriginRegistry || after.Module != before.Module {
+		t.Errorf("refresh changed origin identity: before=%+v after=%+v", before, after)
 	}
 	if after.Version == "" || after.Stale || after.Dir != "" {
 		t.Errorf("post-refresh CatalogInfo = %+v, want non-stale registry version", after)
@@ -350,6 +352,11 @@ func TestRefreshCatalogStaleFallbackIsErrorAndKeepsState(t *testing.T) {
 	refreshed, err := idx.Refresh(ctx, TargetCatalog)
 	if !errors.Is(err, ErrCatalogUnavailable) {
 		t.Fatalf("Refresh stale error = %v, want ErrCatalogUnavailable", err)
+	}
+	if msg := err.Error(); strings.Contains(msg, "no cached fallback available") {
+		t.Errorf("Refresh error claimed no cache: %s", msg)
+	} else if !strings.Contains(msg, "unused") {
+		t.Errorf("Refresh error = %q, want unused cached version named", msg)
 	}
 	if refreshed.Catalog {
 		t.Error("Refreshed.Catalog = true on a stale-fallback refresh")

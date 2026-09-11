@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -246,6 +247,7 @@ func TestWithinTTLUsesCacheWithoutResolving(t *testing.T) {
 	loader := catalog.New(stub,
 		catalog.WithModulePath(mainPath),
 		catalog.WithCacheDir(t.TempDir()),
+		catalog.WithFetch(catalog.FetchTTL),
 		catalog.WithTTL(24*time.Hour),
 		catalog.WithClock(clock.Now),
 	)
@@ -277,6 +279,7 @@ func TestStaleResolveKeepsLastResolved(t *testing.T) {
 	loader := catalog.New(stub,
 		catalog.WithModulePath(mainPath),
 		catalog.WithCacheDir(t.TempDir()),
+		catalog.WithFetch(catalog.FetchTTL),
 		catalog.WithTTL(24*time.Hour),
 		catalog.WithClock(clock.Now),
 	)
@@ -312,6 +315,7 @@ func TestRefreshedResolveUpdatesCache(t *testing.T) {
 	loader := catalog.New(stub,
 		catalog.WithModulePath(mainPath),
 		catalog.WithCacheDir(t.TempDir()),
+		catalog.WithFetch(catalog.FetchTTL),
 		catalog.WithTTL(24*time.Hour),
 		catalog.WithClock(clock.Now),
 	)
@@ -342,6 +346,197 @@ func TestRefreshedResolveUpdatesCache(t *testing.T) {
 	}
 }
 
+func TestCacheOnlyWarmDoesNotResolve(t *testing.T) {
+	dir := catalogtest.FixtureDir(t, "catalog-valid")
+	cacheDir := t.TempDir()
+	stub := catalogtest.Serve("v1.0.0", dir)
+	first := catalog.New(stub,
+		catalog.WithModulePath(mainPath),
+		catalog.WithCacheDir(cacheDir),
+	)
+	if _, err := first.Load(context.Background()); err != nil {
+		t.Fatalf("seed Load: %v", err)
+	}
+
+	stub.OnResolve = func(context.Context, string) (string, error) {
+		t.Error("CacheOnly must not call ResolveLatestVersion")
+		return "", errors.New("network unreachable")
+	}
+	only := catalog.New(stub,
+		catalog.WithModulePath(mainPath),
+		catalog.WithCacheDir(cacheDir),
+		catalog.WithFetch(catalog.FetchCacheOnly),
+		catalog.WithTTL(0),
+	)
+	res, err := only.Load(context.Background())
+	if err != nil {
+		t.Fatalf("CacheOnly Load: %v", err)
+	}
+	if res.Version != "v1.0.0" {
+		t.Errorf("Version = %q, want v1.0.0", res.Version)
+	}
+	if res.Stale {
+		t.Error("CacheOnly reported stale")
+	}
+	if n := stub.ResolveCalls(mainPath); n != 1 {
+		t.Errorf("resolve calls = %d, want 1 (seed only)", n)
+	}
+}
+
+func TestCacheOnlyColdUnavailable(t *testing.T) {
+	stub := &catalogtest.StubRegistry{
+		OnResolve: func(context.Context, string) (string, error) {
+			t.Error("CacheOnly cold must not resolve")
+			return "", errors.New("network unreachable")
+		},
+		OnFetch: func(context.Context, string) (string, error) {
+			t.Error("CacheOnly cold must not fetch")
+			return "", nil
+		},
+	}
+	loader := catalog.New(stub,
+		catalog.WithModulePath(mainPath),
+		catalog.WithCacheDir(t.TempDir()),
+		catalog.WithFetch(catalog.FetchCacheOnly),
+	)
+	_, err := loader.Load(context.Background())
+	if !errors.Is(err, catalog.ErrUnavailable) {
+		t.Errorf("error = %v, want ErrUnavailable", err)
+	}
+}
+
+func TestCachedIgnoresTTLAndDoesNotStale(t *testing.T) {
+	dir := catalogtest.FixtureDir(t, "catalog-valid")
+	clock := &fakeClock{now: time.Unix(1_700_000_000, 0)}
+	cacheDir := t.TempDir()
+	stub := catalogtest.Serve("v1.0.0", dir)
+	first := catalog.New(stub,
+		catalog.WithModulePath(mainPath),
+		catalog.WithCacheDir(cacheDir),
+		catalog.WithClock(clock.Now),
+	)
+	if _, err := first.Load(context.Background()); err != nil {
+		t.Fatalf("seed Load: %v", err)
+	}
+
+	clock.advance(25 * time.Hour)
+	stub.OnResolve = func(context.Context, string) (string, error) {
+		t.Error("Cached must not re-resolve after TTL expiry")
+		return "", errors.New("network unreachable")
+	}
+	cached := catalog.New(stub,
+		catalog.WithModulePath(mainPath),
+		catalog.WithCacheDir(cacheDir),
+		catalog.WithFetch(catalog.FetchCached),
+		catalog.WithTTL(0),
+		catalog.WithClock(clock.Now),
+	)
+	res, err := cached.Load(context.Background())
+	if err != nil {
+		t.Fatalf("Cached Load: %v", err)
+	}
+	if res.Version != "v1.0.0" {
+		t.Errorf("Version = %q, want v1.0.0", res.Version)
+	}
+	if res.Stale {
+		t.Error("Cached reported stale")
+	}
+	if n := stub.ResolveCalls(mainPath); n != 1 {
+		t.Errorf("resolve calls = %d, want 1", n)
+	}
+}
+
+func TestCachedColdFillsThenCacheOnlyOffline(t *testing.T) {
+	dir := catalogtest.FixtureDir(t, "catalog-valid")
+	cacheDir := t.TempDir()
+	stub := catalogtest.Serve("v1.0.0", dir)
+	fill := catalog.New(stub,
+		catalog.WithModulePath(mainPath),
+		catalog.WithCacheDir(cacheDir),
+		catalog.WithFetch(catalog.FetchCached),
+	)
+	if _, err := fill.Load(context.Background()); err != nil {
+		t.Fatalf("cold Cached Load: %v", err)
+	}
+	if n := stub.ResolveCalls(mainPath); n != 1 {
+		t.Fatalf("cold Cached resolve calls = %d, want 1", n)
+	}
+
+	stub.OnResolve = func(context.Context, string) (string, error) {
+		t.Error("second load must not resolve")
+		return "", errors.New("network unreachable")
+	}
+	for _, src := range []catalog.Fetch{catalog.FetchCached, catalog.FetchCacheOnly} {
+		loader := catalog.New(stub,
+			catalog.WithModulePath(mainPath),
+			catalog.WithCacheDir(cacheDir),
+			catalog.WithFetch(src),
+		)
+		res, err := loader.Load(context.Background())
+		if err != nil {
+			t.Fatalf("%s Load: %v", src, err)
+		}
+		if res.Stale {
+			t.Errorf("%s reported stale", src)
+		}
+	}
+	if n := stub.ResolveCalls(mainPath); n != 1 {
+		t.Errorf("resolve calls = %d, want 1", n)
+	}
+}
+
+func TestLatestFailedResolveDoesNotServeStale(t *testing.T) {
+	dir := catalogtest.FixtureDir(t, "catalog-valid")
+	cacheDir := t.TempDir()
+	stub := catalogtest.Serve("v1.0.0", dir)
+	if _, err := catalog.New(stub,
+		catalog.WithModulePath(mainPath),
+		catalog.WithCacheDir(cacheDir),
+	).Load(context.Background()); err != nil {
+		t.Fatalf("seed Load: %v", err)
+	}
+
+	stub.OnResolve = func(context.Context, string) (string, error) {
+		return "", errors.New("network unreachable")
+	}
+	loader := catalog.New(stub,
+		catalog.WithModulePath(mainPath),
+		catalog.WithCacheDir(cacheDir),
+		catalog.WithFetch(catalog.FetchLatest),
+	)
+	res, err := loader.Load(context.Background())
+	if !errors.Is(err, catalog.ErrUnavailable) {
+		t.Errorf("error = %v, want ErrUnavailable", err)
+	}
+	if err != nil {
+		msg := err.Error()
+		if !strings.Contains(msg, "cached v1.0.0 unused") {
+			t.Errorf("error = %q, want unused cached version named", msg)
+		}
+		if strings.Contains(msg, "no cached fallback available") {
+			t.Errorf("error = %q, must not claim the cache is empty", msg)
+		}
+	}
+	if res != nil {
+		t.Errorf("Latest must not return a stale catalog, got %+v", res)
+	}
+}
+
+func TestUnknownFetchFails(t *testing.T) {
+	loader := catalog.New(catalogtest.Serve("v1.0.0", catalogtest.FixtureDir(t, "catalog-valid")),
+		catalog.WithModulePath(mainPath),
+		catalog.WithCacheDir(t.TempDir()),
+		catalog.WithFetch(catalog.Fetch(99)),
+	)
+	_, err := loader.Load(context.Background())
+	if err == nil {
+		t.Fatal("unknown Fetch succeeded")
+	}
+	if errors.Is(err, catalog.ErrUnavailable) {
+		t.Errorf("unknown Fetch should not look like a cache miss: %v", err)
+	}
+}
+
 func TestFirstRunOfflineFails(t *testing.T) {
 	stub := &catalogtest.StubRegistry{
 		OnResolve: func(context.Context, string) (string, error) {
@@ -360,6 +555,9 @@ func TestFirstRunOfflineFails(t *testing.T) {
 	_, err := loader.Load(context.Background())
 	if !errors.Is(err, catalog.ErrUnavailable) {
 		t.Errorf("error = %v, want ErrUnavailable", err)
+	}
+	if err != nil && strings.Contains(err.Error(), "unused") {
+		t.Errorf("first-run error named an unused cache: %v", err)
 	}
 }
 

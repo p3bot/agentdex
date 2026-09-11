@@ -58,11 +58,20 @@ func TestStringers(t *testing.T) {
 		}, func(v int) string { return Target(v).String() })
 	})
 
-	t.Run("CatalogSource", func(t *testing.T) {
-		assertNames(t, "CatalogSource", []string{
-			"CatalogSourceRegistry",
-			"CatalogSourceDir",
-		}, func(v int) string { return CatalogSource(v).String() })
+	t.Run("CatalogOrigin", func(t *testing.T) {
+		assertNames(t, "CatalogOrigin", []string{
+			"CatalogOriginRegistry",
+			"CatalogOriginDir",
+		}, func(v int) string { return CatalogOrigin(v).String() })
+	})
+
+	t.Run("Fetch", func(t *testing.T) {
+		assertNames(t, "Fetch", []string{
+			"FetchCached",
+			"FetchCacheOnly",
+			"FetchTTL",
+			"FetchLatest",
+		}, func(v int) string { return Fetch(v).String() })
 	})
 }
 

@@ -61,7 +61,9 @@ func (a *app) newRefreshCmd() *cobra.Command {
 		GroupID: groupCore,
 		Short:   "Force a refresh: " + refreshTargetList(),
 		Long: "Force a refresh of the agentdex catalog (agent data) and/or the " +
-			"models.dev catalog (provider and model data). The target defaults to all.",
+			"models.dev catalog (provider and model data). Always Latest for the " +
+			"requested target: catalog.fetch and models.fetch in config.cue do not " +
+			"apply. The target defaults to all.",
 		Args: atMostOne("target"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			idx, err := a.index(cmd)

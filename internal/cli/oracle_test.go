@@ -23,7 +23,7 @@ import (
 func staleScenario(t *testing.T, modelsURL string, bins ...string) *scenario {
 	t.Helper()
 	s := newScenario(t, modelsURL, bins...)
-	s.writeConfig(t, configBody(modelsURL, s.binDir, "catalog: ttl: \"0s\"\n"))
+	s.writeConfig(t, configBody(modelsURL, s.binDir, "catalog: fetch: \"ttl\"\ncatalog: ttl: \"0s\"\n"))
 	if got := runCLI("agents", "list"); got.code != codeOK {
 		t.Fatalf("warm list exit = %d; stderr=%q", got.code, got.stderr)
 	}

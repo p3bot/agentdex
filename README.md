@@ -204,17 +204,19 @@ Optional and **CLI-only**. Library callers use `Open` options, not this file.
 Path: `$XDG_CONFIG_HOME/agentdex/config.cue` (fallback `~/.config/agentdex/config.cue`). Absent file means defaults. Flags override config on collision.
 
 ```cue
-cache_ttl?: string // fallback TTL when section ttl omitted
+cache_ttl?: string // only legal when catalog.fetch or models.fetch is "ttl"; fallback when that section omits ttl
 
 catalog: {
 	module: string | *"github.com/p3bot/agentdex/catalog@v1"
 	dir?:   string // local CUE module (no registry; never stale)
-	ttl?:   string // version-resolution TTL (default 24h)
+	fetch: "ttl" | "cache-only" | "cached" | "latest" | *"cached"
+	ttl?:  string // only legal when fetch is "ttl"
 }
 
 models: {
-	url?: string
-	ttl?: string // default 24h
+	url?:  string
+	fetch: "ttl" | "cache-only" | "cached" | "latest" | *"cached"
+	ttl?:  string // only legal when fetch is "ttl"
 }
 
 search_dirs?: [...string]
@@ -289,7 +291,8 @@ Common options for `Open` (full list in [package docs](https://pkg.go.dev/github
 | `WithWorkingDir` | Base for relative local paths |
 | `WithLookPath` / `WithSearchDirs` / `WithBinPaths` | Binary discovery |
 | `WithEnvLookup` | Env for path expansion and provider-env presence only |
-| `WithModelsURL` / `WithModelsTTL` / `WithCatalogTTL` | Sources and TTLs |
+| `WithCatalogFetch` / `WithModelsFetch` | When network: Cached (default), CacheOnly, TTL, Latest |
+| `WithModelsURL` / `WithModelsTTL` / `WithCatalogTTL` | URL and TTLs (TTL options apply only to FetchTTL) |
 | `WithHTTPClient` / `WithLogger` | HTTP and structured logging (silent by default) |
 
 ### Agents
@@ -307,7 +310,7 @@ detail, err := idx.Agents.Get(ctx, "claude-code", agentdex.AgentGetQuery{
 // detail.Detection.Config, detail.Detection.Skills, detail.Coverage, …
 ```
 
-`Enrich` is the demand axis (each level is a superset). Installation does not gate enrichment.
+`Enrich` is the demand axis (what data; each level is a superset). Installation does not gate enrichment. `Fetch` is the Open-time axis for when the catalog or models.dev may use the network; it is not a field on Get/List queries.
 
 | Level | Attaches |
 |---|---|
@@ -356,6 +359,8 @@ stale, err := idx.CatalogStale(ctx)
 mstale, err := idx.ModelsStale(ctx)
 ```
 
+`CatalogInfo.Origin` is registry vs directory (`CatalogOriginRegistry`, `CatalogOriginDir`). `Fetch` is the Open-time when-network policy, not this field.
+
 `WithCatalogDir` has nothing to re-resolve (not refreshed, no error).
 
 ### Errors and warnings
@@ -364,7 +369,7 @@ Match with `errors.Is`. Common sentinels:
 
 | Sentinel | Meaning |
 |---|---|
-| `ErrCatalogUnavailable` | Cold offline, no prior catalog resolution |
+| `ErrCatalogUnavailable` | Catalog could not load under the Fetch policy (cold miss, CacheOnly miss, or Latest/Refresh leaving a cached version unused) |
 | `ErrCatalogInvalid` | Schema evaluation failed |
 | `ErrModelsUnavailable` | models.dev down on Providers/Models (agent ops degrade) |
 | `ErrModelsSchema` | Unrecognised models.dev shape (alias of `modelsdev.ErrModelsSchema`) |
@@ -385,7 +390,7 @@ Models.dev only (no agent index):
 import "github.com/p3bot/agentdex/modelsdev"
 ```
 
-Fetches `catalog.json`, merges provider and agnostic maps, checks gross schema drift, caches with stale-on-failure. Imports no agentdex internals. Docs: [pkg.go.dev/github.com/p3bot/agentdex/modelsdev@v1.0.0](https://pkg.go.dev/github.com/p3bot/agentdex/modelsdev@v1.0.0).
+Fetches `catalog.json`, merges provider and agnostic maps, checks gross schema drift, caches according to `Fetch` (default Cached). Imports no agentdex internals. Docs: [pkg.go.dev/github.com/p3bot/agentdex/modelsdev@v1.0.0](https://pkg.go.dev/github.com/p3bot/agentdex/modelsdev@v1.0.0).
 
 ## Catalog and caching
 
@@ -398,12 +403,32 @@ Published independently. The Go build ignores `catalog/`. The CUE module ships i
 
 Caches live under `$XDG_CACHE_HOME/agentdex/` (default TTL 24h): catalog **version resolution** over CUE's content cache, plus models.dev `catalog.json`.
 
-- Latest-version resolution needs network; a pinned `module@version` can be served offline from CUE's content cache.
-- After TTL expiry, failed re-resolution keeps the last version and reports stale (usable with a warning).
+`Open()` with no fetch options is FetchCached for both catalog and models.dev. The CLI reads `catalog.fetch` and `models.fetch` from config.cue (default `cached`). Enrich answers what data; Fetch answers when network. Each has its own knob (`WithCatalogFetch`, `WithModelsFetch`).
+
+| Mode | Network | Miss / failure |
+|---|---|---|
+| `FetchCacheOnly` | Catalog: no ModuleVersions (pin fetch may use CUE content cache); models.dev: no HTTP | `ErrCatalogUnavailable` / `ErrModelsUnavailable` |
+| `FetchCached` | Only if there is no cache | Same sentinels on a cold miss; no TTL re-resolve |
+| `FetchTTL` | After TTL expiry | Failed re-resolve may serve stale catalog or degrade models.dev |
+| `FetchLatest` | Required | Failure does not silently serve stale (`Index.Refresh`) |
+
+Open and CLI default is Cached. TTL is opt-in (`fetch: "ttl"` or `WithCatalogFetch(FetchTTL)`).
+`Index.Refresh` is always Latest for the requested target.
+
+| Use | Catalog | models.dev | Enrich |
+|---|---|---|---|
+| Day-to-day launch | Cached | (not opened) | EnrichNone |
+| Live model list | Cached | Cached | EnrichCount / EnrichFull |
+| Strict cache | CacheOnly | CacheOnly | EnrichNone |
+| `agentdex refresh` / `Index.Refresh` | Latest | Latest | — |
+
+- Latest-version resolution needs network; a pinned `module@version` can be served offline from CUE's content cache. FetchCacheOnly skips ModuleVersions but still fetches that pin (network only if CUE's content cache is cold).
+- After TTL expiry (FetchTTL), failed re-resolution keeps the last version and reports stale (usable with a warning). CacheOnly and Cached never report stale-because-re-resolve-failed.
 - First run with no network and no prior resolution → `ErrCatalogUnavailable` (CLI exit 75). Accepted behaviour.
 - Unreachable models.dev: agent ops degrade; `Providers` / `Models` return `ErrModelsUnavailable`.
+- `WithCatalogDir` is a directory origin (never registry, never stale) regardless of catalog Fetch.
 
-Force a refresh: `agentdex refresh` or `Index.Refresh`.
+Force a refresh: `agentdex refresh` or `Index.Refresh` (always Latest for the requested target).
 
 ## Platforms
 

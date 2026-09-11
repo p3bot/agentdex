@@ -43,6 +43,7 @@ func openStaleModels(t *testing.T, body string, opts ...Option) *Index {
 	base := []Option{
 		WithCacheDir(cache),
 		WithModelsURL(failingModelsURL(t)),
+		WithModelsFetch(FetchTTL),
 		WithModelsTTL(0),
 	}
 	return openAgents(t, body, append(base, opts...)...)
@@ -90,6 +91,7 @@ func TestModelsStaleFreshThenStaleWithWarningInjection(t *testing.T) {
 	idx := openAgents(t, testCatalog,
 		WithCacheDir(cache),
 		WithModelsURL(failingModelsURL(t)),
+		WithModelsFetch(FetchTTL),
 		WithModelsTTL(0),
 	)
 	if s, err := idx.ModelsStale(ctx); err != nil || !s {
@@ -271,6 +273,7 @@ func TestRefreshModelsClearsModelsStale(t *testing.T) {
 	idx := openAgents(t, testCatalog,
 		WithCacheDir(cache),
 		WithModelsURL(srv.URL),
+		WithModelsFetch(FetchTTL),
 		WithModelsTTL(0),
 	)
 	if s, err := idx.ModelsStale(ctx); err != nil || !s {

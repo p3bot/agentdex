@@ -5,8 +5,10 @@
 // reads an agent's internal configuration or executes its binary.
 //
 // Open constructs an *Index with no network I/O; catalogs resolve lazily once under
-// a guard. Options configure catalog source (registry module or local WithCatalogDir),
-// caches, detection, and boundary inputs (env lookup, WithLookPath, working dir).
+// a guard. Options configure catalog location (registry module or local WithCatalogDir),
+// Fetch (when network: CacheOnly, Cached, TTL, Latest — catalog and models.dev
+// independently; default Cached), caches, detection, and boundary inputs (env lookup,
+// WithLookPath, working dir).
 //
 //	idx, err := agentdex.Open()
 //	if err != nil { return err }
@@ -16,7 +18,8 @@
 // and catalog/models staleness helpers. Detection is a property of an agent, not a
 // top-level verb.
 //
-// Enrich is the demand axis for agent operations (each level a superset):
+// Enrich is the demand axis for agent operations (what data; each level a superset).
+// Fetch is the Open-time network axis (when): orthogonal, not a query field.
 //
 //   - EnrichNone: catalog and detection only. Get never contacts models.dev; List
 //     does so only to validate a non-empty Providers filter.

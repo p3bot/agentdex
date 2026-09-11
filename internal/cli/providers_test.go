@@ -175,7 +175,7 @@ func TestProvidersListWarnsOnStaleModels(t *testing.T) {
 	}))
 	t.Cleanup(failing.Close)
 	s.writeConfig(t, fmt.Sprintf(
-		"color: \"never\"\nsearch_dirs: [%q]\nmodels: {\n\turl: %q\n\tttl: \"0s\"\n}\n",
+		"color: \"never\"\nsearch_dirs: [%q]\nmodels: {\n\turl: %q\n\tfetch: \"ttl\"\n\tttl: \"0s\"\n}\n",
 		s.binDir, failing.URL,
 	))
 

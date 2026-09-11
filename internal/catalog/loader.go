@@ -21,6 +21,7 @@ type Loader struct {
 	modulePath string
 	cache      *resolutionCache
 	ttl        time.Duration
+	fetch      Fetch
 	now        func() time.Time
 }
 
@@ -31,6 +32,7 @@ type Result struct {
 	Version string
 	// Stale is true when re-resolution failed after the TTL expired and the last
 	// resolved version was reused. The catalog is still usable; a caller may warn.
+	// CacheOnly and Cached never set Stale: they never re-resolve.
 	Stale bool
 }
 
@@ -48,9 +50,15 @@ func WithCacheDir(dir string) Option {
 	return func(l *Loader) { l.cache = newResolutionCache(dir) }
 }
 
-// WithTTL overrides the version-resolution cache TTL.
+// WithTTL overrides the version-resolution cache TTL. Meaningful only for
+// FetchTTL; ignored by CacheOnly, Cached, and Latest.
 func WithTTL(ttl time.Duration) Option {
 	return func(l *Loader) { l.ttl = ttl }
+}
+
+// WithFetch sets when version resolution may use the network. Default FetchCached.
+func WithFetch(s Fetch) Option {
+	return func(l *Loader) { l.fetch = s }
 }
 
 // WithClock overrides the clock; used to make TTL behaviour deterministic in tests.
@@ -75,14 +83,16 @@ func New(registry Registry, opts ...Option) *Loader {
 	return l
 }
 
-// Load resolves the catalog module version (honouring the cache and TTL),
+// Load resolves the catalog module version (honouring Fetch, cache, and TTL),
 // fetches the module, validates it against its bundled schema, and decodes it.
 //
 // Version resolution requires the network; fetching a canonical module@version
-// is served from CUE's content cache offline. After a first successful run the
-// catalog loads offline within the TTL; a failed re-resolution after the TTL
-// keeps the last resolved version (reported as stale); a first run with no
-// network and no cached resolution fails with ErrUnavailable.
+// is served from CUE's content cache offline. FetchCached (default): after a first
+// successful run the catalog loads offline with no freshness check. FetchTTL
+// re-resolves after the TTL; a failed re-resolution keeps the last version
+// (reported as stale). FetchCacheOnly never resolves; Fetch of the pin still
+// uses CUE's content cache. FetchLatest always resolves and never serves stale.
+// A first run with no network and no cached resolution fails with ErrUnavailable.
 func (l *Loader) Load(ctx context.Context) (*Result, error) {
 	version, stale, err := l.resolveVersion(ctx)
 	if err != nil {
@@ -108,21 +118,53 @@ func (l *Loader) Load(ctx context.Context) (*Result, error) {
 	return &Result{Catalog: cat, Version: version, Stale: stale}, nil
 }
 
-// Within-TTL cache hits skip the network. Otherwise re-resolve: success refreshes
-// the cache; failure keeps the last resolved version (stale) when one exists, or
-// fails with ErrUnavailable on a first run with no cache. Cache I/O is best-effort:
-// read errors are cache misses, write errors after a successful resolve are discarded.
+// Cache I/O is best-effort: read errors are cache misses, write errors after a
+// successful resolve are discarded.
 func (l *Loader) resolveVersion(ctx context.Context) (version string, stale bool, err error) {
 	// ok=false on read error: degrade to cache miss rather than abort.
 	cached, ok, _ := l.cache.read(l.modulePath)
-	if ok && cached.fresh(l.now(), l.ttl) {
-		return cached.Version, false, nil
-	}
 
+	switch l.fetch {
+	case FetchCacheOnly:
+		if !ok {
+			return "", false, fmt.Errorf("%w: cache-only and no cached resolution", ErrUnavailable)
+		}
+		return cached.Version, false, nil
+	case FetchCached:
+		if ok {
+			return cached.Version, false, nil
+		}
+		return l.resolveFromRegistry(ctx, "", false)
+	case FetchTTL:
+		if ok && cached.fresh(l.now(), l.ttl) {
+			return cached.Version, false, nil
+		}
+		fallback := ""
+		if ok {
+			fallback = cached.Version
+		}
+		return l.resolveFromRegistry(ctx, fallback, true)
+	case FetchLatest:
+		unused := ""
+		if ok {
+			unused = cached.Version
+		}
+		return l.resolveFromRegistry(ctx, unused, false)
+	default:
+		return "", false, fmt.Errorf("unknown catalog fetch %s", l.fetch)
+	}
+}
+
+// cached is the last resolved version when one exists. useStale serves it on
+// resolve failure (TTL); otherwise a failure names it as unused (Latest).
+func (l *Loader) resolveFromRegistry(ctx context.Context, cached string, useStale bool) (version string, stale bool, err error) {
 	resolved, resolveErr := l.registry.ResolveLatestVersion(ctx, l.modulePath)
 	if resolveErr != nil {
-		if ok {
-			return cached.Version, true, nil
+		if useStale && cached != "" {
+			return cached, true, nil
+		}
+		if cached != "" {
+			return "", false, fmt.Errorf("%w: could not resolve latest version (cached %s unused): %w", ErrUnavailable, cached, resolveErr)
 		}
 		return "", false, fmt.Errorf("%w: %w", ErrUnavailable, resolveErr)
 	}

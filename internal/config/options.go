@@ -15,11 +15,13 @@ type Flags struct {
 }
 
 // Options builds the agentdex.Open options from the resolved configuration and
-// the global flags. When catalog.dir is set it is the sole catalog source
+// the global flags. When catalog.dir is set it is the sole catalog origin
 // (module omitted); otherwise catalog.module is used — the two are mutually
 // exclusive in the library. Force-refresh is owned by Index.Refresh.
 func (c *Config) Options(f Flags) []agentdex.Option {
 	opts := []agentdex.Option{
+		agentdex.WithCatalogFetch(c.CatalogFetch),
+		agentdex.WithModelsFetch(c.ModelsFetch),
 		agentdex.WithCatalogTTL(c.CatalogTTL),
 		agentdex.WithModelsTTL(c.ModelsTTL),
 	}

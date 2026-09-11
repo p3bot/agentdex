@@ -12,10 +12,12 @@ type Index struct {
 	core *core
 }
 
-// Refresh forces re-resolution or refetch past caches and publishes the result.
+// Refresh loads Latest for the selected target and publishes the result.
 // TargetAll runs catalog then models.dev and stops at the first failure;
 // Refreshed names only targets that completed. Failed targets leave prior state
-// untouched. WithCatalogDir has nothing to re-resolve (not-refreshed, no error).
+// untouched. A failed fetch does not swap in stale as success. WithCatalogDir
+// has nothing to re-resolve (not-refreshed, no error). The Fetch passed to
+// Open does not apply: Refresh is always Latest for that target.
 func (x *Index) Refresh(ctx context.Context, t Target) (Refreshed, error) {
 	var refreshed Refreshed
 	if t == TargetCatalog || t == TargetAll {

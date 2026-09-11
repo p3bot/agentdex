@@ -57,11 +57,15 @@ func TestLoadMissingFileIsEmptyDefaults(t *testing.T) {
 	if got.CatalogTTL != DefaultTTL || got.ModelsTTL != DefaultTTL {
 		t.Errorf("TTLs = %v/%v, want default %v", got.CatalogTTL, got.ModelsTTL, DefaultTTL)
 	}
+	if got.CatalogFetch != agentdex.FetchCached || got.ModelsFetch != agentdex.FetchCached {
+		t.Errorf("Fetch = %v/%v, want FetchCached", got.CatalogFetch, got.ModelsFetch)
+	}
 }
 
 func TestLoadFieldsAndTTLResolution(t *testing.T) {
 	path := writeConfig(t, `
 cache_ttl: "1h"
+catalog: fetch: "ttl"
 catalog: ttl: "2h"
 catalog: dir: "./local-catalog"
 models: url: "https://mirror.example/catalog.json"
@@ -128,8 +132,122 @@ func TestLoadRejectsBadType(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsBadFetch(t *testing.T) {
+	path := writeConfig(t, `catalog: fetch: "offline"`)
+	_, err := Load(path)
+	if !errors.Is(err, ErrConfig) {
+		t.Fatalf("Load bad fetch err = %v, want ErrConfig", err)
+	}
+}
+
+func TestLoadRejectsTtlWhenFetchNotTtl(t *testing.T) {
+	for _, body := range []string{
+		`catalog: { fetch: "cached", ttl: "1h" }`,
+		`catalog: { fetch: "cache-only", ttl: "1h" }`,
+		`catalog: { fetch: "latest", ttl: "1h" }`,
+		`models: { fetch: "cached", ttl: "1h" }`,
+		`cache_ttl: "1h"`,
+		`cache_ttl: "1h"
+catalog: fetch: "cached"`,
+		`cache_ttl: "1h"
+models: fetch: "latest"`,
+	} {
+		_, err := Load(writeConfig(t, body))
+		if !errors.Is(err, ErrConfig) {
+			t.Fatalf("Load %q err = %v, want ErrConfig", body, err)
+		}
+	}
+}
+
+func TestLoadFetchValues(t *testing.T) {
+	cases := []struct {
+		body            string
+		catalog, models agentdex.Fetch
+	}{
+		{`catalog: fetch: "ttl"`, agentdex.FetchTTL, agentdex.FetchCached},
+		{`catalog: fetch: "cache-only"`, agentdex.FetchCacheOnly, agentdex.FetchCached},
+		{`catalog: fetch: "cached"
+models: fetch: "latest"`, agentdex.FetchCached, agentdex.FetchLatest},
+	}
+	for _, tc := range cases {
+		got, err := Load(writeConfig(t, tc.body))
+		if err != nil {
+			t.Fatalf("Load %q: %v", tc.body, err)
+		}
+		if got.CatalogFetch != tc.catalog || got.ModelsFetch != tc.models {
+			t.Errorf("Load %q: CatalogFetch=%v ModelsFetch=%v, want %v/%v",
+				tc.body, got.CatalogFetch, got.ModelsFetch, tc.catalog, tc.models)
+		}
+	}
+}
+
+func TestOptionsHonoursFetch(t *testing.T) {
+	dir := catalogtest.WriteModule(t, `agents: "alpha-cli": {
+	name: "Alpha CLI"
+	bin:  "alpha"
+	config: {global: "~/.alpha"}
+	provider: ["anthropic"]
+}`)
+	c := &Config{
+		CatalogDir:   dir,
+		CatalogFetch: agentdex.FetchCacheOnly,
+		CatalogTTL:   DefaultTTL,
+		ModelsFetch:  agentdex.FetchCacheOnly,
+		ModelsTTL:    DefaultTTL,
+	}
+	opts := append(c.Options(Flags{}),
+		agentdex.WithCacheDir(t.TempDir()),
+		agentdex.WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+	idx, err := agentdex.Open(opts...)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	_, err = idx.Providers.List(t.Context(), agentdex.ProviderQuery{})
+	if !errors.Is(err, agentdex.ErrModelsUnavailable) {
+		t.Fatalf("CacheOnly models List error = %v, want ErrModelsUnavailable", err)
+	}
+
+	c.CatalogDir = ""
+	c.CatalogModule = "github.com/p3bot/agentdex/catalog@v1"
+	opts = append(c.Options(Flags{}),
+		agentdex.WithCacheDir(t.TempDir()),
+		agentdex.WithModelsURL(modelsdevtest.MustNotFetch(t)),
+	)
+	idx, err = agentdex.Open(opts...)
+	if err != nil {
+		t.Fatalf("Open registry CacheOnly: %v", err)
+	}
+	_, err = idx.Agents.List(t.Context(), agentdex.AgentQuery{Enrich: agentdex.EnrichNone})
+	if !errors.Is(err, agentdex.ErrCatalogUnavailable) {
+		t.Fatalf("CacheOnly catalog List error = %v, want ErrCatalogUnavailable", err)
+	}
+}
+
+func TestLoadCacheTTLWhenSectionFetchIsTtl(t *testing.T) {
+	got, err := Load(writeConfig(t, `
+cache_ttl: "1h"
+models: fetch: "ttl"
+`))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got.ModelsFetch != agentdex.FetchTTL {
+		t.Errorf("ModelsFetch = %v, want FetchTTL", got.ModelsFetch)
+	}
+	if got.ModelsTTL != time.Hour {
+		t.Errorf("ModelsTTL = %v, want cache_ttl 1h", got.ModelsTTL)
+	}
+	if got.CatalogFetch != agentdex.FetchCached {
+		t.Errorf("CatalogFetch = %v, want FetchCached", got.CatalogFetch)
+	}
+}
+
 func TestLoadRejectsBadDuration(t *testing.T) {
-	path := writeConfig(t, `cache_ttl: "not-a-duration"`)
+	path := writeConfig(t, `
+catalog: fetch: "ttl"
+cache_ttl: "not-a-duration"
+`)
 	_, err := Load(path)
 	if !errors.Is(err, ErrConfig) {
 		t.Fatalf("Load bad duration err = %v, want ErrConfig", err)

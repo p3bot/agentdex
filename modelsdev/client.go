@@ -3,6 +3,7 @@ package modelsdev
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,7 +16,7 @@ import (
 const DefaultURL = "https://models.dev/catalog.json"
 
 // DefaultTTL is how long a cached catalog.json is served before a refetch is
-// attempted. On a failed refetch the stale copy is still served.
+// attempted under FetchTTL. On a failed refetch the stale copy is still served.
 const DefaultTTL = 24 * time.Hour
 
 // DefaultHTTPTimeout bounds a single catalog fetch end to end. The shared
@@ -33,12 +34,12 @@ const maxResponseBytes = 64 << 20
 // memory. A long-lived Client never re-merges — refresh needs a new Client.
 // Methods are safe for concurrent use.
 type Client struct {
-	httpClient   *http.Client
-	url          string
-	cache        cache
-	ttl          time.Duration
-	forceRefresh bool
-	now          func() time.Time
+	httpClient *http.Client
+	url        string
+	cache      cache
+	ttl        time.Duration
+	fetch      Fetch
+	now        func() time.Time
 
 	mu       sync.Mutex
 	catalog  *Catalog   // memoised once a usable result is obtained
@@ -67,17 +68,23 @@ func WithCacheDir(dir string) ClientOption {
 	return func(c *Client) { c.cache = cache{dir: dir} }
 }
 
-// WithTTL overrides the cache TTL.
+// WithTTL overrides the cache TTL. Meaningful only for FetchTTL; ignored by
+// CacheOnly, Cached, and Latest.
 func WithTTL(ttl time.Duration) ClientOption {
 	return func(c *Client) { c.ttl = ttl }
 }
 
-// WithForceRefresh makes the next load fetch fresh bytes, ignore the cache TTL,
+// WithFetch sets when a load may use HTTP. Default FetchCached.
+func WithFetch(s Fetch) ClientOption {
+	return func(c *Client) { c.fetch = s }
+}
+
+// WithForceRefresh is FetchLatest: fetch fresh bytes, ignore the cache TTL,
 // and report fetch/decode failure rather than fall back to stale cache. Honest
 // mode for explicit refresh: the caller learns whether fresh data was fetched.
 // A successful fetch still updates the on-disk cache.
 func WithForceRefresh() ClientOption {
-	return func(c *Client) { c.forceRefresh = true }
+	return func(c *Client) { c.fetch = FetchLatest }
 }
 
 // WithHTTPClient overrides the package-owned HTTP client, replacing the default
@@ -88,7 +95,7 @@ func WithHTTPClient(hc *http.Client) ClientOption {
 }
 
 // New constructs a Client with built-in defaults: the published catalog URL, the
-// cache directory under $XDG_CACHE_HOME, a 24h TTL, and a package-owned HTTP
+// cache directory under $XDG_CACHE_HOME, FetchCached, and a package-owned HTTP
 // client. Options override any of these.
 func New(opts ...ClientOption) *Client {
 	c := &Client{
@@ -239,37 +246,91 @@ func (c *Client) afterInflight(call *fetchCall) (*Catalog, error) {
 	return call.catalog, call.err
 }
 
-// Within-TTL hit, fresh fetch, or stale copy on failure. Bool is true only for
-// post-failure cache re-decode. forceRefresh skips both within-TTL hit and stale fallback.
+// CacheOnly / Cached never set the stale bit; they never refetch a present cache.
 func (c *Client) fetchMerge(ctx context.Context) (*Catalog, bool, error) {
 	cachedData, modTime, cached := c.cache.read()
-	if !c.forceRefresh && cached && c.now().Sub(modTime) < c.ttl {
-		if cat, err := decodeValidate(cachedData); err == nil {
-			merge(cat)
-			return cat, false, nil
+
+	switch c.fetch {
+	case FetchCacheOnly:
+		if !cached {
+			return nil, false, fmt.Errorf("%w: cache-only and no cached catalog", ErrUnavailable)
+		}
+		cat, stale, err := serveCached(cachedData)
+		return cat, stale, asUnavailable(err)
+	case FetchCached:
+		if cached {
+			if cat, stale, err := serveCached(cachedData); err == nil {
+				return cat, stale, nil
+			}
+		}
+		cat, err := c.fetchAndStore(ctx)
+		return cat, false, asUnavailable(err)
+	case FetchLatest:
+		cat, err := c.fetchAndStore(ctx)
+		if err != nil && cached && !errors.Is(err, ErrModelsSchema) {
+			return nil, false, fmt.Errorf("%w: cached catalog unused: %w", ErrUnavailable, err)
+		}
+		return cat, false, asUnavailable(err)
+	case FetchTTL:
+		return c.fetchMergeTTL(ctx, cachedData, modTime, cached)
+	default:
+		return nil, false, fmt.Errorf("unknown models.dev fetch %s", c.fetch)
+	}
+}
+
+func asUnavailable(err error) error {
+	if err == nil || errors.Is(err, ErrModelsSchema) || errors.Is(err, ErrUnavailable) {
+		return err
+	}
+	return fmt.Errorf("%w: %w", ErrUnavailable, err)
+}
+
+func serveCached(data []byte) (*Catalog, bool, error) {
+	cat, err := decodeValidate(data)
+	if err != nil {
+		return nil, false, err
+	}
+	merge(cat)
+	return cat, false, nil
+}
+
+func (c *Client) fetchAndStore(ctx context.Context) (*Catalog, error) {
+	data, err := c.get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cat, err := decodeValidate(data)
+	if err != nil {
+		return nil, err
+	}
+	_ = c.cache.write(data) // best-effort: usable result returned regardless
+	merge(cat)
+	return cat, nil
+}
+
+// Within-TTL hit, fresh fetch, or stale copy on failure. Bool is true only for
+// post-failure cache re-decode.
+func (c *Client) fetchMergeTTL(ctx context.Context, cachedData []byte, modTime time.Time, cached bool) (*Catalog, bool, error) {
+	if cached && c.now().Sub(modTime) < c.ttl {
+		if cat, stale, err := serveCached(cachedData); err == nil {
+			return cat, stale, nil
 		}
 		// Corrupt within-TTL cache is unusable as fresh or stale: fall through.
 		cached = false
 	}
 
-	data, fetchErr := c.get(ctx)
+	cat, fetchErr := c.fetchAndStore(ctx)
 	if fetchErr == nil {
-		cat, decErr := decodeValidate(data)
-		if decErr == nil {
-			_ = c.cache.write(data) // best-effort: usable result returned regardless
-			merge(cat)
-			return cat, false, nil
-		}
-		fetchErr = decErr
+		return cat, false, nil
 	}
 
-	if !c.forceRefresh && cached {
+	if cached {
 		if cat, err := decodeValidate(cachedData); err == nil {
 			merge(cat)
 			return cat, true, nil
 		}
 	}
-	return nil, false, fetchErr
+	return nil, false, asUnavailable(fetchErr)
 }
 
 func (c *Client) get(ctx context.Context) ([]byte, error) {

@@ -1,9 +1,9 @@
 // Package config loads and validates the agentdex user configuration
 // (config.cue), resolves the XDG paths it lives under, resolves the per-cache
-// TTLs, and maps the configuration together with the global flags into the
-// agentdex library options and the modelsdev client options. It is the one place
-// where config.cue and flags are read; the library and the modelsdev client stay
-// configuration-agnostic and option-driven.
+// TTLs and Fetch, and maps the configuration together with the global flags
+// into the agentdex library options and the modelsdev client options. It is the
+// one place where config.cue and flags are read; the library and the modelsdev
+// client stay configuration-agnostic and option-driven.
 package config
 
 import (
@@ -17,6 +17,8 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+
+	"github.com/p3bot/agentdex"
 )
 
 // DefaultTTL is the built-in cache TTL applied when neither a section ttl nor
@@ -32,13 +34,15 @@ var ErrConfig = errors.New("invalid configuration")
 var schemaSrc string
 
 // Config is the resolved, typed configuration: defaults applied, durations
-// parsed into the per-cache TTLs. Decoupled from config.cue's wire shape so
-// callers never re-parse strings.
+// parsed into the per-cache TTLs, fetch strings mapped to agentdex.Fetch.
+// Decoupled from config.cue's wire shape so callers never re-parse strings.
 type Config struct {
 	CatalogModule string
 	CatalogDir    string
+	CatalogFetch  agentdex.Fetch
 	CatalogTTL    time.Duration
 	ModelsURL     string
+	ModelsFetch   agentdex.Fetch
 	ModelsTTL     time.Duration
 	SearchDirs    []string
 	BinPaths      map[string]string
@@ -52,11 +56,13 @@ type raw struct {
 	Catalog  struct {
 		Module string `json:"module"`
 		Dir    string `json:"dir"`
+		Fetch  string `json:"fetch"`
 		TTL    string `json:"ttl"`
 	} `json:"catalog"`
 	Models struct {
-		URL string `json:"url"`
-		TTL string `json:"ttl"`
+		URL   string `json:"url"`
+		Fetch string `json:"fetch"`
+		TTL   string `json:"ttl"`
 	} `json:"models"`
 	SearchDirs []string          `json:"search_dirs"`
 	BinPaths   map[string]string `json:"bin_paths"`
@@ -147,7 +153,8 @@ func filenameOr(name string) string {
 }
 
 // resolve turns the decoded wire shape into the typed Config: per-cache TTLs
-// under the section-then-global-then-default rule, remaining fields copied through.
+// under the section-then-global-then-default rule, fetch strings mapped,
+// remaining fields copied through.
 func resolve(r *raw) (*Config, error) {
 	catalogTTL, err := resolveTTL(r.Catalog.TTL, r.CacheTTL)
 	if err != nil {
@@ -157,16 +164,44 @@ func resolve(r *raw) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	catalogFetch, err := resolveFetch(r.Catalog.Fetch)
+	if err != nil {
+		return nil, err
+	}
+	modelsFetch, err := resolveFetch(r.Models.Fetch)
+	if err != nil {
+		return nil, err
+	}
 	return &Config{
 		CatalogModule: r.Catalog.Module,
 		CatalogDir:    r.Catalog.Dir,
+		CatalogFetch:  catalogFetch,
 		CatalogTTL:    catalogTTL,
 		ModelsURL:     r.Models.URL,
+		ModelsFetch:   modelsFetch,
 		ModelsTTL:     modelsTTL,
 		SearchDirs:    r.SearchDirs,
 		BinPaths:      r.BinPaths,
 		Color:         r.Color,
 	}, nil
+}
+
+// resolveFetch maps a config.cue fetch string to agentdex.Fetch. Empty is
+// FetchCached (schema default). An unknown value is ErrConfig; the closed schema
+// should already have rejected it.
+func resolveFetch(s string) (agentdex.Fetch, error) {
+	switch s {
+	case "", "cached":
+		return agentdex.FetchCached, nil
+	case "cache-only":
+		return agentdex.FetchCacheOnly, nil
+	case "ttl":
+		return agentdex.FetchTTL, nil
+	case "latest":
+		return agentdex.FetchLatest, nil
+	default:
+		return 0, fmt.Errorf("%w: invalid fetch %q", ErrConfig, s)
+	}
 }
 
 // resolveTTL applies section ttl, then cache_ttl, then the built-in default.

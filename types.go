@@ -165,34 +165,34 @@ type Refreshed struct {
 	Models  bool
 }
 
-// CatalogSource identifies where the agent catalog was loaded from.
-type CatalogSource int
+// CatalogOrigin identifies where the agent catalog was loaded from.
+type CatalogOrigin int
 
 const (
-	// CatalogSourceRegistry is the CUE Central Registry (or CUE_REGISTRY).
-	CatalogSourceRegistry CatalogSource = iota
-	// CatalogSourceDir is a local CUE module directory from WithCatalogDir.
-	CatalogSourceDir
+	// CatalogOriginRegistry is the CUE Central Registry (or CUE_REGISTRY).
+	CatalogOriginRegistry CatalogOrigin = iota
+	// CatalogOriginDir is a local CUE module directory from WithCatalogDir.
+	CatalogOriginDir
 )
 
-// String returns the constant name for known sources, or CatalogSource(n) for others.
-func (s CatalogSource) String() string {
+// String returns the constant name for known origins, or CatalogOrigin(n) for others.
+func (s CatalogOrigin) String() string {
 	switch s {
-	case CatalogSourceRegistry:
-		return "CatalogSourceRegistry"
-	case CatalogSourceDir:
-		return "CatalogSourceDir"
+	case CatalogOriginRegistry:
+		return "CatalogOriginRegistry"
+	case CatalogOriginDir:
+		return "CatalogOriginDir"
 	default:
-		return fmt.Sprintf("CatalogSource(%d)", int(s))
+		return fmt.Sprintf("CatalogOrigin(%d)", int(s))
 	}
 }
 
-// CatalogInfo is the identity of the loaded agent catalog. A directory source
+// CatalogInfo is the identity of the loaded agent catalog. A directory origin
 // has no version and is never stale.
 type CatalogInfo struct {
-	Source  CatalogSource
-	Dir     string // set when Source is CatalogSourceDir
-	Module  string // major-line path when Source is CatalogSourceRegistry
-	Version string // resolved version when Source is CatalogSourceRegistry
+	Origin  CatalogOrigin
+	Dir     string // set when Origin is CatalogOriginDir
+	Module  string // major-line path when Origin is CatalogOriginRegistry
+	Version string // resolved version when Origin is CatalogOriginRegistry
 	Stale   bool
 }

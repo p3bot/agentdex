@@ -176,6 +176,7 @@ func TestProvidersListWarnsWhenModelsStale(t *testing.T) {
 	idx, err := Open(
 		WithModelsURL(failingModelsURL(t)),
 		WithCacheDir(cache),
+		WithModelsFetch(FetchTTL),
 		WithModelsTTL(0),
 	)
 	if err != nil {

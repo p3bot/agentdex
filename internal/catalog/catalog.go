@@ -1,9 +1,9 @@
 // Package catalog fetches the agentdex agent catalog from the CUE Central
 // Registry, validates it by evaluating the fetched module against its bundled
-// schema, caches the resolved module version, and decodes the catalog into an
-// internal representation. The root package agentdex maps each KnownAgent into
-// its public types at detect time; this package never imports the root package,
-// keeping the dependency one-way.
+// schema, caches the resolved module version according to Fetch, and decodes
+// the catalog into an internal representation. The root package agentdex maps
+// each KnownAgent into its public types at detect time; this package never
+// imports the root package, keeping the dependency one-way.
 package catalog
 
 // Catalog is the loaded set of known agents in this package's internal
